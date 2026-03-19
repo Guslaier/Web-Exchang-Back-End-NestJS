@@ -14,17 +14,20 @@ import { Not, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { Redis } from 'ioredis';
+import Redis from 'ioredis';
 
 @Injectable()
 export class UsersService {
+  private readonly redisClient: Redis;
+
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-    private redisClient = new Redis(
+  ) {
+    this.redisClient = new Redis(
       `redis://localhost:${process.env.REDIS_PORT || 6379}`,
-    ),
-  ) {}
+    );
+  }
 
   // +++++ฟังก์ชันลงทะเบียนผู้ใช้ใหม่ โดยจะสร้างรหัสผ่านแบบสุ่มและแฮชก่อนบันทึกลงฐานข้อมูล++++++
   async register(userDto: CreateUserDto) {
