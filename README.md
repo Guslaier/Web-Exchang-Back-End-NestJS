@@ -1,98 +1,70 @@
-# Web-Exchank Backend API
+# Project Overview
 
-โปรเจกต์ API สำหรับระบบ **Web-Exchank** พัฒนาขึ้นด้วยเทคโนโลยีล่าสุด เพื่อให้มีความเร็ว ปลอดภัย และดูแลรักษาง่าย
+Web Exchange is a platform to facilitate the exchange of goods and services. This README provides necessary guidelines to set up and run the project.
 
-## เทคโนโลยีที่ใช้
-- **Framework:** NestJS (TypeScript)
-- **Database:** PostgreSQL
-- **ORM:** TypeORM
-- **Authentication:** JWT (JSON Web Token), Passport, bcrypt
-- **Infrastructure:** Docker & Docker Compose (รองรับ Hot Reload)
+## First-Time Setup Instructions
 
----
+1. **Install Dependencies**
+   ```bash
+   npm install
+   ```
 
-## ขั้นตอนการรันโปรเจกต์จาก 0 
-### ข้อกำหนดเบื้องต้น (Prerequisites)
-ก่อนเริ่ม โปรดมั่นใจว่าคุณได้ติดตั้งโปรแกรมเหล่านี้แล้ว:
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (หรือ Docker Daemon)
-- (ตัวเลือกเพิ่มเติม) Node.js (v20+) กรณีที่ต้องการรันคำสั่ง npm ในเครื่องตรงๆ
-- เครื่องมือจัดการ Database เช่น **DBeaver** หรือ **pgAdmin**
+2. **Environment Variables**
+   Create a `.env` file from the provided `.env.example` to configure your environment variables.
 
-### ขั้นตอนการเปิดใช้งานครั้งแรก
+3. **Run Docker Compose**
+   To start the application and services, run:
+   ```bash
+   docker-compose up -d --build
+   ```
+   The `docker-compose.yml` maps port **3001:3001** for the application, **5432** for the database, and **6379** for Redis.
 
-1. เปิด Terminal ในโฟลเดอร์ \`BACK\`
-2. ไม่จำเป็นต้องแก้ไฟล์ \`.env\` เพราะเราเตรียมค่าเริ่มต้นสำหรับการทำ Development ไว้พร้อมใช้งานแล้ว
+4. **Log Viewing**
+   You can view logs using:
+   ```bash
+   docker-compose logs -f
+   ```
 
-รันคำสั่งนี้เพื่อสร้างและเริ่มทำงานฐานข้อมูล (PostgreSQL) และ API Server (NestJS):
+5. **Database Connection Settings**
+   Ensure that your database connection settings are correctly configured in the `.env` file.
+
+6. **Seeding the Database**
+   To seed the database with default data, run:
+   ```bash
+   npm run seed
+   ```
+   This will execute `ts-node -r tsconfig-paths/register src/seed.ts`.
+
+7. **Stop/Reset Commands**
+   To stop and remove the containers, run:
+   ```bash
+   docker-compose down
+   ```
+   To also remove volumes for a full reset, use:
+   ```bash
+   docker-compose down -v
+   ```
+
+## Run Without Docker
+
+You can run the project without Docker using npm scripts. Ensure you meet the following prerequisites:
+- **Node.js v20+**
+
+Start the application in development mode using:
 ```bash
-docker-compose up -d --build
+npm run start:dev
 ```
 
-### ตรวจสอบการทำงานของระบบ
+## Default Seeded Admin Accounts
 
-คุณสามารถดู Log ในการทำงาน (รวมถึง Hot Reload เวลามีการแก้โค้ด) ได้ด้วยคำสั่ง:
-```bash
-docker-compose logs -f api
-```
-*(กด \`Ctrl+C\` เพื่อออกจากการดู Log)*
+The following default admin accounts are seeded in the database:
+- **Admin Account**:  
+  Email: admin@m.exchang.com  
+  Password: Admin@123  
+- **Secondary Admin Account**:  
+  Email: secadmin@m.exchang.com  
+  Password: SecAdmin@123  
 
-หากระบบเริ่มทำงานสำเร็จ คุณจะเห็นข้อความ \`Nest application successfully started\`
+## Existing Endpoints
 
-ตอนนี้ API ของคุณสามารถเข้าถึงได้แล้วที่:
-**[http://localhost:3002](http://localhost:3002)**
-
----
-
-## การเชื่อมต่อฐานข้อมูล (Database Connection)
-
-คุณสามารถดูข้อมูลที่อยู่ใน Database ผ่าน **DBeaver** หรือ **pgAdmin** ได้เลยโดยใช้ข้อมูลตั้งค่าดังนี้:
-- **Host:** \`localhost\`
-- **Port:** \`5432\`
-- **User:** \`postgres\`
-- **Password:** \`postgres\`
-- **Database:** \`web_exchank\`
-
----
-
-## การหยุดระบบ (Stop/Shutdown)
-
-เมื่อต้องการปิดการทำงานของ Container ทั้งหมด:
-```bash
-docker-compose down
-```
-
-**หมายเหตุสำคัญ:** หากคุณต้องการล้างฐานข้อมูลทิ้งทั้งหมด (Reset Database) ให้ใช้คำสั่ง:
-```bash
-docker-compose down -v
-```
-*(คำสั่งนี้จะลบ Volume ที่เก็บข้อมูล Postgres ทิ้งทั้งหมด เมื่อรัน \`up\` ครั้งหน้า จะได้ฐานข้อมูลใหม่ที่ว่างเปล่า)*
-
----
-
-## 📡 API Endpoints เบื้องต้น
-
-ระบบปัจจุบันได้เตรียมระบบสมาชิกรองรับ Authentication (ลงทะเบียน/ล็อกอิน) ไว้แล้ว:
-
-### 1. สมัครสมาชิก (Register)
-- **POST** \`/auth/register\`
-- **Body JSON:**
-  ```json
-  {
-    "email": "test@example.com",
-    "password": "password123"
-  }
-  ```
-- **Response:** \`{ "accessToken": "eyJhb..." }\`
-
-### 2. ล็อกอิน (Login)
-- **POST** \`/auth/login\`
-- **Body JSON:**
-  ```json
-  {
-    "email": "test@example.com",
-    "password": "password123"
-  }
-  ```
-- **Response:** \`{ "accessToken": "eyJhb..." }\`
-
-
+Please refer to the documentation for specific endpoints that are available in the API. Ensure to test with port **3001** if needed.
