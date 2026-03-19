@@ -21,18 +21,18 @@ async function bootstrap() {
     console.log(`🔍 พบผู้ใช้ทั้งหมด ${count} คนในระบบ`);
     if (count === 0) {
       // 4. สร้างข้อมูลเริ่มต้น
-       const passwordHash = await bcrypt.hash('Admin@123', 10);
+       const passwordHash = await bcrypt.hash(process.env.PASSWORD_ADMIN || 'Admin@123', 10);
       const defaultAdmin = userRepository.create({
-        email: 'admin@m.exchang.com',
+        email: process.env.USER_ID_ADMIN || 'admin@m.exchang.com',
         username: 'Admin',
         role: <UserDto['role']>'ADMIN',
         phoneNumber: '0000000000',
         passwordHash: passwordHash,
       });
 
-      const secAdminPasswordHash = await bcrypt.hash('SecAdmin@123', 10);
+      const secAdminPasswordHash = await bcrypt.hash(process.env.PASSWORD_SECADMIN || 'SecAdmin@123', 10);
       const secAdmin = userRepository.create({
-        email: 'secadmin@m.exchang.com',
+        email: process.env.USER_ID_SECADMIN || 'secadmin@m.exchang.com',
         username: 'SecAdmin',
         role: <UserDto['role']>'ADMIN',
         phoneNumber: '1111111111',
