@@ -17,7 +17,7 @@ Web Exchange is a platform to facilitate the exchange of goods and services. Thi
    ```bash
    docker-compose up -d --build
    ```
-   The `docker-compose.yml` maps port **3001:3001** for the application, **5432** for the database, and **6379** for Redis.
+   The `docker-compose.yml` maps port **3002:3002** for the application, **5432** for the database, and **6379** for Redis.
 
 4. **Log Viewing**
    You can view logs using:
@@ -65,6 +65,3 @@ The following default admin accounts are seeded in the database:
   Email: secadmin@m.exchang.com  
   Password: SecAdmin@123  
 
-## Existing Endpoints
-
-Please refer to the documentation for specific endpoints that are available in the API. Ensure to test with port **3001** if needed.
