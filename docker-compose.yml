@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: web-exchank-api-dev
+    ports:
+      - "3001:3001"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASS: postgres
+      DB_NAME: web_exchank
+
+      JWT_SECRET: change_this_secret
+      JWT_EXPIRES_IN: 1d
+
+      # [เพิ่มตรงนี้] บอกให้ API รู้ว่าต้องไปต่อ Redis ที่ไหน
+      REDIS_HOST: redis # ใช้ชื่อ Service ด้านล่างแทน 127.0.0.1
+      REDIS_PORT: 6379
+
+    depends_on:
+      - db
+      - redis # [เพิ่มตรงนี้] ให้รอ Redis รันเสร็จก่อน
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: web-exchank-db-dev
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: web_exchank
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: web-exchank-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_dev:/data 
+    restart: unless-stopped
+
+volumes:
+  postgres_data_dev:
+  redis_data_dev: 

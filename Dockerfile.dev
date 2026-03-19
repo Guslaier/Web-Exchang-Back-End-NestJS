@@ -1,0 +1,18 @@
+# syntax=docker/dockerfile:1
+FROM node:20-alpine
+
+WORKDIR /app
+
+# คัดลอกเฉพาะไฟล์ที่จำเป็นสำหรับติดตั้งแพ็กเกจ
+COPY package*.json ./
+
+# ติดตั้ง Dependencies ทั้งหมด (รวมถึง devDependencies)
+RUN npm install
+
+# โค้ดส่วนที่เหลือจะถูก Mount ผ่าน docker-compose
+# ดังนั้นไม่ต้อง COPY โค้ดทั้งหมดลงไปใน Image
+
+EXPOSE 3001
+
+# รันคำสั่งโหมด Development ที่รองรับ Hot Reload ของ NestJS
+CMD ["npm", "run", "start:dev"]
