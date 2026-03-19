@@ -1,67 +1,136 @@
-# Project Overview
+# 🌐 Web-Exchank Backend (API)
 
-Web Exchange is a platform to facilitate the exchange of goods and services. This README provides necessary guidelines to set up and run the project.
+## 📌 ภาพรวมงาน
 
-## First-Time Setup Instructions
+**Web-Exchank Backend API** เป็นระบบหลังบ้านสำหรับจัดการและบันทึกธุรกรรมการแลกเปลี่ยนเงินตราต่างประเทศ โดยออกแบบมาเพื่อรองรับการทำงานแบบเรียลไทม์ มีความถูกต้อง แม่นยำ และสามารถตรวจสอบย้อนหลังได้
 
-1. **Install Dependencies**
-   ```bash
-   npm install
-   ```
+จากปัญหาการทำงานแบบเดิมที่ใช้การจดบันทึกด้วยกระดาษ ทำให้เกิดความล่าช้าในการปิดยอดรายวัน และยากต่อการตรวจสอบข้อมูล ระบบนี้จึงถูกพัฒนาขึ้นเพื่อช่วยให้การจัดการธุรกรรม การคำนวณทางการเงิน และการตรวจสอบข้อมูลทำได้อย่างรวดเร็ว โปร่งใส และมีประสิทธิภาพมากยิ่งขึ้น
 
-2. **Environment Variables**
-   Create a `.env` file from the provided `.env.example` to configure your environment variables.
+Backend ทำหน้าที่เป็นศูนย์กลางของระบบในการจัดการ **Business Logic**, ประมวลผลข้อมูล และให้บริการ API สำหรับเชื่อมต่อกับระบบฝั่ง Frontend
 
-3. **Run Docker Compose**
-   To start the application and services, run:
-   ```bash
-   docker-compose up -d --build
-   ```
-   The `docker-compose.yml` maps port **3002:3002** for the application, **5432** for the database, and **6379** for Redis.
+---
 
-4. **Log Viewing**
-   You can view logs using:
-   ```bash
-   docker-compose logs -f
-   ```
+---
 
-5. **Database Connection Settings**
-   Ensure that your database connection settings are correctly configured in the `.env` file.
+### พนักงาน (Employee)
 
-6. **Seeding the Database**
-   To seed the database with default data, run:
-   ```bash
-   npm run seed
-   ```
-   This will execute `ts-node -r tsconfig-paths/register src/seed.ts`.
+* ดูรายการเคลื่อนไหวแบบเรียลไทม์
+* ทำธุรกรรมแลกเปลี่ยนเงินตรา (คำนวณอัตรา / ตรวจสอบยอดคงเหลือ)
+* บันทึกข้อมูลลูกค้าก่อนทำรายการ
+* ยกเลิก/แก้ไขรายการเมื่อเกิดข้อผิดพลาด
+* ปิดกะการทำงาน
 
-7. **Stop/Reset Commands**
-   To stop and remove the containers, run:
-   ```bash
-   docker-compose down
-   ```
-   To also remove volumes for a full reset, use:
-   ```bash
-   docker-compose down -v
-   ```
+---
 
-## Run Without Docker
+### ผู้จัดการ (Manager)
 
-You can run the project without Docker using npm scripts. Ensure you meet the following prerequisites:
-- **Node.js v20+**
+* บันทึกการโอนเงินระหว่างจุดบริการ
+* จัดการเงินทุนเข้า-ออก
+* จัดการผู้ใช้งาน (เพิ่ม / แก้ไข / ระงับบัญชี)
+* จัดการจุดให้บริการ (บูท)
+* ตรวจสอบและจัดการธุรกรรม
+* ตรวจสอบประวัติการใช้งาน (Log)
+* ปรับอัตราแลกเปลี่ยน (Manual / Auto)
+* สร้างรายงาน (รายวัน / รายบุคคล) และส่งออกเป็น PDF / Excel
 
-Start the application in development mode using:
+---
+
+## 🛠️ เทคโนโลยีที่ใช้
+
+* **Framework:** NestJS (TypeScript)
+* **Database:** PostgreSQL
+* **ORM:** TypeORM
+* **Authentication:** JWT + Passport
+* **Security:** bcrypt
+* **Cache / Queue:** Redis
+
+---
+
+## 🚀 การเริ่มต้นใช้งาน
+
+### สิ่งที่ต้องมี
+
+* Node.js (แนะนำเวอร์ชัน 20+)
+* npm i
+* Docker (แนะนำ)
+
+---
+
+### เริ่มต้นระบบ
+
+```bash
+docker-compose up -d --build
+```
+
+### พอร์ตที่ใช้งาน
+
+* Backend: `3002`
+* Database (PostgreSQL): `5432`
+* Redis: `6379`
+
+---
+
+### ดู Log
+
+```bash
+docker-compose logs -f
+```
+
+---
+
+### หยุดระบบ
+
+```bash
+docker-compose down
+```
+
+### รีเซ็ตระบบ (ลบข้อมูลทั้งหมด)
+
+```bash
+docker-compose down -v
+```
+
+---
+
+## รันแบบไม่ใช้ Docker
+
 ```bash
 npm run start:dev
 ```
 
-## Default Seeded Admin Accounts
+---
 
-The following default admin accounts are seeded in the database:
-- **Admin Account**:  
-  Email: admin@m.exchang.com  
-  Password: Admin@123  
-- **Secondary Admin Account**:  
-  Email: secadmin@m.exchang.com  
-  Password: SecAdmin@123  
+## การตั้งค่า Environment
 
+สร้างไฟล์ `.env` จาก `.env.example` และกำหนดค่าดังนี้:
+
+* Database connection
+* JWT Secret
+* Redis configuration
+* Port ของระบบ
+
+---
+
+## การ Seed ข้อมูล
+
+```bash
+npm run seed
+```
+
+---
+
+## บัญชีเริ่มต้น (สำหรับทดสอบ)
+
+> ใช้สำหรับ Development เท่านั้น
+
+* **Admin**
+
+  * Email: `admin@m.exchang.com`
+  * Password: `Admin@123`
+
+* **Secondary Admin**
+
+  * Email: `secadmin@m.exchang.com`
+  * Password: `SecAdmin@123`
+
+---
