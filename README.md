@@ -100,16 +100,13 @@ npm run seed
 ```
 
 ## บัญชีเริ่มต้น (สำหรับทดสอบ)
-
-> ใช้สำหรับ Development เท่านั้น
+> ใช้สำหรับ Development
 
 * **Admin**
-
   * Email: `admin@m.exchang.com`
   * Password: `Admin@123`
 
 * **Secondary Admin**
-
   * Email: `secadmin@m.exchang.com`
   * Password: `SecAdmin@123`
 
