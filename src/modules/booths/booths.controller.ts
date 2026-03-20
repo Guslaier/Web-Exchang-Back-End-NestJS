@@ -4,59 +4,63 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UseGuards } from '@nestjs/common';
+import { CreateBoothDto, UpdateBoothDto } from './dto/booth.dto';
 
 @Controller('booths')
 export class BoothsController {
   constructor(private readonly boothsService: BoothsService) {}
 
-  @Roles('MANAGER')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Post()
-  create() {
-    return ;
+
+  @Post('create')
+  create(@Body() createBoothDto: CreateBoothDto) {
+    return this.boothsService.create(createBoothDto);
   }
 
-  @Get()
+  @Get('find-all')
   findAll() {
-    return ;
+    return this.boothsService.findAll();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: number) {
-    return ;
+  @Get('find-one/:id')
+  findOne(@Param('id') id: string) {
+    return this.boothsService.findOne(id);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('MANAGER')
-  @Put(':id')
-  update(@Param('id') id: number) {
-    return ;
+  @Put('update/:id')
+  update(@Param('id') id: string, @Body() updateBoothDto: UpdateBoothDto) {
+    return this.boothsService.update(id, updateBoothDto);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('MANAGER')
-  @Delete(':id')
-  remove(@Param('id') id: number) {
-    return ;
+
+  @Delete('remove/:id')
+  remove(@Param('id') id: string) {
+    return this.boothsService.remove(id);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('MANAGER') 
-  @Put(':id/status')
-  setStatus(@Param('id') id: number) {
-    return ;
+
+  @Put('set-currentshift/:id')
+  setCurrentShift(@Param('id') id: string, @Body('shiftId') shiftId: string) {
+    return this.boothsService.setCurrentShift(id, shiftId);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('EMPLOYEE')
-  @Post(':id/check-in')
-  checkInUser(@Param('id') boothId: number) {
-    return ;
+  @Put('set-status/:id')
+  setStatus(@Param('id') id: string, @Body('isOpen') isOpen: boolean) {
+    return this.boothsService.setStatus(id, isOpen);
   }
 
-  @Get('current-id')
-  
-  getBoothId() {
-    return ;
+  @Put('set-deactive/:id')
+  setDeActive(@Param('id') id: string) {
+    return this.boothsService.setDeActive(id);
   }
+
+  @Put('set-reactive/:id')
+  setReActive(@Param('id') id: string) {
+    return this.boothsService.setReActive(id);
+  }
+
+  @Get('find-by-shift/:shiftId')
+  findBoothByShiftId(@Param('shiftId') shiftId: string) { 
+    return this.boothsService.findBoothByShiftId(shiftId);
+  } 
+
 }

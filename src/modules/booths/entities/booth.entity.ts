@@ -1,11 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, ManyToOne } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('booths')
 export class Booth {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ unique: true })
   name: string;
 
   @Column({ nullable: true })
@@ -14,11 +15,11 @@ export class Booth {
   @Column({ default: true })
   isActive: boolean;
 
-  @Column({ default: true })
+  @Column({ default: false })
   isOpen: boolean;
 
-  @Column()
-  curran_tShiftId: string;
+  @Column('uuid', { nullable: true ,default: null})
+  currentShiftId: string | null;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -28,4 +29,7 @@ export class Booth {
 
   @DeleteDateColumn()
   deletedAt?: Date;
+
+  @ManyToOne(() => User, user => user.id)
+  currentShift: User | null;
 }
