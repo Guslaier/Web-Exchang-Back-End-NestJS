@@ -240,17 +240,12 @@ export class UsersService {
           throw new ForbiddenException('Manager can only delete employee');
         }
       }
-      //ห้ามลบ ADMIN
-      if (user.role === 'ADMIN') {
-        throw new ForbiddenException('Cannot delete admin');
-      }
 
-      const AdminCount = await this.userRepository.count({
-        where: { role: 'ADMIN' },
-      });
-
-      if ( AdminCount <= 1) {
-        throw new ForbiddenException('Cannot delete last admin');
+      if (user.role === 'ADMIN'){
+        const AdminCount = await userRepo.count({ where: { role: 'ADMIN', id: Not(id) } });
+        if (AdminCount <= 1) {
+          throw new ForbiddenException('Cannot delete the only admin');
+        }
       }
       // 2. สร้าง String สำหรับต่อท้ายอีเมล
       // ผลลัพธ์จะได้ประมาณ: test@mail.com_deleted_1710756000
@@ -299,14 +294,14 @@ export class UsersService {
     const user = await this.userRepository.findOne({ where: { email } });
 
     if (!user) {
-      return { message: 'If email exists, reset link sent' };
+      return { message: 'If email exists, reset token sent' };
     }
     const token = crypto.randomBytes(32).toString('hex');
 
     // เก็บใน Redis (หมดอายุ 15 นาที)
     await this.redisClient.set(`reset:${token}`, user.id, 'EX', 60 * 15);
 
-    return { message: 'Reset link sent' , token }; // ในระบบจริงจะส่งอีเมลพร้อมลิงก์ที่มี token แทนการส่ง token กลับมาโดยตรง
+    return { message: 'Reset token sent' , token }; // ในระบบจริงจะส่งอีเมลพร้อมลิงก์ที่มี token แทนการส่ง token กลับมาโดยตรง
   }
 
   //+++++++++++++++++++++++++++ ฟังก์ชันรีเซ็ตรหัสผ่าน (Reset Password)+++++++++++++++++++++++++++++
