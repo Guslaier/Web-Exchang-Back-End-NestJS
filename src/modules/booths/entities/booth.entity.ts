@@ -18,7 +18,8 @@ export class Booth {
   @Column({ default: false })
   isOpen: boolean;
 
-  @Column('uuid', { nullable: true ,default: null})
+  @ManyToOne(() => User,User => User.id, { nullable: true })
+  @JoinColumn({ name: 'currentShiftId' })
   currentShiftId: string | null;
 
   @CreateDateColumn()
@@ -30,7 +31,5 @@ export class Booth {
   @DeleteDateColumn()
   deletedAt?: Date;
 
-  @ManyToOne(() => User,User => User.id, { nullable: true })
-  @JoinColumn({ name: 'currentShiftId' })
-  currentShift: User | null;
+  
 }

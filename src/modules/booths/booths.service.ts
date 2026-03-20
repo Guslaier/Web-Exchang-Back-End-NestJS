@@ -104,7 +104,7 @@ export class BoothsService {
   // การเช็คข้อมูลก่อนทำงาน และการโยน Error ที่มี Cause เพื่อให้ Frontend สามารถแยกแยะได้ง่ายขึ้น ***
   async setDeActive(id: string) {
     const booth = await this.findOne(id); 
-    if (booth.currentShift) {
+    if (booth.currentShiftId) {
       throw new ForbiddenException('Cannot deactivate booth with active shift', { cause: 'ACTIVE_SHIFT_EXISTS' });
     }
     if (booth.isOpen) {
@@ -164,7 +164,7 @@ export class BoothsService {
     const booth = await this.findOne(id);
     // ถ้า shiftId เป็น null หมายความว่าต้องการเคลียร์ current shift ออกจาก booth นี้
     if (shiftId === null) {
-      if (await this.boothRepository.update(id, { currentShift: null })) {
+      if (await this.boothRepository.update(id, { currentShiftId: null })) {
         return { message: 'Current shift cleared successfully' };
       }
       throw new BadRequestException('Failed to clear current shift', { cause: 'FAILED_TO_CLEAR_CURRENT_SHIFT' });
