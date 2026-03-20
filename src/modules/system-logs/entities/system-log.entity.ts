@@ -1,12 +1,13 @@
 import { User } from '../../users/entities/user.entity';
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToMany, ManyToOne, DeleteDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToMany, ManyToOne, DeleteDateColumn, JoinColumn } from 'typeorm';
 
 @Entity('system_logs')
 export class SystemLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @ManyToOne(()=> User) 
+  @JoinColumn({name:'userId'}) 
   userId: string;
 
   @Column()
