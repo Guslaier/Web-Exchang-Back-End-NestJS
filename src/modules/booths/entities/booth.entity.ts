@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('booths')
@@ -30,6 +30,7 @@ export class Booth {
   @DeleteDateColumn()
   deletedAt?: Date;
 
-  @ManyToOne(() => User, user => user.id)
+  @ManyToOne(() => User,User => User.id, { nullable: true })
+  @JoinColumn({ name: 'currentShiftId' })
   currentShift: User | null;
 }

@@ -64,7 +64,7 @@ export class BoothsService {
     // 1. เช็คข้อมูลเบื้องต้นก่อนเข้า Transaction (เพื่อประหยัด Resource)
     const booth = await this.boothRepository.findOne({ where: { id } });
     if (!booth) throw new BadRequestException('Booth not found');
-    if (booth.currentShiftId)
+    if (booth.currentShift)
       throw new BadRequestException('Active shift exists');
 
     // 2. เริ่มต้น Transaction
@@ -141,7 +141,7 @@ export class BoothsService {
     }
 
     if (shiftId === null) {
-      if (await this.boothRepository.update(id, { currentShiftId: null })) {
+      if (await this.boothRepository.update(id, { currentShift: null })) {
         return { message: 'Current shift cleared successfully' };
       }
       throw new BadRequestException('Failed to clear current shift');
@@ -150,6 +150,12 @@ export class BoothsService {
     const user = await this.userRepository.findOne({ where: { id: shiftId } });
     if (!user) {
       throw new BadRequestException('User not found');
+    }
+    if(!user.isActive) {
+      throw new BadRequestException('User is not active');
+    }
+    if (user.role !== 'EMPLOYEE') {
+      throw new BadRequestException('User is not a staff member');
     }
 
     if (booth.currentShiftId === shiftId) {

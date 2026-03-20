@@ -1,3 +1,4 @@
+import { UserRole } from 'index';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
 
 @Entity('users')
@@ -18,7 +19,7 @@ export class User {
   passwordHash: string;
 
   @Column()
-  role: string;
+  role: UserRole;
   
   @Column({ default: true })
   isActive: boolean;

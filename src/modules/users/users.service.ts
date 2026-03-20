@@ -249,7 +249,7 @@ export class UsersService {
         where: { role: 'ADMIN' },
       });
 
-      if (user.role === 'ADMIN' && AdminCount <= 1) {
+      if ( AdminCount <= 1) {
         throw new ForbiddenException('Cannot delete last admin');
       }
       // 2. สร้าง String สำหรับต่อท้ายอีเมล
