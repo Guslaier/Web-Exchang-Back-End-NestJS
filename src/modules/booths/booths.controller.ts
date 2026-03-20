@@ -1,9 +1,5 @@
 import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
 import { BoothsService } from './booths.service';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { UseGuards } from '@nestjs/common';
 import { CreateBoothDto, UpdateBoothDto } from './dto/booth.dto';
 
 @Controller('booths')
@@ -62,5 +58,4 @@ export class BoothsController {
   findBoothByShiftId(@Param('shiftId') shiftId: string) { 
     return this.boothsService.findBoothByShiftId(shiftId);
   } 
-
 }
