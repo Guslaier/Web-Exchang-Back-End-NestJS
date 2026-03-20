@@ -28,28 +28,28 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('MANAGER', 'ADMIN')
-  @Get('findAll')
+  @Get('find-all')
   findAll() {
     return this.usersService.findAll();
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('MANAGER', 'ADMIN')
-  @Get('/findOne/:id')
+  @Get('find-one/:id')
   findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('MANAGER', 'ADMIN')
-  @Put('/update/:id')
+  @Put('update/:id')
   update(@CurrentUser() currentUser: any,@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.update(currentUser, id, updateUserDto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('MANAGER', 'ADMIN')
-  @Delete('/remove/:id')
+  @Delete('remove/:id')
   remove(@CurrentUser() currentUser: any, @Param('id') id: string) {
     return this.usersService.remove(currentUser, id);
   }
@@ -62,14 +62,14 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('MANAGER', 'ADMIN')
-  @Put('deactivate/:id')
+  @Put('set-deactivate/:id')
   deactivate(@CurrentUser() currentUser: any, @Param('id') id: string) {
     return this.usersService.deactivate(currentUser, id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('MANAGER', 'ADMIN') // อนุญาตให้ทั้ง MANAGER และ ADMIN สามารถเรียกใช้งาน Endpoint นี้ได้
-  @Put('reactivate/:id')
+  @Roles('MANAGER', 'ADMIN')
+  @Put('set-reactivate/:id')
   reactivate(@CurrentUser() currentUser: any, @Param('id') id: string) {
     return this.usersService.reactivate(currentUser, id);
   }
