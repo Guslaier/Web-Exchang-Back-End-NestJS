@@ -244,7 +244,7 @@ export class UsersService {
       if (user.role === 'ADMIN'){
         const AdminCount = await userRepo.count({ where: { role: 'ADMIN', id: Not(id) } });
         if (AdminCount <= 1) {
-          throw new ForbiddenException('Cannot delete the only admin');
+          throw new ForbiddenException('Cannot delete the last admin user');
         }
       }
       // 2. สร้าง String สำหรับต่อท้ายอีเมล
