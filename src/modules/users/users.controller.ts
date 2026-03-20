@@ -60,6 +60,19 @@ export class UsersController {
     return this.usersService.changePassword(currentUser,  id,body.newPass, body.oldPass);
   }
 
+
+  @UseGuards(JwtAuthGuard)
+  @Roles('MANAGER', 'ADMIN')
+  @Post('request-reset-password')
+  requestResetPassword(@Body('email') email: string) {
+    return this.usersService.requestResetPassword(email);
+  }
+
+  @Post('reset-password')
+  resetPassword(@Body() body: {email: string, token: string, newPassword: string }) {
+    return this.usersService.resetPassword(body.email, body.token, body.newPassword);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('MANAGER', 'ADMIN')
   @Put('set-deactivate/:id')

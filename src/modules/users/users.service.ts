@@ -301,25 +301,26 @@ export class UsersService {
     if (!user) {
       return { message: 'If email exists, reset link sent' };
     }
-
     const token = crypto.randomBytes(32).toString('hex');
 
     // เก็บใน Redis (หมดอายุ 15 นาที)
     await this.redisClient.set(`reset:${token}`, user.id, 'EX', 60 * 15);
 
-    const resetLink = `https://yourapp.com/reset-password?token=${token}`;
-
-    console.log('RESET LINK:', resetLink);
-
-    return { message: 'Reset link sent' };
+    return { message: 'Reset link sent' , token }; // ในระบบจริงจะส่งอีเมลพร้อมลิงก์ที่มี token แทนการส่ง token กลับมาโดยตรง
   }
 
   //+++++++++++++++++++++++++++ ฟังก์ชันรีเซ็ตรหัสผ่าน (Reset Password)+++++++++++++++++++++++++++++
-  async resetPassword(token: string, newPassword: string) {
+  async resetPassword(email: string, token: string, newPassword: string) {
     const userId = await this.redisClient.get(`reset:${token}`);
 
     if (!userId) {
       throw new ForbiddenException('Invalid or expired token');
+    }
+
+    const user = await this.userRepository.findOne({ where: { id: userId, email } });
+
+    if (!user) {
+      throw new ForbiddenException('Invalid email or token');
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
