@@ -15,6 +15,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import Redis from 'ioredis';
+import {SystemLogsService} from '../system-logs/system-logs.service';
 
 @Injectable()
 export class UsersService {
@@ -24,6 +25,7 @@ export class UsersService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly dataSource: DataSource,
+    private readonly systemLogsService: SystemLogsService,
   ) {
     this.redisClient = new Redis(
       `redis://localhost:${process.env.REDIS_PORT || 6379}`,
@@ -157,6 +159,11 @@ export class UsersService {
     if (
       !(updateUserDto.role === 'MANAGER' || updateUserDto.role === 'EMPLOYEE')
     ) {
+      this.systemLogsService.createLog(currentUser, {
+        userId: currentUser.id,
+        action: `Attempted to update user with invalid role: ${updateUserDto.role}`,
+        details: `User ID: ${id}`,
+      });
       throw new NotFoundException(
         `Invalid role ${updateUserDto.role}. Role must be either 'MANAGER' or 'EMPLOYEE'.`,
       );
@@ -164,6 +171,11 @@ export class UsersService {
     // ตรวจสอบว่าผู้ใช้ที่ต้องการอัปเดตมีอยู่จริงหรือไม่
     const existingUser = await this.userRepository.findOne({ where: { id } });
     if (!existingUser) {
+      this.systemLogsService.createLog(currentUser, {
+        userId: currentUser.id,
+        action: `Attempted to update non-existent user`,
+        details: `User ID: ${id}`,
+      });
       throw new NotFoundException(`User ID ${id} not found`);
     }
     // ตรวจสอบว่ามีผู้ใช้คนอื่นที่ใช้ email เดียวกันหรือไม่ (ถ้า email ถูกเปลี่ยน)
@@ -172,6 +184,11 @@ export class UsersService {
         where: { email: updateUserDto.email, id: Not(id) },
       });
       if (emailInUse) {
+        this.systemLogsService.createLog(currentUser, {
+          userId: currentUser.id,
+          action: `Attempted to update user with email already in use: ${updateUserDto.email}`,
+          details: `User ID: ${id}`,
+        });
         throw new NotFoundException(
           `Email ${updateUserDto.email} is already in use by another user`,
         );
@@ -180,27 +197,52 @@ export class UsersService {
 
     //ห้ามแก้ตัวเอง (กัน elevate privilege)
     if (currentUser.id === id && updateUserDto.role) {
+      this.systemLogsService.createLog(currentUser, {
+        userId: currentUser.id,
+        action: `Attempted to change own role`,
+        details: `User ID: ${id}`,
+      });
       throw new ForbiddenException('You cannot change your own role');
     }
 
     //EMPLOYEE ห้ามแก้ role
     if (currentUser.role === 'EMPLOYEE') {
+      this.systemLogsService.createLog(currentUser, {
+        userId: currentUser.id,
+        action: `Attempted to update user without permission`,
+        details: `User ID: ${id}`,
+      });
       throw new ForbiddenException('No permission');
     }
 
     //MANAGER แก้ได้เฉพาะ EMPLOYEE
     if (currentUser.role === 'MANAGER') {
       if (existingUser.role !== 'EMPLOYEE') {
+        this.systemLogsService.createLog(currentUser, {
+          userId: currentUser.id,
+          action: `Attempted to update user with insufficient permission`,
+          details: `User ID: ${id}, Target Role: ${existingUser.role}`,
+        });
         throw new ForbiddenException('Manager can only update employee');
       }
 
       if (updateUserDto.role === 'MANAGER') {
+        this.systemLogsService.createLog(currentUser, {
+          userId: currentUser.id,
+          action: `Attempted to promote employee to manager`,
+          details: `User ID: ${id}`,
+        });
         throw new ForbiddenException('Manager cannot promote to manager');
       }
     }
 
     //กันแก้ ADMIN
     if (existingUser.role === 'ADMIN') {
+      this.systemLogsService.createLog(currentUser, {
+        userId: currentUser.id,
+        action: `Attempted to update admin user`,
+        details: `User ID: ${id}`,
+      });
       throw new ForbiddenException('Cannot modify admin');
     }
 
@@ -211,8 +253,18 @@ export class UsersService {
       role: updateUserDto.role,
     });
     if (res.affected === 0) {
+      this.systemLogsService.createLog(currentUser, {
+        userId: currentUser.id,
+        action: `Failed to update user`,
+        details: `User ID: ${id}`,
+      });
       throw new NotFoundException(`User ID ${id} not found`);
     }
+      this.systemLogsService.createLog(currentUser, {
+        userId: currentUser.id,
+        action: `Updated user successfully`,
+        details: `User ID: ${id}`,
+      });
     return this.findOne(id);
   }
 
