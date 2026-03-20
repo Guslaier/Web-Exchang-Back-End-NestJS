@@ -15,6 +15,7 @@ export class BoothsService {
     private readonly dataSource: DataSource,
   ) {}
 
+  //การใช้ Transaction ในการลบ Booth แบบ Soft Delete พร้อมเปลี่ยนชื่อเพื่อหลีกเลี่ยง Unique Constraint ***
   async create(createBoothDto: CreateBoothDto) {
     const existingBooth = await this.boothRepository.findOne({
       where: { name: createBoothDto.name },
@@ -33,6 +34,7 @@ export class BoothsService {
     return await this.boothRepository.find();
   }
 
+  //การเช็คข้อมูลก่อนทำงาน และการโยน Error ที่มี Cause เพื่อให้ Frontend สามารถแยกแยะได้ง่ายขึ้น ***
   async findOne(id: string) {
     const booth = await this.boothRepository.findOne({ where: { id } });
     if (!booth) {
@@ -41,11 +43,14 @@ export class BoothsService {
     return booth;
   }
 
+  //การเช็คข้อมูลก่อนทำงาน และการโยน Error ที่มี Cause เพื่อให้ Frontend สามารถแยกแยะได้ง่ายขึ้น ***
   async update(id: string, updateBoothDto: UpdateBoothDto) {
     const booth = await this.boothRepository.findOne({ where: { id } });
+    // เช็คว่ามี Booth ที่จะอัพเดตหรือไม่
     if (!booth) {
       throw new BadRequestException('Booth not found', { cause: 'BOOTH_NOT_FOUND' });
     }
+    // ถ้ามีการเปลี่ยนชื่อ ให้เช็คว่าชื่อใหม่ซ้ำกับ Booth อื่นหรือไม่
     if (updateBoothDto.name && updateBoothDto.name !== booth.name) {
       const existingBooth = await this.boothRepository.findOne({
         where: { name: updateBoothDto.name },
@@ -54,12 +59,14 @@ export class BoothsService {
         throw new BadRequestException('Booth name already exists', { cause: 'BOOTH_NAME_ALREADY_EXISTS' });
       }
     }
+    // ถ้าอัพเดตสำเร็จ ให้คืนค่า Booth ที่อัพเดตแล้วกลับไป
     if (await this.boothRepository.update(id, updateBoothDto)) {
       return this.boothRepository.findOne({ where: { id } });
     }
     return null;
   }
 
+  // การลบ Booth แบบ Soft Delete พร้อมเปลี่ยนชื่อเพื่อหลีกเลี่ยง Unique Constraint และใช้ Transaction เพื่อความปลอดภัยของข้อมูล ***
   async remove(id: string) {
     // 1. เช็คข้อมูลเบื้องต้นก่อนเข้า Transaction (เพื่อประหยัด Resource)
     const booth = await this.boothRepository.findOne({ where: { id } });
@@ -92,6 +99,8 @@ export class BoothsService {
       }
     });
   }
+
+  // การเช็คข้อมูลก่อนทำงาน และการโยน Error ที่มี Cause เพื่อให้ Frontend สามารถแยกแยะได้ง่ายขึ้น ***
   async setDeActive(id: string) {
     const booth = await this.boothRepository.findOne({ where: { id } });
     if (!booth) {
@@ -111,11 +120,16 @@ export class BoothsService {
     return { message: 'Booth deactivated successfully' };
   }
 
+
+  // การเช็คข้อมูลก่อนทำงาน และการโยน Error ที่มี Cause เพื่อให้ Frontend สามารถแยกแยะได้ง่ายขึ้น ***
   async setReActive(id: string) {
     const booth = await this.boothRepository.findOne({ where: { id } });
+
+    // เช็คว่ามี Booth ที่จะอัพเดตหรือไม่
     if (!booth) {
       throw new BadRequestException('Booth not found', { cause: 'BOOTH_NOT_FOUND' });
     }
+    // ห้ามเปลี่ยนสถานะของ Booth ที่ไม่ Active
     if (booth.isActive) {
       throw new BadRequestException('Booth is already active', { cause: 'BOOTH_ALREADY_ACTIVE' });
     }
@@ -123,20 +137,27 @@ export class BoothsService {
     return { message: 'Booth activated successfully' };
   }
 
+
+  // การเช็คข้อมูลก่อนทำงาน และการโยน Error ที่มี Cause เพื่อให้ Frontend สามารถแยกแยะได้ง่ายขึ้น ***
   async setStatus(id: string, isOpen: boolean) {
     const booth = await this.boothRepository.findOne({ where: { id } });
     if (!booth) {
       throw new BadRequestException('Booth not found', { cause: 'BOOTH_NOT_FOUND' });
     }
+
+    // ห้ามเปลี่ยนสถานะของ Booth ที่ไม่ Active
     if (!booth.isActive) {
         throw new BadRequestException('Cannot change status of inactive booth', { cause: 'BOOTH_NOT_ACTIVE' }); 
     }
+
     if (booth.isOpen === isOpen) {
       throw new BadRequestException(
         `Booth is already ${isOpen ? 'open' : 'closed'}`,
         { cause: isOpen ? 'BOOTH_ALREADY_OPEN' : 'BOOTH_ALREADY_CLOSED' }
       );
     }
+
+    // ถ้าอัพเดตสำเร็จ ให้คืนค่า Message กลับไป
     if (await this.boothRepository.update(id, { isOpen })) {
       return { message: `Booth ${isOpen ? 'opened' : 'closed'} successfully` };
     }
@@ -146,12 +167,15 @@ export class BoothsService {
     );
   }
 
+
+  // การเช็คข้อมูลก่อนทำงาน และการโยน Error ที่มี Cause เพื่อให้ Frontend สามารถแยกแยะได้ง่ายขึ้น ***
   async setCurrentShift(id: string, shiftId: string | null) {
     const booth = await this.boothRepository.findOne({ where: { id } });
     if (!booth) {
       throw new BadRequestException('Booth not found', { cause: 'BOOTH_NOT_FOUND' });
     }
 
+    // ถ้า shiftId เป็น null หมายความว่าต้องการเคลียร์ current shift ออกจาก booth นี้
     if (shiftId === null) {
       if (await this.boothRepository.update(id, { currentShift: null })) {
         return { message: 'Current shift cleared successfully' };
@@ -159,6 +183,7 @@ export class BoothsService {
       throw new BadRequestException('Failed to clear current shift', { cause: 'FAILED_TO_CLEAR_CURRENT_SHIFT' });
     }
 
+    // ถ้า shiftId ไม่ใช่ null ให้ทำการเช็คข้อมูลของ User ที่จะถูกกำหนดให้เป็น current shift
     const user = await this.userRepository.findOne({ where: { id: shiftId } });
     if (!user) {
       throw new BadRequestException('User not found', { cause: 'USER_NOT_FOUND' });
@@ -166,10 +191,12 @@ export class BoothsService {
     if(!user.isActive) {
       throw new BadRequestException('User is not active', { cause: 'USER_NOT_ACTIVE' });
     }
+    // ตรวจสอบว่า User ที่จะถูกกำหนดเป็น current shift มี Role เป็น EMPLOYEE หรือไม่
     if (user.role !== 'EMPLOYEE') {
       throw new BadRequestException('User is not a staff member', { cause: 'USER_NOT_EMPLOYEE' });
     }
 
+    // ตรวจสอบว่า User ที่จะถูกกำหนดเป็น current shift มี Booth อื่นที่กำลังทำงานอยู่หรือไม่
     if (booth.currentShiftId === shiftId) {
       throw new BadRequestException('User is already assigned to this booth', { cause: 'USER_ALREADY_ASSIGNED' });
     }
@@ -177,6 +204,7 @@ export class BoothsService {
     const alreadyAssignedBooth = await this.boothRepository.findOne({
       where: { currentShiftId: shiftId },
     });
+    // ถ้า User นี้มี Booth อื่นที่กำลังทำงานอยู่ และ Booth นั้นไม่ใช่ Booth เดิมที่กำลังอัพเดตอยู่ ให้โยน Error
     if (alreadyAssignedBooth && alreadyAssignedBooth.id !== id) {
       throw new BadRequestException(
         'User is already assigned to another booth',
@@ -184,11 +212,14 @@ export class BoothsService {
       );
     }
 
+
+    // ถ้าอัพเดตสำเร็จ ให้คืนค่า Message กลับไป
     if (await this.boothRepository.update(id, { currentShiftId: shiftId })) {
       return { message: 'User assigned to booth successfully' };
     }
     throw new BadRequestException('Failed to assign user to booth', { cause: 'FAILED_TO_ASSIGN_USER' });
   }
+
 
   async findBoothByShiftId(shiftId: string) {
     if (!shiftId) {
