@@ -389,6 +389,7 @@ export class UsersService {
     }
 
     await this.userRepository.update(id, { isActive: true });
+    
     return { message: 'User reactivated successfully' };
   }
 }
