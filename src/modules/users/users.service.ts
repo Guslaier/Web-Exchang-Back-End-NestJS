@@ -3,6 +3,8 @@ import {
   NotFoundException,
   UnauthorizedException,
   ForbiddenException,
+  BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import {
   CreateUserDto,
@@ -15,21 +17,37 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import Redis from 'ioredis';
-
+import { Inject } from '@nestjs/common';
+import { REDIS_CLIENT } from '../redis/redis.module';
 @Injectable()
 export class UsersService {
-  private readonly redisClient: Redis;
-
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly dataSource: DataSource,
-  ) {
-    this.redisClient = new Redis(
-      `redis://localhost:${process.env.REDIS_PORT || 6379}`,
-    );
-  }
+    @Inject(REDIS_CLIENT) // ใช้ @Inject แทนการ new เอง
+    private readonly redisClient: Redis,
+  ) {}
 
+  private checkPermission(currentUser: any, targetUser: User, action: string) {
+    if (targetUser.role === 'ADMIN') {
+      throw new ForbiddenException(`Cannot ${action} an ADMIN`);
+    }
+
+    if (currentUser.id === targetUser.id) {
+      throw new ForbiddenException(`You cannot ${action} yourself`);
+    }
+
+    if (currentUser.role === 'EMPLOYEE') {
+      throw new ForbiddenException(
+        'Employees have no permission for this action',
+      );
+    }
+
+    if (currentUser.role === 'MANAGER' && targetUser.role !== 'EMPLOYEE') {
+      throw new ForbiddenException('Managers can only manage Employees');
+    }
+  }
   // +++++ฟังก์ชันลงทะเบียนผู้ใช้ใหม่ โดยจะสร้างรหัสผ่านแบบสุ่มและแฮชก่อนบันทึกลงฐานข้อมูล++++++
   async register(userDto: CreateUserDto) {
     // ตรวจสอบว่าผู้ใช้มีอยู่แล้วหรือไม่
@@ -157,14 +175,14 @@ export class UsersService {
     if (
       !(updateUserDto.role === 'MANAGER' || updateUserDto.role === 'EMPLOYEE')
     ) {
-      throw new NotFoundException(
+      throw new BadRequestException(
         `Invalid role ${updateUserDto.role}. Role must be either 'MANAGER' or 'EMPLOYEE'.`,
       );
     }
     // ตรวจสอบว่าผู้ใช้ที่ต้องการอัปเดตมีอยู่จริงหรือไม่
     const existingUser = await this.userRepository.findOne({ where: { id } });
     if (!existingUser) {
-      throw new NotFoundException(`User ID ${id} not found`);
+      throw new BadRequestException(`User ID ${id} not found`);
     }
     // ตรวจสอบว่ามีผู้ใช้คนอื่นที่ใช้ email เดียวกันหรือไม่ (ถ้า email ถูกเปลี่ยน)
     if (updateUserDto.email && updateUserDto.email !== existingUser.email) {
@@ -172,7 +190,7 @@ export class UsersService {
         where: { email: updateUserDto.email, id: Not(id) },
       });
       if (emailInUse) {
-        throw new NotFoundException(
+        throw new ConflictException(
           `Email ${updateUserDto.email} is already in use by another user`,
         );
       }
@@ -224,25 +242,19 @@ export class UsersService {
       const user = await userRepo.findOne({ where: { id } });
 
       if (!user) {
-        throw new NotFoundException(`ไม่พบผู้ใช้งาน ID: ${id}`);
+        throw new BadRequestException(`ไม่พบผู้ใช้งาน ID: ${id}`);
       }
       //ห้ามลบตัวเอง
       if (currentUser.id === id) {
         throw new ForbiddenException('You cannot delete yourself');
       }
-      //EMPLOYEE ห้ามลบใคร
-      if (currentUser.role === 'EMPLOYEE') {
-        throw new ForbiddenException('No permission');
-      }
-      //MANAGER ลบได้เฉพาะ EMPLOYEE
-      if (currentUser.role === 'MANAGER') {
-        if (user.role !== 'EMPLOYEE') {
-          throw new ForbiddenException('Manager can only delete employee');
-        }
-      }
 
-      if (user.role === 'ADMIN'){
-        const AdminCount = await userRepo.count({ where: { role: 'ADMIN', id: Not(id) } });
+      this.checkPermission(currentUser, user, 'delete');
+
+      if (user.role === 'ADMIN') {
+        const AdminCount = await userRepo.count({
+          where: { role: 'ADMIN', id: Not(id) },
+        });
         if (AdminCount <= 1) {
           throw new ForbiddenException('Cannot delete the last admin user');
         }
@@ -255,37 +267,42 @@ export class UsersService {
       // 4. สั่ง Soft Delete ตามปกติได้เลย!
       const res = await userRepo.softDelete(id);
       if (res.affected === 0) {
-        throw new NotFoundException(`User ID ${id} not found`);
+        throw new BadRequestException(`User ID ${id} not found`);
       }
       return { message: `User ID ${id} removed successfully` };
     });
   }
 
   //+++++++++++++++++++++++++++ ฟังก์ชันเปลี่ยนรหัสผ่านผู้ใช้++++++++++++++++++++++++++++
+  // +++++++++++++++++++++++++++ ฟังก์ชันเปลี่ยนรหัสผ่านผู้ใช้ ++++++++++++++++++++++++++++
   async changePassword(
-    currentUser: any,
-    id: string,
+    currentUser: any, // ข้อมูลจาก JWT Strategy (User ที่ Login อยู่)
     newPassword: string,
     oldPassword: string,
   ) {
+    // 1. ดึงข้อมูล User "ของตัวเอง" เท่านั้น
     const user = await this.userRepository.findOne({
-      where: { id: currentUser.id },
+      where: { id: currentUser.id }, // ใช้ id จาก Token เท่านั้น ปลอดภัยกว่า
     });
 
     if (!user) {
-      throw new NotFoundException(`User ID ${id} not found`);
-    }
-    // เช็ครหัสเดิม
-    const isMatch = await bcrypt.compare(oldPassword, user.passwordHash);
-    if (!isMatch) {
-      throw new ForbiddenException('Old password incorrect');
+      throw new NotFoundException('User profile not found');
     }
 
-    const passwordHash = await bcrypt.hash(newPassword, 10);
-    const res = await this.userRepository.update(id, { passwordHash });
-    if (res.affected === 0) {
-      throw new NotFoundException(`User ID ${id} not found`);
+    // 2. เช็ครหัสผ่านเดิม (Old Password)
+    const isMatch = await bcrypt.compare(oldPassword, user.passwordHash);
+    if (!isMatch) {
+      // ใช้ Unauthorized หรือ Forbidden เพื่อบอกว่ารหัสผ่านเดิมไม่ถูกต้อง
+      throw new UnauthorizedException('Old password incorrect');
     }
+
+    // 3. แฮชรหัสผ่านใหม่
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(newPassword, saltRounds);
+
+    // 4. อัปเดตลงฐานข้อมูล
+    await this.userRepository.update(currentUser.id, { passwordHash });
+
     return { message: 'Password updated successfully' };
   }
 
@@ -301,7 +318,7 @@ export class UsersService {
     // เก็บใน Redis (หมดอายุ 15 นาที)
     await this.redisClient.set(`reset:${token}`, user.id, 'EX', 60 * 15);
 
-    return { message: 'Reset token sent' , token }; // ในระบบจริงจะส่งอีเมลพร้อมลิงก์ที่มี token แทนการส่ง token กลับมาโดยตรง
+    return { message: 'Reset token sent', token }; // ในระบบจริงจะส่งอีเมลพร้อมลิงก์ที่มี token แทนการส่ง token กลับมาโดยตรง
   }
 
   //+++++++++++++++++++++++++++ ฟังก์ชันรีเซ็ตรหัสผ่าน (Reset Password)+++++++++++++++++++++++++++++
@@ -309,13 +326,15 @@ export class UsersService {
     const userId = await this.redisClient.get(`reset:${token}`);
 
     if (!userId) {
-      throw new ForbiddenException('Invalid or expired token');
+      throw new UnauthorizedException('Invalid or expired token');
     }
 
-    const user = await this.userRepository.findOne({ where: { id: userId, email } });
+    const user = await this.userRepository.findOne({
+      where: { id: userId, email },
+    });
 
     if (!user) {
-      throw new ForbiddenException('Invalid email or token');
+      throw new UnauthorizedException('Invalid email or token');
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -330,29 +349,10 @@ export class UsersService {
   async deactivate(currentUser: any, id: string) {
     const user = await this.findOne(id);
 
-    if (user.role === 'ADMIN') {
-      throw new ForbiddenException('Cannot deactivate admin');
-    }
-    if (currentUser.id === id) {
-      throw new ForbiddenException('You cannot deactivate yourself');
-    }
-    if (currentUser.role === 'MANAGER') {
-      if (user.role !== 'EMPLOYEE') {
-        throw new ForbiddenException('Manager can only deactivate employee');
-      }
-    }
-    if (currentUser.role === 'MANAGER') {
-      if (user.role === 'MANAGER') {
-        throw new ForbiddenException(
-          'Manager cannot deactivate another manager',
-        );
-      }
-    }
-
     if (!user.isActive) {
       return { message: 'User is already inactive' };
     }
-
+    this.checkPermission(currentUser, user, 'deactivate');
     await this.userRepository.update(id, { isActive: false });
     return { message: 'User deactivated successfully' };
   }
@@ -360,28 +360,10 @@ export class UsersService {
   //+++++++++++++++++++++++++++ ฟังก์ชันเปิดใช้งานผู้ใช้ (Reactivate) ++++++++++++++++++++++++++++
   async reactivate(currentUser: any, id: string) {
     const user = await this.findOne(id);
-
-    if (user.role === 'ADMIN') {
-      throw new ForbiddenException('Cannot reactivate admin');
-    }
-    if (currentUser.id === id) {
-      throw new ForbiddenException('You cannot reactivate yourself');
-    }
-    if (currentUser.role === 'MANAGER') {
-      if (user.role !== 'EMPLOYEE') {
-        throw new ForbiddenException('Manager can only reactivate employee');
-      }
-    }
-    if (currentUser.role === 'MANAGER') {
-      if (user.role === 'MANAGER') {
-        throw new ForbiddenException(
-          'Manager cannot reactivate another manager',
-        );
-      }
-    }
     if (user.isActive) {
       return { message: 'User is already active' };
     }
+    this.checkPermission(currentUser, user, 'reactivate');
 
     await this.userRepository.update(id, { isActive: true });
     
