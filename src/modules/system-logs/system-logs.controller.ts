@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { SystemLogsService } from './system-logs.service';
-import { QueryDate  } from './dto/system-log.dto';
+import { QueryDateDto  } from './dto/system-log.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -18,7 +18,7 @@ export class SystemLogsController {
   @UseGuards(JwtAuthGuard , RolesGuard)
   @Roles('MANAGER' , 'ADMIN')
   @Get()
-  findAll(@CurrentUser() currentUser : any , @Query() query : QueryDate) {
+  findAll(@CurrentUser() currentUser : any , @Query() query : QueryDateDto) {
     return this.systemLogsService.getAllByDate(currentUser , query);
   }
 

@@ -15,7 +15,7 @@ export class CreateSystemLogDto {
   details?: string;
 }
 
-export class QueryDate {
+export class QueryDateDto {
   @IsDate() 
   @Type(()=>Date)
   startDate: Date ; 
