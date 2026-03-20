@@ -13,10 +13,6 @@ export class SystemLogsService {
     }
 
    async getAllByDate(currentUser : any , query : QueryDate ) {
-        const allowedRoles = ["ADMIN" , "MANAGER"] ; 
-        if(!allowedRoles.includes(currentUser.role)) {
-            throw new ForbiddenException("you are not allowed to request for logs.") ; 
-        }
 
         const logs = await this.systemLogRepo.find({
             where : {
