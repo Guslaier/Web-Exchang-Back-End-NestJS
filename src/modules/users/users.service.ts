@@ -10,7 +10,7 @@ import {
   UpdateUserDto,
 } from './dto/user.dto';
 import { User } from './entities/user.entity';
-import { Not, Repository } from 'typeorm';
+import { Not, Repository, DataSource } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -23,6 +23,7 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly dataSource: DataSource,
   ) {
     this.redisClient = new Redis(
       `redis://localhost:${process.env.REDIS_PORT || 6379}`,
@@ -63,7 +64,7 @@ export class UsersService {
     // 4. บันทึกลงฐานข้อมูล
     const savedUser = await this.userRepository.save(user);
 
-    // 5. คืนค่า User ที่บันทึกเสร็จ พร้อมกับ Raw Password 
+    // 5. คืนค่า User ที่บันทึกเสร็จ พร้อมกับ Raw Password
     return {
       user: {
         id: savedUser.id,
@@ -115,7 +116,7 @@ export class UsersService {
       ],
     });
     if (!user) {
-      throw new NotFoundException(`User ID ${id} not found`); 
+      throw new NotFoundException(`User ID ${id} not found`);
     }
     return user;
   }
@@ -135,18 +136,16 @@ export class UsersService {
       ],
     });
     if (!user) {
-      throw new NotFoundException(`User with email ${email} not found`); 
+      throw new NotFoundException(`User with email ${email} not found`);
     }
     return user;
   }
 
   async findOneWithPassword(email: string) {
-
-    // ฟังก์ชันนี้จะใช้สำหรับการตรวจสอบผู้ใช้ตอน Login เท่านั้น 
-    const user = await this.userRepository.findOne({ where: { email } }); 
+    // ฟังก์ชันนี้จะใช้สำหรับการตรวจสอบผู้ใช้ตอน Login เท่านั้น
+    const user = await this.userRepository.findOne({ where: { email } });
     if (!user) {
-
-      throw new NotFoundException(`User with email ${email} not found`); 
+      throw new NotFoundException(`User with email ${email} not found`);
     }
     return user;
   }
@@ -219,49 +218,52 @@ export class UsersService {
 
   //+++++++++++++++++++++++++++ ฟังก์ชันลบผู้ใช้ (Soft Delete)+++++++++++++++++++++++++++++++
   async remove(currentUser: any, id: string) {
-    // 1. ค้นหา User ที่ต้องการจะลบก่อน
-    const user = await this.userRepository.findOne({ where: { id } });
+    return this.dataSource.transaction(async (manager) => {
+      const userRepo = manager.getRepository(User);
+      // 1. ค้นหา User ที่ต้องการจะลบก่อน
+      const user = await userRepo.findOne({ where: { id } });
 
-    if (!user) {
-      throw new NotFoundException(`ไม่พบผู้ใช้งาน ID: ${id}`);
-    }
-    //ห้ามลบตัวเอง
-    if (currentUser.id === id) {
-      throw new ForbiddenException('You cannot delete yourself');
-    }
-    //EMPLOYEE ห้ามลบใคร
-    if (currentUser.role === 'EMPLOYEE') {
-      throw new ForbiddenException('No permission');
-    }
-    //MANAGER ลบได้เฉพาะ EMPLOYEE
-    if (currentUser.role === 'MANAGER') {
-      if (user.role !== 'EMPLOYEE') {
-        throw new ForbiddenException('Manager can only delete employee');
+      if (!user) {
+        throw new NotFoundException(`ไม่พบผู้ใช้งาน ID: ${id}`);
       }
-    }
-    //ห้ามลบ ADMIN
-    if (user.role === 'ADMIN') {
-      throw new ForbiddenException('Cannot delete admin');
-    }
+      //ห้ามลบตัวเอง
+      if (currentUser.id === id) {
+        throw new ForbiddenException('You cannot delete yourself');
+      }
+      //EMPLOYEE ห้ามลบใคร
+      if (currentUser.role === 'EMPLOYEE') {
+        throw new ForbiddenException('No permission');
+      }
+      //MANAGER ลบได้เฉพาะ EMPLOYEE
+      if (currentUser.role === 'MANAGER') {
+        if (user.role !== 'EMPLOYEE') {
+          throw new ForbiddenException('Manager can only delete employee');
+        }
+      }
+      //ห้ามลบ ADMIN
+      if (user.role === 'ADMIN') {
+        throw new ForbiddenException('Cannot delete admin');
+      }
 
-    const AdminCount = await this.userRepository.count({
-      where: { role: 'ADMIN' },
+      const AdminCount = await this.userRepository.count({
+        where: { role: 'ADMIN' },
+      });
+
+      if (user.role === 'ADMIN' && AdminCount <= 1) {
+        throw new ForbiddenException('Cannot delete last admin');
+      }
+      // 2. สร้าง String สำหรับต่อท้ายอีเมล
+      // ผลลัพธ์จะได้ประมาณ: test@mail.com_deleted_1710756000
+      const mutatedEmail = `${user.email}_deleted_${Date.now()}`;
+      // 3. อัปเดตอีเมลใหม่ลงไปใน Database
+      await userRepo.update(id, { email: mutatedEmail });
+      // 4. สั่ง Soft Delete ตามปกติได้เลย!
+      const res = await userRepo.softDelete(id);
+      if (res.affected === 0) {
+        throw new NotFoundException(`User ID ${id} not found`);
+      }
+      return { message: `User ID ${id} removed successfully` };
     });
-
-    if (user.role === 'ADMIN' && AdminCount <= 1) {
-      throw new ForbiddenException('Cannot delete last admin');
-    }
-    // 2. สร้าง String สำหรับต่อท้ายอีเมล 
-    // ผลลัพธ์จะได้ประมาณ: test@mail.com_deleted_1710756000
-    const mutatedEmail = `${user.email}_deleted_${Date.now()}`;
-    // 3. อัปเดตอีเมลใหม่ลงไปใน Database
-    await this.userRepository.update(id, { email: mutatedEmail });
-    // 4. สั่ง Soft Delete ตามปกติได้เลย!
-    const res = await this.userRepository.softDelete(id);
-    if (res.affected === 0) {
-      throw new NotFoundException(`User ID ${id} not found`);
-    }
-    return { message: `User ID ${id} removed successfully` };
   }
 
   //+++++++++++++++++++++++++++ ฟังก์ชันเปลี่ยนรหัสผ่านผู้ใช้++++++++++++++++++++++++++++
@@ -345,7 +347,9 @@ export class UsersService {
     }
     if (currentUser.role === 'MANAGER') {
       if (user.role === 'MANAGER') {
-        throw new ForbiddenException('Manager cannot deactivate another manager');
+        throw new ForbiddenException(
+          'Manager cannot deactivate another manager',
+        );
       }
     }
 
@@ -374,7 +378,9 @@ export class UsersService {
     }
     if (currentUser.role === 'MANAGER') {
       if (user.role === 'MANAGER') {
-        throw new ForbiddenException('Manager cannot reactivate another manager');
+        throw new ForbiddenException(
+          'Manager cannot reactivate another manager',
+        );
       }
     }
     if (user.isActive) {
