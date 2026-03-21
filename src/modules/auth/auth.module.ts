@@ -10,6 +10,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ConfigModule } from '@nestjs/config';
 import configuration from '../../config/configuration';
+import { RedisModule } from '../redis/redis.module';
+import { SystemLogsModule } from '../system-logs/system-logs.module';
 
 
 @Module({
@@ -25,6 +27,8 @@ import configuration from '../../config/configuration';
         signOptions: { expiresIn: '1h' },
       }),
     }),
+    RedisModule,
+    SystemLogsModule, 
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

@@ -256,7 +256,7 @@ export class UsersService {
           where: { role: 'ADMIN', id: Not(id) },
         });
         if (AdminCount <= 1) {
-          throw new ForbiddenException('Cannot delete the only admin');
+          throw new ForbiddenException('Cannot delete the last admin user');
         }
       }
       // 2. สร้าง String สำหรับต่อท้ายอีเมล
@@ -366,6 +366,7 @@ export class UsersService {
     this.checkPermission(currentUser, user, 'reactivate');
 
     await this.userRepository.update(id, { isActive: true });
+    
     return { message: 'User reactivated successfully' };
   }
 }

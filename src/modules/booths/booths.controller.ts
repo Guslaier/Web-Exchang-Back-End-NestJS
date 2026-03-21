@@ -1,62 +1,82 @@
-import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { BoothsService } from './booths.service';
+import { CreateBoothDto, UpdateBoothDto } from './dto/booth.dto';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { UseGuards } from '@nestjs/common';
+import { RolesGuard } from '../../common/guards/roles.guard';
 
 @Controller('booths')
 export class BoothsController {
   constructor(private readonly boothsService: BoothsService) {}
 
-  @Roles('MANAGER')
+
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Post()
-  create() {
-    return ;
+  @Roles('ADMIN', 'MANAGER')
+  @Post('create')
+  create(@CurrentUser() user: any, @Body() createBoothDto: CreateBoothDto) {
+    return this.boothsService.create(user,createBoothDto);
   }
 
-  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Get('find-all')
   findAll() {
-    return ;
+    return this.boothsService.findAll();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: number) {
-    return ;
-  }
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('MANAGER')
-  @Put(':id')
-  update(@Param('id') id: number) {
-    return ;
+  @UseGuards(JwtAuthGuard)
+  @Get('find-one/:id')
+  findOne(@Param('id') id: string) {
+    return this.boothsService.findOne(id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('MANAGER')
-  @Delete(':id')
-  remove(@Param('id') id: number) {
-    return ;
+  @Roles('ADMIN', 'MANAGER')
+  @Put('update/:id')
+  update(@CurrentUser() user: any, @Param('id') id: string, @Body() updateBoothDto: UpdateBoothDto) {
+    return this.boothsService.update(user, id, updateBoothDto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('MANAGER') 
-  @Put(':id/status')
-  setStatus(@Param('id') id: number) {
-    return ;
+  @Roles('ADMIN', 'MANAGER')
+  @Delete('remove/:id')
+  remove(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.boothsService.remove(user, id);
+  }
+
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Put('set-currentshift/:id')
+  setCurrentShift(@CurrentUser() user: any, @Param('id') id: string, @Body('shiftId') shiftId: string) {
+    return this.boothsService.setCurrentShift(user, id, shiftId);
+  }
+
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Put('set-status/:id')
+  setStatus(@CurrentUser() user: any, @Param('id') id: string, @Body('isOpen') isOpen: boolean) {
+    return this.boothsService.setStatus(user, id, isOpen);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('set-deactive/:id')
+  setDeActive(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.boothsService.setDeActive(user, id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('EMPLOYEE')
-  @Post(':id/check-in')
-  checkInUser(@Param('id') boothId: number) {
-    return ;
+  @Roles('ADMIN', 'MANAGER')
+  @Put('set-reactive/:id')
+  setReActive(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.boothsService.setReActive(user,id);
   }
 
-  @Get('current-id')
-  
-  getBoothId() {
-    return ;
-  }
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Get('find-by-shift/:shiftId')
+  findBoothByShiftId(@CurrentUser() user: any, @Param('shiftId') shiftId: string) { 
+    return this.boothsService.findBoothByShiftId(shiftId);
+  } 
 }
