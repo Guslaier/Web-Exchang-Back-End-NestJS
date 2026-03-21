@@ -1,11 +1,18 @@
+// currencies/currencies.module.ts
 import { Module } from '@nestjs/common';
-import { CurrenciesService } from './currencies.service';
-import { CurrenciesController } from './currencies.controller';
+import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { CurrenciesService } from './currencies.service';
 import { Currency } from './entities/currency.entity';
+import { SystemLogsModule } from '../system-logs/system-logs.module';
+import { CurrenciesController } from './currencies.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Currency])],
+  imports: [
+    TypeOrmModule.forFeature([Currency]),
+    HttpModule, // เพื่อใช้ HttpService
+    SystemLogsModule,
+  ],
   controllers: [CurrenciesController],
   providers: [CurrenciesService],
   exports: [CurrenciesService],
