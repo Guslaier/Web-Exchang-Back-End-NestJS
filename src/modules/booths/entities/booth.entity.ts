@@ -1,5 +1,16 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
+  ManyToOne,
+  OneToOne,
+  JoinColumn,
+} from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { UUID } from 'crypto';
 
 @Entity('booths')
 export class Booth {
@@ -18,8 +29,12 @@ export class Booth {
   @Column({ default: false })
   isOpen: boolean;
 
-  @Column('uuid', { nullable: true ,default: null})
+  @Column({ nullable: true , type: 'uuid' })
   currentShiftId: string | null;
+
+  @ManyToOne(() => User, (User) => User.id, { nullable: true })
+  @JoinColumn({ name: 'currentShiftId' })
+  currentShift: User | null;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -29,8 +44,4 @@ export class Booth {
 
   @DeleteDateColumn()
   deletedAt?: Date;
-
-  @ManyToOne(() => User,User => User.id, { nullable: true })
-  @JoinColumn({ name: 'currentShiftId' })
-  currentShift: User | null;
 }

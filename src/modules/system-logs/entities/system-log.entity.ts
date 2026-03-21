@@ -6,9 +6,9 @@ export class SystemLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(()=> User) 
+  @ManyToOne(()=> User, { nullable: true }) 
   @JoinColumn({name:'userId'}) 
-  userId: string;
+  userId: string | null;
 
   @Column()
   action: string;
