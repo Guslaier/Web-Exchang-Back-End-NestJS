@@ -22,8 +22,8 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard) // ใช้ Guards ทั้ง JWT และ Roles เพื่อป้องกันการเข้าถึง Endpoint นี้
   @Roles('MANAGER', 'ADMIN') // จำกัดเฉพาะผู้ใช้ที่มี Role เป็น 'MANAGER' หรือ 'ADMIN' เท่านั้นที่สามารถเข้าถึง Endpoint นี้ได้
   @Post('register')
-  register(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.register(createUserDto);
+  create(@Body() createUserDto: CreateUserDto) {
+    return this.usersService.create(createUserDto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -34,7 +34,6 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('MANAGER', 'ADMIN')
   @Get('find-one/:id')
   findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
@@ -64,11 +63,11 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @Roles('MANAGER', 'ADMIN')
   @Post('request-reset-password')
-  requestResetPassword(@Body('email') email: string) {
-    return this.usersService.requestResetPassword(email);
+  requestResetPassword(@CurrentUser() currentUser: any, @Body('email') email: string,@Body('id') id: string) {
+    return this.usersService.requestResetPassword(currentUser, email, id); // ใช้ email เป็น id ชั่วคราวสำหรับการส่ง token reset password
   }
 
-  @Post('reset-password')
+  @Put('reset-password')
   resetPassword(@Body() body: {email: string, token: string, newPassword: string }) {
     return this.usersService.resetPassword(body.email, body.token, body.newPassword);
   }
