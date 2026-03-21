@@ -1,86 +1,115 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import Redis from 'ioredis';
 import { LoginDto } from './dto/login.dto';
-
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { UsersService } from '../users/users.service';
+import { SystemLogsService } from '../system-logs/system-logs.service';
+import { DataSource } from 'typeorm';
+import { UserRole } from 'index';
 
 @Injectable()
 export class AuthService {
-  // เชื่อมต่อ Redis (ในการใช้งานจริง ควรดึง URL จาก .env)
-  private redisClient = new Redis(
-    `redis://localhost:${process.env.REDIS_PORT || 6379}`,
-  );
-
   constructor(
     private jwtService: JwtService,
     private usersService: UsersService,
+    private dataSource: DataSource,
+    @Inject(SystemLogsService)
+    private readonly systemLogsService: SystemLogsService,
+    @Inject('REDIS_CLIENT') 
+    private readonly redisClient: Redis,
   ) {}
 
+  // ตรวจสอบรหัสผ่าน
   async validateUser(email: string, password: string): Promise<any> {
-    const user = await this.usersService.findOneWithPassword(email);
-    if (!user || !user.passwordHash) {
-      return null;
-    }
-    const checkPassword = await bcrypt.compare(password, user.passwordHash);
-    if (checkPassword) {
-      const { passwordHash, ...result } = user;
+    try {
+      const user = await this.usersService.findOneWithPassword(email);
+      if (!user || !user.passwordHash) return null;
 
-      return result;
+      const isMatch = await bcrypt.compare(password, user.passwordHash);
+      if (isMatch) {
+        const { passwordHash, ...result } = user;
+        return result;
+      }
+    } catch (error) {
+      return null;
     }
     return null;
   }
 
-  // ระบบlogin ที่จะรับข้อมูล username และ password
-
-  async login(loginDto: LoginDto) {
+  // ระบบ Login พร้อม Transaction Log
+  async login(loginDto: LoginDto, ip: string = 'Unknown IP') {
     // 1. ตรวจสอบข้อมูลผู้ใช้
-
     const validatedUser = await this.validateUser(
       loginDto.email,
       loginDto.password,
     );
 
-    // 2. หากข้อมูลไม่ถูกต้อง ให้โยนข้อผิดพลาด
-
+    // กรณี Login ล้มเหลว
     if (!validatedUser) {
+      await this.systemLogsService.createLog(null, {
+        userId: null,
+        action: 'LOGIN_FAILED',
+        details: `Invalid credentials for email: ${loginDto.email}`,
+      });
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // ตรวจสอบว่าบัญชีผู้ใช้ถูกปิดใช้งานหรือไม่
+    // ตรวจสอบสถานะบัญชี
     if (!validatedUser.isActive) {
+      await this.systemLogsService.createLog(validatedUser, {
+        userId: validatedUser.id,
+        action: 'LOGIN_FAILED',
+        details: `Account deactivated: ${validatedUser.email}`,
+      });
       throw new UnauthorizedException('User account is deactivated');
     }
 
-    // 3. สร้าง Payload สำหรับ JWT โดยจะเก็บข้อมูลที่จำเป็น เช่น email, id, role และ jti (JWT ID สำหรับแบน token)
-    const payload = {
-      email: validatedUser.email,
-      id: validatedUser.id,
-      role: validatedUser.role,
-      jti: crypto.randomUUID(), // JWT ID สำหรับใช้ในการแบน token
-    };
+    // 2. ใช้ Transaction คลุมการสร้าง Token และ Log (เพื่อความชัวร์ว่า Log ต้องถูกบันทึก)
+    return await this.dataSource.transaction(async (manager) => {
+      const jti = crypto.randomUUID();
+      const payload = {
+        email: validatedUser.email,
+        id: validatedUser.id,
+        role: validatedUser.role as UserRole,
+        jti,
+      };
 
-    // 4. สร้างและส่งกลับ access token โดยใช้ JwtService
+      const accessToken = this.jwtService.sign(payload);
 
-    return {
-      access_token: this.jwtService.sign(payload),
-      user: validatedUser, // ส่งข้อมูลผู้ใช้ที่ได้รับการตรวจสอบแล้วกลับไปด้วย (ไม่รวม passwordHash)
-    };
+      // บันทึก Log สำเร็จลง DB ผ่าน manager
+      await this.systemLogsService.createLog(
+        validatedUser,
+        {
+          userId: validatedUser.id,
+          action: 'LOGIN_SUCCESS',
+          details: `User logged in from IP: ${ip}`,
+        },
+        manager
+      );
+
+      return {
+        access_token: accessToken,
+        user: validatedUser,
+      };
+    });
   }
 
+  // ระบบ Logout พร้อม Blacklist และ Log
   async logout(token: string) {
-    // 1. ถอดรหัส Token เพื่อดูข้อมูลข้างใน (โดยไม่เช็ค signature เพราะแค่จะดูเวลาหมดอายุ)
     const decoded: any = this.jwtService.decode(token);
-    console.log('Decoded JWT:', decoded);
-    if (decoded && decoded.exp) {
-      // 2. คำนวณเวลาที่เหลืออยู่ (เป็นวินาที)
+
+    if (!decoded || !decoded.jti) {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    return await this.dataSource.transaction(async (manager) => {
+      // 1. คำนวณเวลาที่เหลือเพื่อลง Redis Blacklist
       const currentTimeInSeconds = Math.floor(Date.now() / 1000);
       const remainingTime = decoded.exp - currentTimeInSeconds;
 
-      // 3. ถ้าเวลายังเหลือ ให้เก็บลง Redis
       if (remainingTime > 0) {
-        // คำสั่ง set(key, value, 'EX', เวลาวินาที) -> 'EX' คือ Expire Time (TTL)
         await this.redisClient.set(
           `blacklist:${decoded.jti}`,
           'true',
@@ -88,14 +117,25 @@ export class AuthService {
           remainingTime,
         );
       }
-    }
-    return { message: 'Logged out successfully' };
+
+      // 2. บันทึก Log การ Logout ลง DB
+      await this.systemLogsService.createLog(
+        { id: decoded.id },
+        {
+          userId: decoded.id,
+          action: 'LOGOUT_SUCCESS',
+          details: `Session terminated (JTI: ${decoded.jti})`,
+        },
+        manager
+      );
+
+      return { message: 'Logged out successfully' };
+    });
   }
 
-  // ฟังก์ชันให้ Strategy เรียกเช็ค
+  // เช็ค Blacklist จาก Redis
   async isTokenBlacklisted(jti: string): Promise<boolean> {
-    // ไปหาใน Redis ว่ามี Key นี้ไหม
     const result = await this.redisClient.get(`blacklist:${jti}`);
-    return result === 'true'; // ถ้าเจอแปลว่าโดนแบน
+    return result === 'true';
   }
 }

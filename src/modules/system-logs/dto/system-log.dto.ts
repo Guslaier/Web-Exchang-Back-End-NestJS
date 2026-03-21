@@ -4,7 +4,7 @@ import { Type } from 'class-transformer';
 export class CreateSystemLogDto {
   @IsString()
   @IsNotEmpty()
-  userId: string;
+  userId: string | null;
 
   @IsString()
   @IsNotEmpty()
