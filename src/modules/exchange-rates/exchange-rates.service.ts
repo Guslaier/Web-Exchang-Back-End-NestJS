@@ -24,7 +24,7 @@ export class ExchangeRatesService {
     private readonly dataSource: DataSource,
   ) {}
 
-  // // บันทึก Log ลง Database
+  // บันทึก Log ลง Database
   private async log(
     user: any,
     action: string,
@@ -42,8 +42,7 @@ export class ExchangeRatesService {
     );
   }
 
-  // // คำนวณสูตรคณิตศาสตร์ (MathJS)
-  // // คำนวณสูตรคณิตศาสตร์ (MathJS)
+  // คำนวณสูตรคณิตศาสตร์ (MathJS)
   private async MathjsFormula(
     formula: string,
     baseValue: number,
@@ -66,7 +65,7 @@ export class ExchangeRatesService {
         throw new Error('Invalid calculation result (Infinity or NaN)');
       }
 
-      // 2. 🛡️ ป้องกัน Numeric Overflow (Precision 15, Scale 4)
+      // 2.ป้องกัน Numeric Overflow (Precision 15, Scale 4)
       // เลขหน้าทศนิยมสูงสุดคือ 11 หลัก (99,999,999,999)
       const MAX_DB_VALUE = 99999999999.9999;
       if (Math.abs(finalValue) > MAX_DB_VALUE) {
@@ -92,7 +91,7 @@ export class ExchangeRatesService {
   ): Promise<void> {
     const repo = manager.getRepository(ExchangeRate);
 
-    // // สร้างเรทมาตรฐาน (Standard) โดยใช้ค่า BASE (เรทแม่ตรงๆ)
+    // สร้างเรทมาตรฐาน (Standard) โดยใช้ค่า BASE (เรทแม่ตรงๆ)
     const defaultSubRate = repo.create({
       name: `${currency.code}`,
       currencyId: currency.id,
@@ -111,7 +110,7 @@ export class ExchangeRatesService {
       `Created default sub-rate for ${currency.code} with Name: ${defaultSubRate.name} id: ${defaultSubRate.id}`,
     );
   }
-  // // อัปเดตเรทลูกตามเรทแม่ (Sync BOT)
+  // อัปเดตเรทลูกตามเรทแม่ (Sync BOT)
   async updateRatesForCurrency(
     manager: EntityManager,
     currency: Currency,
@@ -137,7 +136,7 @@ export class ExchangeRatesService {
     }
   }
 
-  // // อัปเดตเรททั้งหมดในระบบ (Bulk Sync)
+  // อัปเดตเรททั้งหมดในระบบ (Bulk Sync)
   async updateRateAll(user?: any): Promise<void> {
     const currencies = await this.exchangeRateRepo.manager.find(Currency);
     await this.exchangeRateRepo.manager.transaction(async (manager) => {
@@ -205,7 +204,7 @@ ${JSON.stringify(r.updated)}`).join(', ')}
     });
   }
 
-  // // สร้างเรทใหม่ (พร้อมเช็คขอบเขตและสูตร)
+  // สร้างเรทใหม่ (พร้อมเช็คขอบเขตและสูตร)
   async create(user: any, data: Partial<ExchangeRate>): Promise<ExchangeRate> {
     if (!data.currencyId)
       throw new BadRequestException('currencyId is required');
@@ -215,14 +214,14 @@ ${JSON.stringify(r.updated)}`).join(', ')}
     });
     if (!currency) throw new NotFoundException('Currency not found');
 
-    // // เช็ค Range ไม่ให้ทับกัน และเช็ค Syntax ของสูตร
+    // เช็ค Range ไม่ให้ทับกัน และเช็ค Syntax ของสูตร
     await this.validateRange(
       currency.id,
       data.range_start || 0,
       data.range_stop || 999999,
     );
 
-    // // ถ้าไม่มีสูตรให้ตั้งเป็น BASE (เรทแม่ตรงๆ)
+    // ถ้าไม่มีสูตรให้ตั้งเป็น BASE (เรทแม่ตรงๆ)
     this.validateFormulaSyntax(data.formula_buy || 'BASE');
     this.validateFormulaSyntax(data.formula_sell || 'BASE');
     const formulaVal = await this.validateFormulas(
@@ -250,7 +249,7 @@ ${JSON.stringify(r.updated)}`).join(', ')}
     return saved;
   }
 
-  // // แก้ไขเรท (เช็คขอบเขตใหม่และคำนวณเรทใหม่)
+  // แก้ไขเรท (เช็คขอบเขตใหม่และคำนวณเรทใหม่)
   async update(user: any, id: string, data: Partial<ExchangeRate>): Promise<any> {
     const target = await this.exchangeRateRepo.findOne({
       where: { id },
