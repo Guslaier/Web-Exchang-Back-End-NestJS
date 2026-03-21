@@ -18,6 +18,7 @@ import { ExclusiveExchangeRatesModule } from './modules/exclusive-exchange-rates
 import { ShiftStocksReportModule } from './modules/shift-stocks-report/shift-stocks-report.module';
 import { ShiftThaiCashReportModule } from './modules/shift-thai-cash-report/shift-thai-cash-report.module';
 import { SystemLogsModule } from './modules/system-logs/system-logs.module';
+import { RedisModule } from './modules/redis/redis.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { SystemLogsModule } from './modules/system-logs/system-logs.module';
     ShiftStocksReportModule,
     ShiftThaiCashReportModule,
     SystemLogsModule,
+    RedisModule,
   ],
 })
 export class AppModule {}
