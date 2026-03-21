@@ -93,6 +93,7 @@ export class CurrenciesService implements OnModuleInit {
     // +++++++++++++++++++++++++++ 2. Auto Update All (BOT API) ++++++++++++++++++++++++++++
     async updateAutoRateAll(): Promise<boolean> {
         try {
+            let SynUpdataData: { code: string; buy: number; sell: number }[]    = [];
             const today = new Date().toISOString().split('T')[0];
             const dateRes = await firstValueFrom(this.httpService.get(this.baseUrl, {
                 params: { start_period: today, end_period: today },
@@ -126,6 +127,7 @@ export class CurrenciesService implements OnModuleInit {
                     if (existing) {
                         // อัปเดตเฉพาะโหมด AUTO หรือตัวที่ยังไม่เคยมีต้นกำเนิดจาก BOT
                         if (existing.updateMode === UpdateMode.AUTO || !existing.hasInitialBotData) {
+                            SynUpdataData.push({ code, buy, sell });
                             await repo.update({ code }, {
                                 buyRate: buy, sellRate: sell,
                                 hasInitialBotData: true, updatedAt: new Date()
@@ -142,7 +144,7 @@ export class CurrenciesService implements OnModuleInit {
                 await this.systemLogsService.createLog(null, {
                     userId: null, // หรือใส่ userId จริงถ้ามี context
                     action: 'CURRENCY_AUTO_UPDATE_ALL_SUCCESS',
-                    details: `Synced from BOT for date: ${lastUpdated} details: ${detailRates.map((r: any) => r.currency_id + '(b/s): ' + parseFloat(r.buying_transfer).toFixed(4) + '/' + parseFloat(r.selling).toFixed(4)).join(', ')}   `,
+                    details: `Synced from BOT for date: ${lastUpdated} details: ${SynUpdataData?.map((r: any) => r.code + '(b/s): ' + r.buy.toFixed(4) + '/' + r.sell.toFixed(4)).join(', ') || "No data in mode AUTO"} `,
                 }, manager);
             });
 
@@ -263,6 +265,9 @@ export class CurrenciesService implements OnModuleInit {
                 details: `All currencies update mode changed to: ${mode}`,
             }, manager);
 
+            if (mode === UpdateMode.AUTO) {
+                this.updateAutoRateAll(); // พยายามอัปเดตทันทีถ้าเปลี่ยนเป็น AUTO
+            }
             return await repo.find({ order: { code: 'ASC' } });
         });
     }
