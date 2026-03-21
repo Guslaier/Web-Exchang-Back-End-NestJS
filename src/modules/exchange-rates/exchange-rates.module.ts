@@ -3,9 +3,10 @@ import { ExchangeRatesController } from './exchange-rates.controller';
 import { ExchangeRatesService } from './exchange-rates.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ExchangeRate } from './entities/exchange-rate.entity';
+import { SystemLogsModule } from '../system-logs/system-logs.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ExchangeRate])],
+  imports: [TypeOrmModule.forFeature([ExchangeRate]), SystemLogsModule],
   controllers: [ExchangeRatesController],
   providers: [ExchangeRatesService],
   exports: [ExchangeRatesService],

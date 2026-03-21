@@ -6,12 +6,14 @@ import { CurrenciesService } from './currencies.service';
 import { Currency } from './entities/currency.entity';
 import { SystemLogsModule } from '../system-logs/system-logs.module';
 import { CurrenciesController } from './currencies.controller';
+import { ExchangeRatesModule } from '../exchange-rates/exchange-rates.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Currency]),
     HttpModule, // เพื่อใช้ HttpService
     SystemLogsModule,
+    ExchangeRatesModule,
   ],
   controllers: [CurrenciesController],
   providers: [CurrenciesService],
