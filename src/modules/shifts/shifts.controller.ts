@@ -1,35 +1,24 @@
-import { Controller, Post, Get, Put, Delete, Param, Body } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { ShiftsService } from './shifts.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('shifts')
 export class ShiftsController {
-  constructor(private readonly shiftsService: ShiftsService) {}
+  constructor(
+    private readonly shiftsService: ShiftsService , 
+          
+  ) 
+  {}
 
+  @UseGuards(JwtAuthGuard , RolesGuard) 
+  @Roles("EMPLOYEE")
   @Post()
-  create() {
-    return ;
+  create(@CurrentUser() currentUser : any) {
+    return  this.shiftsService.openShift(currentUser) ; 
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return ;
-  }
-
-  @Get()
-  findAll() {
-    return ;
-  }
-
-  @Put(':id')
-  update(@Param('id') id: string) {
-    return ;
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return ;
-  }
+ 
 }
