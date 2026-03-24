@@ -16,7 +16,7 @@ export class ShiftsController {
   @UseGuards(JwtAuthGuard , RolesGuard) 
   @Roles("EMPLOYEE")
   @Post()
-  create(@CurrentUser() currentUser : any) {
+  open(@CurrentUser() currentUser : any) {
     return  this.shiftsService.openShift(currentUser) ; 
   }
 
