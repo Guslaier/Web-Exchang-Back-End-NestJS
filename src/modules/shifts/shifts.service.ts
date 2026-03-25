@@ -3,7 +3,7 @@ import { BoothsService } from '../../modules/booths/booths.service';
 import { NotFoundError } from 'rxjs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Shift } from './entities/shift.entity';
-import { IsNull, Repository } from 'typeorm';
+import { CannotAttachTreeChildrenEntityError, IsNull, Repository } from 'typeorm';
 import {SystemLogsService } from '../../modules/system-logs/system-logs.service';
 import { get } from 'http';
 import { error } from 'console';
@@ -100,5 +100,20 @@ export class ShiftsService {
     private async getActiveShiftByUserId (userId : string) {
             return  await this.shiftRepository.findOne({where : {userId : userId , endTime : IsNull()}}) ; 
     }
-    
+
+    private async createCacheSummaryShift(shiftId : string) {
+        try {
+            const cacheSummary =  await this.redisClient.pipeline().hset(shiftId , { 
+                total_recieve : 0 , 
+                total_exchange : 0 , 
+                balance : 0 
+            }).expire(shiftId , 60 * 60 * 12) ;
+            
+            await this.log(null , 'CREATE_CACHE_SHIFT_SUCCESS' , '') ; 
+        }
+        catch(error) {
+            await this.log(null , 'CREATE_CACHE_SHIFT_FAILED' , '' )
+        }
+        
+    }    
 }
