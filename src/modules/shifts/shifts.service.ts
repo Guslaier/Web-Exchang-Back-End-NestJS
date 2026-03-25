@@ -3,7 +3,7 @@ import { BoothsService } from '../../modules/booths/booths.service';
 import { NotFoundError } from 'rxjs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Shift } from './entities/shift.entity';
-import { CannotAttachTreeChildrenEntityError, IsNull, Repository, DataSource } from 'typeorm';
+import { CannotAttachTreeChildrenEntityError, IsNull, Repository, DataSource, EntityManager } from 'typeorm';
 import { SystemLogsService } from '../../modules/system-logs/system-logs.service';
 import { get } from 'http';
 import { error } from 'console';
@@ -29,6 +29,7 @@ export class ShiftsService {
         user: any,
         action: string,
         details: string,
+        manager ?: EntityManager 
     ) {
         await this.systemLogsService.createLog(
             user,
@@ -42,10 +43,10 @@ export class ShiftsService {
 
 
     async openShift(currentUser: any) {
-        return await this.dataSource.transaction(async () => {
+        return await this.dataSource.transaction(async (manager) => {
             const booth = await this.boothService.findBoothByShiftId(currentUser.id);
             if (!booth) {
-                await this.log(currentUser, "open shift FAILED", "not found booth for this employee");
+                await this.log(currentUser, "open shift FAILED", "not found booth for this employee" , manager);
                 throw new NotFoundException("your booth work is not found.");
             }
 
@@ -54,22 +55,23 @@ export class ShiftsService {
             const activeShift = await this.getActiveShiftByUserId(currentUser.id);
 
             if (activeShift) {
-                await this.log(currentUser, "open shift FAILED", `lastest shift ${activeShift.id} from this employee is not close.`);
+                await this.log(currentUser, "open shift FAILED", `lastest shift ${activeShift.id} from this employee is not close.`,manager);
                 throw new ConflictException("you have not close your laset shift yet.");
             }
 
-            const row = this.shiftRepository.create(({
+            const shiftRepo = manager.getRepository(Shift) ; 
+            const row = await shiftRepo.create(({
                 userId: currentUser.id,
                 boothId: boothId,
             }))
 
             try {
-                await this.log(currentUser, "open shift SUCCESS", ``);
-                const savedShift = await this.shiftRepository.save(row);
+                await this.log(currentUser, "open shift SUCCESS", `` , manager);
+                const savedShift = await shiftRepo.save(row);
                 await this.createCacheSummaryShift(savedShift.id);
             }
             catch (err) {
-                await this.log(currentUser, "open shift FAILED", `internal server error`);
+                await this.log(currentUser, "open shift FAILED", `internal server error`,manager);
                 throw new InternalServerErrorException('error in internal server. please contact admin.');
             }
 
