@@ -1,10 +1,13 @@
-import { Injectable, NotFoundException , InternalServerErrorException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException , InternalServerErrorException, ConflictException , Inject} from '@nestjs/common';
 import { BoothsService } from '../../modules/booths/booths.service';
 import { NotFoundError } from 'rxjs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Shift } from './entities/shift.entity';
 import { IsNull, Repository } from 'typeorm';
 import {SystemLogsService } from '../../modules/system-logs/system-logs.service';
+import { get } from 'http';
+import { error } from 'console';
+import Redis from 'ioredis';
 
 
 
@@ -15,6 +18,8 @@ export class ShiftsService {
         @InjectRepository(Shift)
         private readonly shiftRepository : Repository<Shift> ,
         private readonly systemLogsService : SystemLogsService ,  
+        @Inject('REDIS_CLIENT') 
+        private readonly redisClient : Redis
     ){
 
     }
@@ -69,6 +74,27 @@ export class ShiftsService {
             message : "open shift success."
         }
 
+    }
+
+    async setStatusToCLose(currentUser : any) {
+        const activeShift = await this.getActiveShiftByUserId(currentUser.id) ; 
+        if (!activeShift) {
+            await this.log(currentUser , "close shift FAILED" , "active shift from this employee not found.") ; 
+            throw new NotFoundException('you active shift is not found.') ; 
+        } 
+
+        try {
+            await this.shiftRepository.update(activeShift.id , {status: "close" ,endTime : new Date() }) ; 
+            await this.log(currentUser , "close shift SUCCESS" , "") ;  
+        }
+        catch(err) {
+            await this.log(currentUser , "close shift failed" , "internal server error") ; 
+             throw new InternalServerErrorException('error in internal server. please contact admin.') ; 
+        }
+
+        return {
+            message : 'close shift successfuly.'
+        } ; 
     }
 
     private async getActiveShiftByUserId (userId : string) {
