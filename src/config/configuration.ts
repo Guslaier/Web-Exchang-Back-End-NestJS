@@ -18,4 +18,16 @@ export default () => ({
     secret: process.env.JWT_SECRET ?? 'change_this_secret',
     expiresIn: process.env.JWT_EXPIRES_IN ?? '1d',
   },
+
+  // กำหนดค่าการเชื่อมต่อ Redis โดยใช้ค่า REDIS_HOST และ REDIS_PORT จาก environment variable หรือใช้ค่าเริ่มต้น
+  redis: {
+    host: process.env.REDIS_HOST ?? 'localhost',
+    port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
+  },
+
+  // กำหนดค่า BOT API โดยใช้ค่า BOT_API_URL และ BOT_API_KEY จาก environment variable หรือใช้ค่าเริ่มต้น
+  botApi: {
+    url: process.env.BOT_API_URL ?? 'localhost',
+    key: process.env.BOT_API_KEY ?? '',
+  },
 });

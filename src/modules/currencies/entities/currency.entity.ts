@@ -1,18 +1,38 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+// currencies/entities/currency.entity.ts
+import { Delete } from '@nestjs/common';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, OneToMany, JoinColumn } from 'typeorm';
+import { UpdateMode } from '../dto/currency.dto';
+import { CurrencyIF } from  'index'
+import { ExchangeRate } from '../../exchange-rates/entities/exchange-rate.entity';
 
 @Entity('currencies')
-export class Currency {
+export class Currency implements CurrencyIF {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true, length: 3 })
-  code: string; // e.g. USD, EUR
+  @Column({ unique: true })
+  code: string; // เช่น USD, EUR
 
   @Column()
-  name: string;
+  name: string; // เช่น US Dollar
+
+  @Column({ nullable: true })
+  symbol: string; // เช่น $
+
+  @Column('decimal', { precision: 10, scale: 4, default: 0 })
+  buyRate: number;
+
+  @Column('decimal', { precision: 10, scale: 4, default: 0 })
+  sellRate: number;
 
   @Column({ default: true })
   isActive: boolean;
+  
+  @Column({ type: 'enum', enum: ['AUTO', 'MANUAL'], default: 'AUTO' })
+  updateMode: 'AUTO' | 'MANUAL';
+
+  @Column({ default: false })
+  hasInitialBotData: boolean; // บ่งบอกว่าเคยได้รับข้อมูลจาก BOT หรือไม่
 
   @CreateDateColumn()
   createdAt: Date;
@@ -21,5 +41,9 @@ export class Currency {
   updatedAt: Date;
 
   @DeleteDateColumn()
-  deletedAt?: Date;
+  deletedAt: Date;
+
+  @OneToMany(() => ExchangeRate, (exchangeRate: ExchangeRate) => exchangeRate.currency)
+  @JoinColumn({ name: 'currency_id' })
+  exchangeRates: ExchangeRate[];
 }

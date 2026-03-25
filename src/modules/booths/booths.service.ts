@@ -12,6 +12,7 @@ import { User } from '../users/entities/user.entity';
 import { DataSource, Not, Repository, EntityManager } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SystemLogsService } from '../system-logs/system-logs.service';
+import { ExclusiveExchangeRatesService } from '../exclusive-exchange-rates/exclusive-exchange-rates.service';
 
 @Injectable()
 export class BoothsService {
@@ -23,7 +24,9 @@ export class BoothsService {
     private readonly dataSource: DataSource,
     @Inject(SystemLogsService)
     private readonly systemLogsService: SystemLogsService,
-  ) {}
+    @Inject(ExclusiveExchangeRatesService)
+    private readonly exclusiveRateService: ExclusiveExchangeRatesService,
+    ) {}
 
   /**
    * Helper สำหรับบันทึก Log โดยรองรับ Transaction manager
@@ -60,6 +63,9 @@ export class BoothsService {
       });
 
       const savedBooth = await boothRepo.save(booth);
+
+      // สร้าง ExclusiveExchangeRate สำหรับบูธใหม่
+      await this.exclusiveRateService.generateExclusivesForBooth(user, manager, savedBooth.id);
       await this.log(user, 'CREATE_BOOTH_SUCCESS', `Created booth: ${savedBooth.name}`, manager);
       return savedBooth;
     });

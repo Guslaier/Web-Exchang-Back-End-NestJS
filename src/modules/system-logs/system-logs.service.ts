@@ -6,8 +6,13 @@ import {
 import { SystemLog } from './entities/system-log.entity'; // Assuming you have a SystemLog entity defined
 import { CreateSystemLogDto, QueryDateDto } from './dto/system-log.dto'; // Assuming you have a DTO for creating system logs
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, EntityManager, QueryFailedError, Repository } from 'typeorm';
-
+import {
+  Between,
+  EntityManager,
+  LessThan,
+  QueryFailedError,
+  Repository,
+} from 'typeorm';
 
 @Injectable()
 export class SystemLogsService {
@@ -16,7 +21,11 @@ export class SystemLogsService {
     private readonly systemLogRepo: Repository<SystemLog>,
   ) {}
 
-  async createLog(currentUser: any, log: CreateSystemLogDto, manager?: EntityManager) {
+  async createLog(
+    currentUser: any,
+    log: CreateSystemLogDto,
+    manager?: EntityManager,
+  ) {
     const colors = {
       reset: '\x1b[0m',
       bright: '\x1b[1m',
@@ -27,21 +36,28 @@ export class SystemLogsService {
     };
 
     const timestamp = new Date().toISOString();
-    const isError = log.action.includes('FAILED') || log.action.includes('ERROR');
+    const isError =
+      log.action.includes('FAILED') || log.action.includes('ERROR');
     const isSuccess = log.action.includes('SUCCESS');
-    
-    const actionColor = isError ? colors.red : (isSuccess ? colors.green : colors.yellow);
+
+    const actionColor = isError
+      ? colors.red
+      : isSuccess
+        ? colors.green
+        : colors.yellow;
     const details = log.details || '';
     const executorId = log.userId || 'System';
 
     console.log(
       `${colors.cyan}[APPLOG] ${timestamp}${colors.reset} : ` +
-      `${actionColor}${colors.bright}${log.action}${colors.reset} - ` +
-      `${details} - ` +
-      `${colors.bright}By User: ${executorId}${colors.reset}`,
+        `${actionColor}${colors.bright}${log.action}${colors.reset} - ` +
+        `${details} - ` +
+        `${colors.bright}By User: ${executorId}${colors.reset}`,
     );
 
-    const repo = manager ? manager.getRepository(SystemLog) : this.systemLogRepo;
+    const repo = manager
+      ? manager.getRepository(SystemLog)
+      : this.systemLogRepo;
 
     try {
       const row = repo.create({
@@ -49,11 +65,13 @@ export class SystemLogsService {
         action: log.action,
         details: log.details,
       });
-      
-      await repo.save(row); 
+
+      await repo.save(row);
     } catch (err) {
       const error = err as any;
-      console.error(`${colors.red}[LOG_DB_ERROR]${colors.reset} : ${error.message}`);
+      console.error(
+        `${colors.red}[LOG_DB_ERROR]${colors.reset} : ${error.message}`,
+      );
 
       if (error.code === '23503') {
         throw new BadRequestException('Log failed: User reference not found.');
@@ -61,7 +79,7 @@ export class SystemLogsService {
       if (error.code === '23502') {
         throw new BadRequestException('Log failed: Missing required fields.');
       }
-      
+
       throw error;
     }
   }
@@ -80,5 +98,23 @@ export class SystemLogsService {
       throw new NotFoundException('No logs found for the specified period.');
     }
     return logs;
+  }
+
+  // system-logs.service.ts
+
+  async cleanupOldLogs() {
+    const retentionMonths = 4 ;// กำหนดระยะเวลาการเก็บรักษาเป็น 4 เดือน
+    const cutOffDate = new Date();
+    cutOffDate.setMonth(cutOffDate.getMonth() - retentionMonths);
+
+    const result = await this.systemLogRepo.delete({
+      createdAt: LessThan(cutOffDate),
+    });
+
+    await this.createLog(null, {
+      userId: null,
+      action: 'SYSTEM_LOG_CLEANUP_SUCCESS',
+      details: `Deleted ${result.affected} logs older than ${retentionMonths} months.`,
+    });
   }
 }

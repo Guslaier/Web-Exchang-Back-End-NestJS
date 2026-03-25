@@ -113,12 +113,14 @@ export interface CashCountData {
 }
 
 //== Currency Interfaces ==//
-export interface Currency {
+export interface CurrencyIF {
     readonly code: string;       // PK (เช่น 'USD', 'EUR', 'JPY')
     readonly name: string;       // ชื่อเต็ม (เช่น 'United States Dollar')
     symbol: string;     // สัญลักษณ์ (เช่น '$', '€', '¥')
     buyRate: number;    // อัตราที่ร้านรับซื้อ
     sellRate: number;   // อัตราที่ร้านขายออก
+    updateMode: 'AUTO' | 'MANUAL'; // โหมดการอัปเดต
+    hasInitialBotData: boolean; // บ่งบอกว่าเคยได้รับข้อมูลจาก BOT หรือไม่
     isActive: boolean;  // สถานะการใช้งาน (true/false)
 }
 

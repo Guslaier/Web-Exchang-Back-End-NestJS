@@ -1,4 +1,16 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+// exclusive-exchange-rates/entities/exclusive-exchange-rate.entity.ts
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  JoinColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
+} from 'typeorm';
+import { ExchangeRate } from '../../exchange-rates/entities/exchange-rate.entity';
+import { Booth } from '../../booths/entities/booth.entity';
+import { Delete } from '@nestjs/common';
 
 @Entity('exclusive_exchange_rates')
 export class ExclusiveExchangeRate {
@@ -6,20 +18,53 @@ export class ExclusiveExchangeRate {
   id: string;
 
   @Column()
-  customerId: string;
+  exchange_rate_id: string;
 
-  @Column()
-  currencyCode: string;
+  @ManyToOne(() => ExchangeRate, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'exchange_rate_id' })
+  exchangeRate: ExchangeRate;
 
-  @Column('decimal', { precision: 10, scale: 4 })
-  specialRate: number;
+  @Column({ default: 'BUY' })
+  formula_buy: string;
 
-  @CreateDateColumn()
-  createdAt: Date;
+  @Column({ default: 'BUY' })
+  formula_buy_max: string;
+
+  @Column('decimal', { precision: 17, scale: 6, default: 0 })
+  buy_rate: number;
+
+  @Column('decimal', { precision: 17, scale: 6, default: 0 })
+  buy_rate_max: number;
+
+  @ManyToOne(() => Booth ,(booth) => booth.id, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'booth_id' })
+  booth: Booth;
+
+  @Column({ type: 'uuid' }) // เปลี่ยนเป็น uuid เพื่อให้ตรงกับ Booth Entity
+  booth_id: string;
+
+  @Column({ default: 'NORMAL' })
+  sync_status: 'NORMAL' | 'SYSTEM_ADJUSTED';
+
+  @Column({ type: 'uuid', nullable: true })
+  reviewed_by: string;
+
+  @ManyToOne(() => Booth, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'reviewed_by' })
+  reviewer: Booth;
+
+  @Column({ type: 'timestamp', nullable: true })
+  reviewed_at: Date;
+
+  @Column({ default: true })
+  is_reviewed: boolean;
+
+  @Column({ nullable: true })
+  system_remark: string;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updated_at: Date;
 
-  @DeleteDateColumn()
-  deletedAt?: Date;
+  @DeleteDateColumn({ nullable: true })
+  deleted_at: Date;
 }
