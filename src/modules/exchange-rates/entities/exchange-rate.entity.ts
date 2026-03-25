@@ -8,8 +8,10 @@ import {
   DeleteDateColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
 import { Currency } from '../../currencies/entities/currency.entity';
+import { ExclusiveExchangeRate } from '../../exclusive-exchange-rates/entities/exclusive-exchange-rate.entity';
 
 @Entity('exchange_rates')
 export class ExchangeRate {
@@ -66,5 +68,9 @@ export class ExchangeRate {
   updatedAt: Date;
 
   @DeleteDateColumn()
-  deletedAt: Date;
+  deletedAt: Date | null;
+
+  @OneToMany(() => ExclusiveExchangeRate, (exclusiveRate:ExclusiveExchangeRate) => exclusiveRate.exchangeRate)
+  @JoinColumn({ name: 'exchange_rate_id' })
+  exclusiveRates: ExclusiveExchangeRate[];
 }

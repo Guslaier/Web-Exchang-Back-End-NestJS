@@ -31,15 +31,16 @@ export class CurrenciesController {
   // 3. เปลี่ยนโหมดการอัปเดต (AUTO <-> MANUAL)
   @Patch('mode/:id')
   async setMode(
+    @CurrentUser() user: any,
     @Param('id', ParseUUIDPipe) id: string,
     @Body('mode') mode: UpdateMode,
   ) {
-    return await this.currenciesService.setUpdateMode(id, mode);
+    return await this.currenciesService.setUpdateMode(user, id, mode);
   }
 
   @Patch('mode')
-  async setModeAll(@Body('mode') mode: UpdateMode) {
-    return await this.currenciesService.setUpdateModeAll(mode);
+  async setModeAll(@CurrentUser() user: any, @Body('mode') mode: UpdateMode) {
+    return await this.currenciesService.setUpdateModeAll(user, mode);
   }
 
   // 4. อัปเดตเรทแบบ Manual (Bulk Update - ส่งมาเป็น Array)
@@ -47,7 +48,7 @@ export class CurrenciesController {
   async updateManualBulk(@CurrentUser() user: any,
     @Body('data') data: { id: string; buyRate: number; sellRate: number }[],
   ) {
-    return await this.currenciesService.updateManualBulk(data);
+    return await this.currenciesService.updateManualBulk(user, data);
   }
 
   // 5. ดึงข้อมูลรายตัว

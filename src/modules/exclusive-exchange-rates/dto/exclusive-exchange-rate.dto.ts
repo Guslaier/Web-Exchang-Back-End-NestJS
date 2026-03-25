@@ -13,3 +13,6 @@ export class CreateExclusiveExchangeRateDto {
   @IsNotEmpty()
   specialRate: number;
 }
+export class ConfirmReviewDto {
+  ids: string[]; // รับเป็น Array ของ string ไปเลย ง่ายกว่า
+ }

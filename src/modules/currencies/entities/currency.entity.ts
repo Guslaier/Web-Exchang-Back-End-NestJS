@@ -1,8 +1,9 @@
 // currencies/entities/currency.entity.ts
 import { Delete } from '@nestjs/common';
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, OneToMany, JoinColumn } from 'typeorm';
 import { UpdateMode } from '../dto/currency.dto';
 import { CurrencyIF } from  'index'
+import { ExchangeRate } from '../../exchange-rates/entities/exchange-rate.entity';
 
 @Entity('currencies')
 export class Currency implements CurrencyIF {
@@ -41,4 +42,8 @@ export class Currency implements CurrencyIF {
 
   @DeleteDateColumn()
   deletedAt: Date;
+
+  @OneToMany(() => ExchangeRate, (exchangeRate: ExchangeRate) => exchangeRate.currency)
+  @JoinColumn({ name: 'currency_id' })
+  exchangeRates: ExchangeRate[];
 }

@@ -98,7 +98,7 @@ export class CurrenciesService implements OnModuleInit {
     private readonly exchangeRatesService: ExchangeRatesService,
   ) {}
 
-  @Cron('0 0 7 * * *', {
+  @Cron(process.env.UPDATE_RATE_AUTO_TIME || '0 7 * * *', {
     name: 'daily_morning_update',
     timeZone: 'Asia/Bangkok', // กำหนดเป็นเวลาไทย
   })
@@ -108,7 +108,7 @@ export class CurrenciesService implements OnModuleInit {
   }
 
   // ทุกๆ 5 ชั่วโมง (18000000 ms) จะพยายามอัปเดตจาก BOT API
-  @Interval(18000000)
+  @Interval(process.env.UPDATE_RATE_INTERVAL ? parseInt(process.env.UPDATE_RATE_INTERVAL) : 18000000) // 5 ชั่วโมง
   async handleIntervalUpdate() {
     this.logger.log('[Interval] Starting 5-hour periodic update...');
     await this.updateAutoRateAll();
@@ -256,7 +256,7 @@ export class CurrenciesService implements OnModuleInit {
   }
 
   // +++++++++++++++++++++++++++ 3. Manual Update Bulk ++++++++++++++++++++++++++++
-  async updateManualBulk(
+  async updateManualBulk(user: any,
     updateData: { id: string; buyRate: number; sellRate: number }[],
   ) {
     return await this.dataSource.transaction(async (manager) => {
@@ -319,7 +319,7 @@ export class CurrenciesService implements OnModuleInit {
         );
       }
 
-      await this.exchangeRatesService.updateRateAll(); // อัปเดตเรทลูกทั้งหมดหลังจากอัปเดตเรทแม่เสร็จ
+      await this.exchangeRatesService.updateRateAll(user, manager); // อัปเดตเรทลูกทั้งหมดหลังจากอัปเดตเรทแม่เสร็จ
       // 4. คืนผลลัพธ์ให้ชัดเจนว่าตัวไหนผ่าน ตัวไหนติด
       return {
         message: 'Bulk update processed',
@@ -353,7 +353,7 @@ export class CurrenciesService implements OnModuleInit {
   }
 
   // +++++++++++++++++++++++++++ 5. Toggle Mode ++++++++++++++++++++++++++++
-  async setUpdateMode(id: string, mode: UpdateMode) {
+  async setUpdateMode(user: any, id: string, mode: UpdateMode) {
     const currency = await this.currencyRepo.findOne({ where: { id } });
     if (!currency) throw new NotFoundException('Not found');
 
@@ -362,16 +362,16 @@ export class CurrenciesService implements OnModuleInit {
     }
 
     await this.currencyRepo.update(id, { updateMode: mode });
-    await this.systemLogsService.createLog(null, {
-      userId: null,
+    await this.systemLogsService.createLog(user, {
+      userId: user?.id || null,
       action: 'CURRENCY_MODE_CHANGE_SUCCESS',
       details: `Currency ${currency.code} update mode changed to: ${mode}`,
     });
-    await this.exchangeRatesService.updateRateAll(); // อัปเดตเรทลูกทั้งหมดหลังจากอัปเดตเรทแม่เสร็จ
+    await this.exchangeRatesService.updateRateAll(user); // อัปเดตเรทลูกทั้งหมดหลังจากอัปเดตเรทแม่เสร็จ
     return this.currencyRepo.findOne({ where: { id } });
   }
 
-  async setUpdateModeAll(mode: UpdateMode) {
+  async setUpdateModeAll(user: any, mode: UpdateMode) {
     return await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(Currency);
 
@@ -382,9 +382,9 @@ export class CurrenciesService implements OnModuleInit {
         .execute();
 
       await this.systemLogsService.createLog(
-        null,
+        user,
         {
-          userId: null,
+          userId: user?.id || null,
           action: 'CURRENCY_MODE_CHANGE_ALL_SUCCESS',
           details: `All currencies update mode changed to: ${mode}`,
         },
@@ -392,8 +392,9 @@ export class CurrenciesService implements OnModuleInit {
       );
 
       if (mode === UpdateMode.AUTO) {
-        await this.updateAutoRateAll(); // พยายามอัปเดตทันทีถ้าเปลี่ยนเป็น AUTO
+        this.updateAutoRateAll(); // พยายามอัปเดตทันทีถ้าเปลี่ยนเป็น AUTO
       }
+      console.log('All currencies update mode changed to:', mode);
       await this.exchangeRatesService.updateRateAll(); // อัปเดตเรทลูกทั้งหมดหลังจากอัปเดตเรทแม่เสร็จ
       return await repo.find({ order: { code: 'ASC' } });
     });

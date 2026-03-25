@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -10,8 +12,9 @@ import { EntityManager, Repository } from 'typeorm';
 import { ExchangeRate } from './entities/exchange-rate.entity';
 import { Currency } from '../currencies/entities/currency.entity';
 import { SystemLogsService } from '../system-logs/system-logs.service';
-import { evaluate, i, re } from 'mathjs';
+import { evaluate, i, im, re } from 'mathjs';
 import { DataSource } from 'typeorm';
+import { ExclusiveExchangeRatesService } from '../exclusive-exchange-rates/exclusive-exchange-rates.service';
 
 @Injectable()
 export class ExchangeRatesService {
@@ -22,6 +25,9 @@ export class ExchangeRatesService {
     private readonly exchangeRateRepo: Repository<ExchangeRate>,
     private readonly systemLogsService: SystemLogsService,
     private readonly dataSource: DataSource,
+    @Inject(forwardRef(() => ExclusiveExchangeRatesService))
+    private readonly exclusiveRateService: ExclusiveExchangeRatesService,
+
   ) {}
 
   // บันทึก Log ลง Database
@@ -104,6 +110,10 @@ export class ExchangeRatesService {
     });
 
     await repo.save(defaultSubRate);
+
+    // สร้าง Exclusive Exchange Rate สำหรับบูธทั้งหมด
+    await this.exclusiveRateService.createForNewExchangeRate(manager, defaultSubRate);
+
     await this.log(
       null,
       'CREATE_DEFAULT_SUBRATE_SUCCESS',
@@ -117,7 +127,8 @@ export class ExchangeRatesService {
   ): Promise<void> {
     const repo = manager.getRepository(ExchangeRate);
     const subRates = await repo.find({ where: { currencyId: currency.id } });
-
+    if(currency.code === 'USD')
+      console.log(`Found ${subRates.length} sub-rates for currency ${currency.code} buy_rate: ${currency.buyRate} sell_rate: ${currency.sellRate}`);
     for (const subRate of subRates) {
       subRate.buy_rate = await this.MathjsFormula(
         subRate.formula_buy,
@@ -127,18 +138,21 @@ export class ExchangeRatesService {
         subRate.formula_sell,
         currency.sellRate,
       );
-      await repo.save(subRate);
+      const updated = await repo.save(subRate);
+      if (updated.name === 'USD')
+        console.log(`Updated sub-rate ${updated.name} for currency ${currency.code}: buy_rate=${updated.buy_rate}, sell_rate=${updated.sell_rate}`);
+      await this.exclusiveRateService.updateByExchangeRate(manager, updated); // อัปเดตเรทลูกใน Exclusive ด้วย
       await this.log(
         null,
         'UPDATE_RATE_SUCCESS',
-        `Name:"${subRate.name}" = buy: ${subRate.buy_rate} sell: ${subRate.sell_rate} id: ${subRate.id}`,
+        `Name:"${updated.name}" = buy: ${updated.buy_rate} sell: ${updated.sell_rate} id: ${updated.id}`,
       );
     }
   }
 
   // อัปเดตเรททั้งหมดในระบบ (Bulk Sync)
-  async updateRateAll(user?: any): Promise<void> {
-    const currencies = await this.exchangeRateRepo.manager.find(Currency);
+  async updateRateAll(user?: any , manager?: EntityManager): Promise<void> {
+    const currencies = manager ? await manager.find(Currency) : await this.exchangeRateRepo.manager.find(Currency);
     await this.exchangeRateRepo.manager.transaction(async (manager) => {
       await Promise.all(
         currencies.map((c) => this.updateRatesForCurrency(manager, c)),
@@ -240,7 +254,7 @@ ${JSON.stringify(r.updated)}`).join(', ')}
     });
 
     const saved = await this.exchangeRateRepo.save(newRate);
-
+    await this.exclusiveRateService.createForNewExchangeRate(this.exchangeRateRepo.manager, saved);
     await this.log(
       user,
       'CREATE_RATE_SUCCESS',
@@ -282,9 +296,15 @@ ${JSON.stringify(r.updated)}`).join(', ')}
     target.formula_sell = fSell;
     target.buy_rate = formulaVal.buy_rate;
     target.sell_rate = formulaVal.sell_rate;
+
+    if (target.buy_rate > target.sell_rate) {
+      throw new BadRequestException('Buy rate cannot be greater than Sell rate');
+    }
+
     if (data.name) target.name = data.name;
 
     const updated = await this.exchangeRateRepo.save(target);
+    await this.exclusiveRateService.updateByExchangeRate(this.exchangeRateRepo.manager, updated); // อัปเดตเรทลูกใน Exclusive ด้วย
     await this.log(
       user,
       'UPDATE_RATE_SUCCESS',
@@ -442,7 +462,8 @@ ${JSON.stringify(r.updated)}`).join(', ')}
       }
       await repo.save({ ...target, name: `${target.name} (deleted)` }); // อัปเดต timestamp ของเรทที่ถูกลบ (soft delete)
       await repo.softDelete(id);
-      await this.log(user, 'DELETE_RATE_SUCCESS', `ID: ${id}`);
+      await this.exclusiveRateService.deleteByExchangeRateId(manager, id); // ลบเรทลูกที่เกี่ยวข้องด้วย
+      await this.log(user, 'DELETE_RATE_SUCCESS', `Deleted rate: ${target.name} id: ${id}`, manager);
     });
   }
 }
