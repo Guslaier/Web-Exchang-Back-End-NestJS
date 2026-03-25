@@ -27,6 +27,21 @@ export class Shift {
   @Column({ type: 'timestamp', nullable: true })
   endTime: Date;
 
+  @Column({type : 'decimal' , scale : 2 , nullable : true , default : 0})
+  total_receive : number ; 
+
+  @Column({type : 'decimal' , scale : 2 , nullable : true , default : 0})
+  total_exchange : number ; 
+
+  @Column({type : 'decimal' , scale : 2 , nullable : true , default : 0})
+  balance : number ; 
+
+  @Column({type : 'decimal' , scale : 2 , nullable : true })
+  balance_check : number ; 
+
+  @Column({type : 'decimal' , scale : 2 , nullable : true })
+  cash_advance : number ; 
+
   @Column({ default: 'OPEN' })
   status: string;
 
