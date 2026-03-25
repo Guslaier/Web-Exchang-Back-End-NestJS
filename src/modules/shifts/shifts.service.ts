@@ -84,6 +84,14 @@ export class ShiftsService {
             throw new NotFoundException('you active shift is not found.') ; 
         } 
 
+        const cache = await this.redisClient.hgetall(activeShift.id) ; 
+
+        if(cache) {
+            await this.setSummaryFromCache(activeShift.id) ; 
+        }
+
+        await this.deleteCacheSummaryShift(activeShift.id) ; 
+ 
         try {
             await this.shiftRepository.update(activeShift.id , {status: "close" ,endTime : new Date() }) ; 
             await this.log(currentUser , "close shift SUCCESS" , "") ;  
@@ -105,7 +113,7 @@ export class ShiftsService {
     private async createCacheSummaryShift(shiftId : string) {
         try {
             await this.redisClient.hset(shiftId , { 
-                total_recieve : 0 , 
+                total_receive : 0 , 
                 total_exchange : 0 , 
                 balance : 0 
             }) ;
@@ -117,4 +125,35 @@ export class ShiftsService {
         }
         
     }    
+
+    private async deleteCacheSummaryShift(shiftId : string) {
+        try {
+            await this.redisClient.del(shiftId) ;
+            await this.log(null , 'DELETE_CACHE_SHIFT_SUCCESS','') ;   
+        }
+        catch(error) {
+            console.log(error) ; 
+            await this.log(null , 'DELETE_CACHE_SHIFT_FAILED','') ; 
+        }
+    }
+
+    private async setSummaryFromCache(shiftId : string) {
+        const summary   = await this.redisClient.hgetall(shiftId) ;
+        const total_receive = Number(summary.total_receive) ;
+        const total_exchange = Number(summary.total_exchange) ;
+        const balance = Number(summary.balance) ;
+
+        try {
+            await this.shiftRepository.update(shiftId , {
+                total_receive : total_receive , 
+                total_exchange :  total_exchange , 
+                balance : balance ,
+            }) ; 
+            await this.log(null , 'UPDATE_SUMMARY_SHIFT_SUCCESS',`total receive : ${total_receive} , total exchange : ${total_exchange} , balance : ${balance}  `) ; 
+        }
+        catch(error) {
+            await this.log(null , 'UPDATE_SUMMARY_SHIFT_FAILED','') ; 
+        }
+    
+    }
 }
