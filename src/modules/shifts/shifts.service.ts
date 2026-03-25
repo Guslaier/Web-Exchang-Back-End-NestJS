@@ -68,7 +68,7 @@ export class ShiftsService {
             try {
                 await this.log(currentUser, "open shift SUCCESS", `` , manager);
                 const savedShift = await shiftRepo.save(row);
-                await this.createCacheSummaryShift(savedShift.id);
+                await this.createCacheSummaryShift(savedShift.id , manager);
             }
             catch (err) {
                 await this.log(currentUser, "open shift FAILED", `internal server error`,manager);
@@ -114,7 +114,7 @@ export class ShiftsService {
         return await this.shiftRepository.findOne({ where: { userId: userId, endTime: IsNull() } });
     }
 
-    private async createCacheSummaryShift(shiftId: string) {
+    private async createCacheSummaryShift(shiftId: string , manager : EntityManager) {
         try {
             await this.redisClient.hset(shiftId, {
                 total_receive: 0,
@@ -122,10 +122,10 @@ export class ShiftsService {
                 balance: 0
             });
             await this.redisClient.expire(shiftId, 60 * 60 * 12);
-            await this.log(null, 'CREATE_CACHE_SHIFT_SUCCESS', '');
+            await this.log(null, 'CREATE_CACHE_SHIFT_SUCCESS', '' , manager);
         }
         catch (error) {
-            await this.log(null, 'CREATE_CACHE_SHIFT_FAILED', '')
+            await this.log(null, 'CREATE_CACHE_SHIFT_FAILED', '' , manager)
         }
 
     }
