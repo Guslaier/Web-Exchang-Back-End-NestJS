@@ -5,9 +5,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Shift } from './entities/shift.entity';
 import { BoothsModule } from '../../modules/booths/booths.module';
 import { SystemLogsModule } from '../../modules/system-logs/system-logs.module';
+import { RedisModule } from '../../modules/redis/redis.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Shift]) , BoothsModule , SystemLogsModule],
+  imports: [TypeOrmModule.forFeature([Shift]) , BoothsModule , SystemLogsModule , RedisModule],
   controllers: [ShiftsController],
   providers: [ShiftsService],
   exports: [ShiftsService],
