@@ -20,5 +20,13 @@ export class ShiftsController {
     return  this.shiftsService.openShift(currentUser) ; 
   }
 
+  @UseGuards(JwtAuthGuard , RolesGuard) 
+  @Roles("EMPLOYEE")
+  @Put()
+  close(@CurrentUser() currentUser : any) {
+    return this.shiftsService.setStatusToCLose(currentUser) ; 
+  }
+  
+
  
 }
