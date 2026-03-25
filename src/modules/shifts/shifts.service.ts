@@ -166,9 +166,6 @@ export class ShiftsService {
 
     }
 
-    async setTotalReceive() {
-
-    }
 
 
 }
