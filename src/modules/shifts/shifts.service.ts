@@ -174,7 +174,7 @@ export class ShiftsService {
 
   const shift = await this.getActiveShiftByBoothId(boothId);
   if (!shift) {
-    throw new NotFoundException(`ไม่พบกะที่กำลังใช้งานสำหรับ Booth: ${boothId}`);
+    throw new NotFoundException(`active shift from Booth: ${boothId} not found.`);
   }
 
   const shiftId = shift.id;
