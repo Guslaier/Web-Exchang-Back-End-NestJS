@@ -204,6 +204,44 @@ export class ShiftsService {
         }
     }
 
+     async setTotalExchange(boothId: string, amount: number) {
+
+        if (amount < 0) {
+            throw new BadRequestException(`amount of receive can't be under 0`)
+        }
+
+        const shift = await this.getActiveShiftByBoothId(boothId);
+        if (!shift) {
+            throw new NotFoundException(`active shift from Booth: ${boothId} not found.`);
+        }
+
+        const shiftId = shift.id;
+
+        try {
+            return await this.dataSource.transaction(async (manager) => {
+                const shiftRepo = manager.getRepository(Shift);
+
+                await shiftRepo.update(shiftId, {
+                    total_exchange: () => `total_exchange + ${amount}`,
+                    balance: () => `balance + ${-amount}`,
+                });
+
+                const shiftExists = await this.redisClient.exists(shiftId);
+                if (shiftExists) {
+                    await this.redisClient.pipeline()
+                        .hincrbyfloat(shiftId, 'total_exchange', amount)
+                        .hincrbyfloat(shiftId, 'balance', (-amount))
+                        .exec();
+                }
+
+                this.log(null, 'UPDATE_TOTAL_EXCHANGE_SUCCESS', `Shift: ${shiftId}, Amount: ${amount}`, manager);
+            });
+        } catch (err) {
+            this.log(null, 'UPDATE_TOTAL_EXCHANGE_FAILED', `Shift: ${shiftId}, Error: ${err}`);
+            throw new InternalServerErrorException('Internal Server Error');
+        }
+    }
+
     private async getActiveShiftByBoothId(boothId: string) {
         return await this.shiftRepository.findOne({ where: { boothId: boothId, endTime: IsNull() } });
     }
