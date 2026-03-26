@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, InternalServerErrorException, ConflictException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, InternalServerErrorException, ConflictException, Inject, BadRequestException } from '@nestjs/common';
 import { BoothsService } from '../../modules/booths/booths.service';
 import { NotFoundError } from 'rxjs';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -166,6 +166,46 @@ export class ShiftsService {
 
     }
 
+   async setTotalReceive(boothId: string, amount: number) {
 
+  if (amount < 0) {
+    throw new BadRequestException(`amount of receive can't be under 0`)
+  }
+
+  const shift = await this.getActiveShiftByBoothId(boothId);
+  if (!shift) {
+    throw new NotFoundException(`ไม่พบกะที่กำลังใช้งานสำหรับ Booth: ${boothId}`);
+  }
+
+  const shiftId = shift.id;
+
+  try {
+    return await this.dataSource.transaction(async (manager) => {
+      const shiftRepo = manager.getRepository(Shift);
+
+      await shiftRepo.update(shiftId, {
+        total_receive: () => `total_receive + ${amount}`,
+        balance: () => `balance + ${amount}`,
+      });
+
+      const shiftExists = await this.redisClient.exists(shiftId);
+      if (shiftExists) {
+        await this.redisClient.pipeline()
+          .hincrbyfloat(shiftId, 'total_receive', amount)
+          .hincrbyfloat(shiftId, 'balance', amount)
+          .exec();
+      }
+
+      this.log(null, 'UPDATE_TOTAL_RECEIVE_SUCCESS', `Shift: ${shiftId}, Amount: ${amount}`, manager);
+    });
+  } catch (err) {
+    this.log(null, 'UPDATE_TOTAL_RECEIVE_FAILED', `Shift: ${shiftId}, Error: ${err}`);
+    throw new InternalServerErrorException('Internal Server Error');
+  }
+}
+
+    private async getActiveShiftByBoothId(boothId : string) {
+        return await this.shiftRepository.findOne({ where : {boothId : boothId , endTime : IsNull()}}) ; 
+    }
 
 }
