@@ -85,27 +85,27 @@ export class ShiftsService {
         return await this.dataSource.transaction(async (manager) => {
             const activeShift = await this.getActiveShiftByUserId(currentUser.id);
             if (!activeShift) {
-                await this.log(currentUser, "close shift FAILED", "active shift from this employee not found.",manager);
+                await this.log(currentUser, "close shift FAILED", "active shift from this employee not found.", manager);
                 throw new NotFoundException('you active shift is not found.');
             }
 
             const cache = await this.redisClient.hgetall(activeShift.id);
 
             if (cache) {
-                await this.setSummaryFromCache(activeShift.id , manager);
+                await this.setSummaryFromCache(activeShift.id, manager);
             }
 
-            await this.deleteCacheSummaryShift(activeShift.id , manager);
+            await this.deleteCacheSummaryShift(activeShift.id, manager);
 
-            const shiftRepo = manager.getRepository(Shift) ; 
+            const shiftRepo = manager.getRepository(Shift);
 
 
             try {
                 await shiftRepo.update(activeShift.id, { status: "close", endTime: new Date() });
-                await this.log(currentUser, "close shift SUCCESS", "" , manager);
+                await this.log(currentUser, "close shift SUCCESS", "", manager);
             }
             catch (err) {
-                await this.log(currentUser, "close shift failed", "internal server error" , manager);
+                await this.log(currentUser, "close shift failed", "internal server error", manager);
                 throw new InternalServerErrorException('error in internal server. please contact admin.');
             }
 
@@ -136,17 +136,17 @@ export class ShiftsService {
 
     }
 
-    private async deleteCacheSummaryShift(shiftId: string , manager : EntityManager) {
+    private async deleteCacheSummaryShift(shiftId: string, manager: EntityManager) {
         try {
             await this.redisClient.del(shiftId);
-            await this.log(null, 'DELETE_CACHE_SHIFT_SUCCESS', '' , manager);
+            await this.log(null, 'DELETE_CACHE_SHIFT_SUCCESS', '', manager);
         }
         catch (error) {
-            await this.log(null, 'DELETE_CACHE_SHIFT_FAILED', '' , manager);
+            await this.log(null, 'DELETE_CACHE_SHIFT_FAILED', '', manager);
         }
     }
 
-    private async setSummaryFromCache(shiftId: string , manager : EntityManager)  {
+    private async setSummaryFromCache(shiftId: string, manager: EntityManager) {
         const summary = await this.redisClient.hgetall(shiftId);
         const total_receive = Number(summary.total_receive);
         const total_exchange = Number(summary.total_exchange);
@@ -158,54 +158,54 @@ export class ShiftsService {
                 total_exchange: total_exchange,
                 balance: balance,
             });
-            await this.log(null, 'UPDATE_SUMMARY_SHIFT_SUCCESS', `total receive : ${total_receive} , total exchange : ${total_exchange} , balance : ${balance}  ` , manager);
+            await this.log(null, 'UPDATE_SUMMARY_SHIFT_SUCCESS', `total receive : ${total_receive} , total exchange : ${total_exchange} , balance : ${balance}  `, manager);
         }
         catch (error) {
-            await this.log(null, 'UPDATE_SUMMARY_SHIFT_FAILED', '' , manager);
+            await this.log(null, 'UPDATE_SUMMARY_SHIFT_FAILED', '', manager);
         }
 
     }
 
-   async setTotalReceive(boothId: string, amount: number) {
+    async setTotalReceive(boothId: string, amount: number) {
 
-  if (amount < 0) {
-    throw new BadRequestException(`amount of receive can't be under 0`)
-  }
+        if (amount < 0) {
+            throw new BadRequestException(`amount of receive can't be under 0`)
+        }
 
-  const shift = await this.getActiveShiftByBoothId(boothId);
-  if (!shift) {
-    throw new NotFoundException(`active shift from Booth: ${boothId} not found.`);
-  }
+        const shift = await this.getActiveShiftByBoothId(boothId);
+        if (!shift) {
+            throw new NotFoundException(`active shift from Booth: ${boothId} not found.`);
+        }
 
-  const shiftId = shift.id;
+        const shiftId = shift.id;
 
-  try {
-    return await this.dataSource.transaction(async (manager) => {
-      const shiftRepo = manager.getRepository(Shift);
+        try {
+            return await this.dataSource.transaction(async (manager) => {
+                const shiftRepo = manager.getRepository(Shift);
 
-      await shiftRepo.update(shiftId, {
-        total_receive: () => `total_receive + ${amount}`,
-        balance: () => `balance + ${amount}`,
-      });
+                await shiftRepo.update(shiftId, {
+                    total_receive: () => `total_receive + ${amount}`,
+                    balance: () => `balance + ${amount}`,
+                });
 
-      const shiftExists = await this.redisClient.exists(shiftId);
-      if (shiftExists) {
-        await this.redisClient.pipeline()
-          .hincrbyfloat(shiftId, 'total_receive', amount)
-          .hincrbyfloat(shiftId, 'balance', amount)
-          .exec();
-      }
+                const shiftExists = await this.redisClient.exists(shiftId);
+                if (shiftExists) {
+                    await this.redisClient.pipeline()
+                        .hincrbyfloat(shiftId, 'total_receive', amount)
+                        .hincrbyfloat(shiftId, 'balance', amount)
+                        .exec();
+                }
 
-      this.log(null, 'UPDATE_TOTAL_RECEIVE_SUCCESS', `Shift: ${shiftId}, Amount: ${amount}`, manager);
-    });
-  } catch (err) {
-    this.log(null, 'UPDATE_TOTAL_RECEIVE_FAILED', `Shift: ${shiftId}, Error: ${err}`);
-    throw new InternalServerErrorException('Internal Server Error');
-  }
-}
+                this.log(null, 'UPDATE_TOTAL_RECEIVE_SUCCESS', `Shift: ${shiftId}, Amount: ${amount}`, manager);
+            });
+        } catch (err) {
+            this.log(null, 'UPDATE_TOTAL_RECEIVE_FAILED', `Shift: ${shiftId}, Error: ${err}`);
+            throw new InternalServerErrorException('Internal Server Error');
+        }
+    }
 
-    private async getActiveShiftByBoothId(boothId : string) {
-        return await this.shiftRepository.findOne({ where : {boothId : boothId , endTime : IsNull()}}) ; 
+    private async getActiveShiftByBoothId(boothId: string) {
+        return await this.shiftRepository.findOne({ where: { boothId: boothId, endTime: IsNull() } });
     }
 
 }
