@@ -89,12 +89,6 @@ export class ShiftsService {
                 throw new NotFoundException('you active shift is not found.');
             }
 
-            const cache = await this.redisClient.hgetall(activeShift.id);
-
-            if (cache) {
-                await this.setSummaryFromCache(activeShift.id, manager);
-            }
-
             await this.deleteCacheSummaryShift(activeShift.id, manager);
 
             const shiftRepo = manager.getRepository(Shift);
@@ -146,25 +140,6 @@ export class ShiftsService {
         }
     }
 
-    private async setSummaryFromCache(shiftId: string, manager: EntityManager) {
-        const summary = await this.redisClient.hgetall(shiftId);
-        const total_receive = Number(summary.total_receive);
-        const total_exchange = Number(summary.total_exchange);
-        const balance = Number(summary.balance);
-
-        try {
-            await this.shiftRepository.update(shiftId, {
-                total_receive: total_receive,
-                total_exchange: total_exchange,
-                balance: balance,
-            });
-            await this.log(null, 'UPDATE_SUMMARY_SHIFT_SUCCESS', `total receive : ${total_receive} , total exchange : ${total_exchange} , balance : ${balance}  `, manager);
-        }
-        catch (error) {
-            await this.log(null, 'UPDATE_SUMMARY_SHIFT_FAILED', '', manager);
-        }
-
-    }
 
     async setTotalReceive(boothId: string, amount: number) {
 
