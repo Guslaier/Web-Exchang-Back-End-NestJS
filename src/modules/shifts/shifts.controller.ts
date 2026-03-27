@@ -32,6 +32,13 @@ export class ShiftsController {
   }
 
   @UseGuards(JwtAuthGuard , RolesGuard) 
+  @Roles("ADMIN" , "MANAGER")
+  @Get()
+  findShifts(@Query() query : QueryDateDto) {
+    return this.shiftsService.getShifts(query) ;
+  }
+
+  @UseGuards(JwtAuthGuard , RolesGuard) 
   @Roles("EMPLOYEE")
   @Post()
   open(@CurrentUser() currentUser : any) {

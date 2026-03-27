@@ -44,6 +44,38 @@ export class ShiftsService {
         );
     }
 
+    async getShifts(query : QueryDateDto) {
+        if(!query.startDate || !query.endDate) {
+            throw new BadRequestException('Specific range date required.') ; 
+        }
+
+        const start = new Date(query.startDate) ; 
+        const end = new Date(query.endDate) ;
+
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {                     
+            throw new BadRequestException('StartDate or EndDate in not in Date from.') ; 
+
+        }
+
+        start.setHours(0,0,0,0) ; 
+        end.setHours(23,59,59,999) ;  
+    
+        try {
+            // const rows =  await this.shiftRepository.find({
+            //     where : { endTime : IsNull() , startTime : Between(start , end) } ,
+            // })  ;
+
+            return await this.shiftRepository.query(`select id , "boothId" , "userId" , total_receive , total_exchange , balance , status , "startTime" 
+                from shifts   
+                where ("startTime" between  $1 and $2)
+                order by "startTime" asc`  , [start , end]) ;
+        }
+        catch(err) {
+            console.log(err) ; 
+            throw new InternalServerErrorException('Internal Server Error') ; 
+        }
+    }
+
     async getActiveShifts(query : QueryDateDto) {
         if(!query.startDate || !query.endDate) {
             throw new BadRequestException('Specific range date required.') ; 
