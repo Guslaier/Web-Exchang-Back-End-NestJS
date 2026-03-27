@@ -1,5 +1,6 @@
-import { Controller, Post, Get, Put, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Param, Body, UseGuards, Query } from '@nestjs/common';
 import { ShiftsService } from './shifts.service';
+import { QueryDateDto } from './dto/shift.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -12,6 +13,13 @@ export class ShiftsController {
           
   ) 
   {}
+
+  @UseGuards(JwtAuthGuard , RolesGuard) 
+  @Roles("ADMIN" , "MANAGER")
+  @Get('actives')
+  findActivesShift(@Query() query : QueryDateDto) {
+    return this.shiftsService.getActiveShifts(query) ;
+  }
 
   @UseGuards(JwtAuthGuard , RolesGuard) 
   @Roles("EMPLOYEE")
