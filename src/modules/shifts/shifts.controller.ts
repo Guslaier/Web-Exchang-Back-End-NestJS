@@ -1,6 +1,6 @@
 import { Controller, Post, Get, Put, Delete, Param, Body, UseGuards, Query } from '@nestjs/common';
 import { ShiftsService } from './shifts.service';
-import { QueryDateDto, SummaryData } from './dto/shift.dto';
+import { QueryDateDto, QueryShiftId, SummaryData } from './dto/shift.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -14,6 +14,13 @@ export class ShiftsController {
           
   ) 
   {}
+
+  @UseGuards(JwtAuthGuard , RolesGuard) 
+  @Roles("ADMIN" , "MANAGER" , "EMPLOYEE")
+  @Get('summary')
+  findShiftSummary(@CurrentUser() currentUser : any , @Query() query : QueryShiftId) {
+    return this.shiftsService.getSummary(currentUser , query) ;
+  }
 
   
 

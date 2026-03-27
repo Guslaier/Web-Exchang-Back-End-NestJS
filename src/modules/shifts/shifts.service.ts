@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, InternalServerErrorException, ConflictException, Inject, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, InternalServerErrorException, ConflictException, Inject, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { BoothsService } from '../../modules/booths/booths.service';
 import { NotFoundError, throwError } from 'rxjs';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -8,7 +8,7 @@ import { SystemLogsService } from '../../modules/system-logs/system-logs.service
 import { get } from 'http';
 import { error } from 'console';
 import Redis from 'ioredis';
-import { QueryDateDto, SummaryData } from './dto/shift.dto';
+import { QueryDateDto, QueryShiftId, SummaryData } from './dto/shift.dto';
 import { start } from 'repl';
 import { isUUID } from 'class-validator';
 
@@ -103,7 +103,7 @@ export class ShiftsService {
             try {
                 await this.log(currentUser, "open shift SUCCESS", ``, manager);
                 const savedShift = await shiftRepo.save(row);
-                await this.createCacheSummaryShift(savedShift.id, manager);
+                await this.createCacheSummaryShift(savedShift.id , currentUser, manager);
             }
             catch (err) {
                 await this.log(currentUser, "open shift FAILED", `internal server error`, manager);
@@ -149,12 +149,13 @@ export class ShiftsService {
         return await this.shiftRepository.findOne({ where: { userId: userId, endTime: IsNull() } });
     }
 
-    private async createCacheSummaryShift(shiftId: string, manager: EntityManager) {
+    private async createCacheSummaryShift(shiftId: string , currentUser : any , manager: EntityManager) {
         try {
             await this.redisClient.hset(shiftId, {
                 total_receive: 0,
                 total_exchange: 0,
-                balance: 0
+                balance: 0 , 
+                emp : currentUser.id
             });
             await this.redisClient.expire(shiftId, 60 * 60 * 12);
             await this.log(null, 'CREATE_CACHE_SHIFT_SUCCESS', '', manager);
@@ -304,6 +305,36 @@ export class ShiftsService {
         throw new InternalServerErrorException('Internal Server Error.') ;  
 
       }
+
+    }
+
+    async getSummary(currentUser : any , query : QueryShiftId) {
+        const shiftId = query?.shiftId ? query.shiftId : "" ; 
+        console.log(shiftId) ;
+        if (!isUUID(shiftId)) {
+            throw new BadRequestException('No shift id or worng shift id format.') ; 
+        }
+
+        const exist = await this.redisClient.hexists(shiftId , 'emp') ;
+        
+        if(!exist) {
+            const shift = await this.shiftRepository.findOne({where : {id : shiftId}}) ; 
+            if(!shift) {
+                throw new NotFoundException('Shift not found.')
+            }
+            await this.redisClient.hset(shiftId, {
+                total_receive: shift.total_receive,
+                total_exchange: shift.total_exchange,
+                balance: shift.balance , 
+                emp : shift.userId
+            });
+        }
+
+        const cache = await this.redisClient.hgetall(shiftId) ;
+        if (currentUser.role == "EMPLOYEE" && currentUser.id != cache.emp) {
+            throw new ForbiddenException('This is not your shift.') ; 
+        } 
+        return cache ; 
 
     }
 

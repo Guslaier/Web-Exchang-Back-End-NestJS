@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsDateString , IsDate, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsDateString , IsDate, IsNumber, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
 import { NumberLiteralType } from 'typescript';
 
@@ -42,4 +42,9 @@ export class SummaryData {
   @IsNumber()
   @IsOptional()
   cashAdvance : number ; 
+}
+
+export class QueryShiftId {
+  @IsString()
+  shiftId : string
 }
