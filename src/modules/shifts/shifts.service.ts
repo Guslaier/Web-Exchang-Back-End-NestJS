@@ -1,13 +1,15 @@
 import { Injectable, NotFoundException, InternalServerErrorException, ConflictException, Inject, BadRequestException } from '@nestjs/common';
 import { BoothsService } from '../../modules/booths/booths.service';
-import { NotFoundError } from 'rxjs';
+import { NotFoundError, throwError } from 'rxjs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Shift } from './entities/shift.entity';
-import { CannotAttachTreeChildrenEntityError, IsNull, Repository, DataSource, EntityManager } from 'typeorm';
+import { CannotAttachTreeChildrenEntityError, IsNull, Repository, DataSource, EntityManager, Between } from 'typeorm';
 import { SystemLogsService } from '../../modules/system-logs/system-logs.service';
 import { get } from 'http';
 import { error } from 'console';
 import Redis from 'ioredis';
+import { QueryDateDto } from './dto/shift.dto';
+import { start } from 'repl';
 
 
 
@@ -39,6 +41,38 @@ export class ShiftsService {
                 details,
             },
         );
+    }
+
+    async getActiveShifts(query : QueryDateDto) {
+        if(!query.startDate || !query.endDate) {
+            throw new BadRequestException('Specific range date required.') ; 
+        }
+
+        const start = new Date(query.startDate) ; 
+        const end = new Date(query.endDate) ;
+
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {                     
+            throw new BadRequestException('StartDate or EndDate in not in Date from.') ; 
+
+        }
+
+        start.setHours(0,0,0,0) ; 
+        end.setHours(23,59,59,999) ;  
+    
+        try {
+            // const rows =  await this.shiftRepository.find({
+            //     where : { endTime : IsNull() , startTime : Between(start , end) } ,
+            // })  ;
+
+            return await this.shiftRepository.query(`select booths.id , booths.name 
+                from shifts join booths on booths.id = shifts."boothId"  
+                where ("endTime" is null) and ("startTime" between  $1 and $2)
+                order by booths.name asc`  , [start , end]) ;
+        }
+        catch(err) {
+            console.log(err) ; 
+            throw new InternalServerErrorException('Internal Server Error') ; 
+        }
     }
 
 
