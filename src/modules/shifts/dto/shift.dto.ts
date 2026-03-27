@@ -1,5 +1,6 @@
-import { IsString, IsNotEmpty, IsOptional, IsDateString , IsDate } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsDateString , IsDate, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
+import { NumberLiteralType } from 'typescript';
 
 
 export class CreateShiftDto {
@@ -31,4 +32,14 @@ export class QueryDateDto {
   @IsNotEmpty()
   endDate: Date ; 
 
+}
+
+export class SummaryData {
+  @IsNumber()
+  @IsOptional()
+  balanceCheck : number ; 
+
+  @IsNumber()
+  @IsOptional()
+  cashAdvance : number ; 
 }

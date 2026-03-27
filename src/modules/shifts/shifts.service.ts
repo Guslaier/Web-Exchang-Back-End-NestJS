@@ -8,8 +8,9 @@ import { SystemLogsService } from '../../modules/system-logs/system-logs.service
 import { get } from 'http';
 import { error } from 'console';
 import Redis from 'ioredis';
-import { QueryDateDto } from './dto/shift.dto';
+import { QueryDateDto, SummaryData } from './dto/shift.dto';
 import { start } from 'repl';
+import { isUUID } from 'class-validator';
 
 
 
@@ -253,6 +254,57 @@ export class ShiftsService {
 
     private async getActiveShiftByBoothId(boothId: string) {
         return await this.shiftRepository.findOne({ where: { boothId: boothId, endTime: IsNull() } });
+    }
+
+    async setCloseDaily (shiftId : string , data : SummaryData , currentUser : any ) {
+        if (!isUUID(shiftId)){
+            await this.log(currentUser , 'SET_CLOSE_DAILY_FAILED' , 'Id is not correct format.') ; 
+            throw new BadRequestException('Id is not correct format.') ; 
+        }
+
+      const shift =  await this.shiftRepository.findOne({
+        where : {id : shiftId }
+      }) ; 
+
+      if (!shift) {
+          await this.log(currentUser , 'SET_CLOSE_DAILY_FAILED' , 'Could not find shift from shift id.') ; 
+          throw new NotFoundException('Could not find shift from shift id.') ; 
+      }
+
+      if (shift.status != 'close') {
+        const errorCause = shift.status == 'OPEN' ? 'it still active.' : 'it has been summarized.' ; 
+        await this.log(currentUser ,  'SET_CLOSE_DAILY_FAILED' , `This shift cannot be summerize casue ${errorCause}`) ;
+        throw new ConflictException(`This shift cannot be summerize casue ${errorCause}`) ;
+      }
+
+      const balanceCheck = data?.balanceCheck ? data.balanceCheck : 0  ; 
+      const cashAdvance = data?.cashAdvance ? data.cashAdvance : 0 ; 
+
+
+
+      
+      if (cashAdvance < 0) {
+        await this.log(currentUser , 'SET_CLOSE_DAILY_FAILED' , 'Cash advacne cannot be negative.') ;
+        throw new BadRequestException('Cash advacne cannot be negative.')  ; 
+      }
+
+      try {
+        return await this.dataSource.transaction( async (manager)=>{
+            const shiftRepo = manager.getRepository(Shift) ; 
+            await shiftRepo.update(shiftId , {
+                balance_check : balanceCheck , 
+                cash_advance : cashAdvance , 
+                status : 'SUMMARIZED' , 
+            }) ; 
+            await this.log(currentUser , 'SET_CLOSE_DAILY_SUCCESS' , '' ,  manager) ; 
+        }) ;
+      }
+      catch (err) {
+        await this.log(null , 'SET_CLOSE_DAILY_FAILED' , `Internal Server Error : ${err}`) ;
+        throw new InternalServerErrorException('Internal Server Error.') ;  
+
+      }
+
     }
 
 }

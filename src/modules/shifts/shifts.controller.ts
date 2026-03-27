@@ -1,10 +1,11 @@
 import { Controller, Post, Get, Put, Delete, Param, Body, UseGuards, Query } from '@nestjs/common';
 import { ShiftsService } from './shifts.service';
-import { QueryDateDto } from './dto/shift.dto';
+import { QueryDateDto, SummaryData } from './dto/shift.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { UUID } from 'crypto';
 
 @Controller('shifts')
 export class ShiftsController {
@@ -13,6 +14,8 @@ export class ShiftsController {
           
   ) 
   {}
+
+  
 
   @UseGuards(JwtAuthGuard , RolesGuard) 
   @Roles("ADMIN" , "MANAGER")
@@ -33,6 +36,13 @@ export class ShiftsController {
   @Put()
   close(@CurrentUser() currentUser : any) {
     return this.shiftsService.setStatusToCLose(currentUser) ; 
+  }
+
+  @UseGuards(JwtAuthGuard , RolesGuard) 
+  @Roles("ADMIN" , "MANAGER")
+  @Put('summarize/:id')
+  summarize(@Param('id') id : string , @Body() summaryData : SummaryData , @CurrentUser() currentUser : any) {
+    return this.shiftsService.setCloseDaily(id , summaryData , currentUser) ; 
   }
   
 
