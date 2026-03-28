@@ -284,8 +284,13 @@ export class CurrenciesService implements OnModuleInit {
           continue; // หรือจะ throw Error ก็ได้แล้วแต่ดีไซน์ครับ
         }
 
-        // 🛡️ ตรวจสอบโหมด: ถ้าไม่ใช่ MANUAL ให้ข้ามไป (Skipped)
+        // ตรวจสอบโหมด: ถ้าไม่ใช่ MANUAL ให้ข้ามไป (Skipped)
         if (currency.updateMode !== UpdateMode.MANUAL) {
+          skippedCodes.push(currency.code);
+          continue; // ข้ามการอัปเดตตัวนี้ไปทำงานตัวถัดไป
+        }
+
+        if (item.buyRate > item.sellRate){
           skippedCodes.push(currency.code);
           continue; // ข้ามการอัปเดตตัวนี้ไปทำงานตัวถัดไป
         }
