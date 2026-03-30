@@ -177,7 +177,7 @@ export class ShiftsService {
 
     }
 
-    private async getActiveShiftByUserId(userId: string) {
+    async getActiveShiftByUserId(userId: string) {
         return await this.shiftRepository.findOne({ where: { userId: userId, endTime: IsNull() } });
     }
 
