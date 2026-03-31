@@ -1,13 +1,14 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn , PrimaryColumn } from 'typeorm';
 
 @Entity('transactions')
 export class Transaction {
-  @PrimaryGeneratedColumn('uuid')
+ @PrimaryColumn()
   id: string;
 
   @Column()
   type: string;
-  
-  @DeleteDateColumn()
-  deletedAt?: Date;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
 }
