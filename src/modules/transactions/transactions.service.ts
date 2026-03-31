@@ -1,14 +1,11 @@
 import { Injectable , InternalServerErrorException } from '@nestjs/common';
 import { EntityManager} from 'typeorm';
 import { Transaction } from './entities/transaction.entity';
+import { TranType } from 'index';
 
 @Injectable()
 export class TransactionsService {
-    async create(manager : EntityManager , type : string) {
-
-        if (!(type === 'TRANSFER')  && !(type === 'EXCHANGE')) {
-            throw new InternalServerErrorException('Invalid transaction type from service');
-        }
+    async create(manager : EntityManager , type : TranType) {
 
         const transactionRepository = manager.getRepository(Transaction); 
 
