@@ -8,23 +8,4 @@ import { Roles } from '../../common/decorators/roles.decorator';
 export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
 
-  @Post()
-  create() {
-    return ;
-  }
-
-  @Get()
-  findAll() {
-    return ;
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return ;
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return ;
-  }
 }
