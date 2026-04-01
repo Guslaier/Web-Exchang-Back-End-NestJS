@@ -1,25 +1,71 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, DeleteDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, DeleteDateColumn, UpdateDateColumn , PrimaryColumn , ManyToOne, JoinColumn, OneToOne} from 'typeorm';
+import { ExchangeRate } from '../../exchange-rates/entities/exchange-rate.entity';
+import { Customer } from '../../customers/entities/customer.entity';
+import { User } from '../../users/entities/user.entity';
+import { Transaction } from '../../transactions/entities/transaction.entity';
+
 
 @Entity('exchange_transactions')
 export class ExchangeTransaction {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryColumn()
   id: string;
+
+  @OneToOne(() => Transaction , (transaction) => transaction.id)
+  @JoinColumn({ name: 'id' })
+  transaction: Transaction;
 
   @Column()
   customerId: string;
 
+  @ManyToOne(() => Customer, (customer) => customer.id)
+  @JoinColumn({ name: 'customerId' })
+  customer: Customer;
+
   @Column()
-  currencyCode: string;
+  exchangeRateId : string;
+
+  @ManyToOne(() => ExchangeRate, (exchangeRate) => exchangeRate.id)
+  @JoinColumn({ name: 'exchangeRateId' })
+  exchangeRateFK: ExchangeRate;
 
   @Column('decimal', { precision: 12, scale: 2 })
-  amount: number;
+  foreignCurrencyAmount: number;
 
-  @Column('decimal', { precision: 10, scale: 4 })
-  appliedRate: number;
+  @Column('decimal', { precision: 12, scale: 2 })
+  totalthaiBahtAmount: number;
 
-  @CreateDateColumn()
-  createdAt: Date;
+  @Column('decimal', { precision: 12, scale: 2 })
+  exchangeRate: number;
 
+  @Column()
+  isNegotiateRate: boolean;
+
+  @Column('text' , { nullable: true })
+  note: string;
+
+  @Column('text' , { nullable: true })
+  voidReason: string;
+  
+  @Column({ nullable: true })
+  voidedBy: string;
+
+  @ManyToOne(() => User, (user) => user.id)
+  @JoinColumn({ name: 'voidedBy' })
+  employee: User;
+
+  @Column({ nullable: true })
+  approvedBy: string;
+
+  @ManyToOne(() => User, (user) => user.id)
+  @JoinColumn({ name: 'approvedBy' })
+  approver: User;
+
+  @Column()
+  status: string;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+  
   @DeleteDateColumn()
   deletedAt?: Date;
 }
