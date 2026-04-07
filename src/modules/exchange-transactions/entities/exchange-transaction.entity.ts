@@ -10,14 +10,14 @@ export class ExchangeTransaction {
   @PrimaryColumn()
   id: string;
 
-  @OneToOne(() => Transaction , (transaction) => transaction.id)
+  @OneToOne(() => Transaction)
   @JoinColumn({ name: 'id' })
   transaction: Transaction;
 
-  @Column()
-  customerId: string;
+  @Column({ nullable: true })
+  customerId: string | null;
 
-  @ManyToOne(() => Customer, (customer) => customer.id)
+  @OneToOne(() => Customer)
   @JoinColumn({ name: 'customerId' })
   customer: Customer;
 
@@ -37,11 +37,11 @@ export class ExchangeTransaction {
   @Column('decimal', { precision: 12, scale: 2 })
   exchangeRate: number;
 
-  @Column()
+  @Column({ type: 'boolean', default: false })
   isNegotiateRate: boolean;
 
   @Column('text' , { nullable: true })
-  note: string;
+  note: string | null ;
 
   @Column('text' , { nullable: true })
   voidReason: string;
