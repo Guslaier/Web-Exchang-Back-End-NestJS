@@ -32,6 +32,12 @@ export class CurrenciesService implements OnModuleInit {
   // ข้อมูลสำรองกรณี API ล่ม (Fallback Data) - เพิ่มสกุลเงินยอดนิยม
   private readonly fallbackCurrencies = [
     {
+      code: 'THB' , 
+      name: 'ไทย : บาท (THB)',
+      buyRate: 1,
+      sellRate: 1,
+    } , 
+    {
       code: 'USD',
       name: 'สหรัฐอเมริกา : ดอลลาร์ (USD)',
       buyRate: 32.4313,
@@ -180,7 +186,7 @@ export class CurrenciesService implements OnModuleInit {
 
         const detailRates = rateRes.data?.result?.data?.data_detail;
         if (!detailRates) throw new Error('Invalid BOT response');
-
+        detailRates.push({ currency_id: 'THB', currency_name_th: 'ไทย : บาท (THB)', buying_transfer: '1', selling: '1' });
         for (const rate of detailRates) {
           const code = rate.currency_id;
           let buy = parseFloat(rate.buying_transfer) || 0;
