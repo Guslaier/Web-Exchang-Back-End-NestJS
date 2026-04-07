@@ -410,4 +410,19 @@ export class CurrenciesService implements OnModuleInit {
       return await repo.find({ order: { code: 'ASC' } });
     });
   }
+
+  async getTHBCurrency() {
+    try {
+      return await this.currencyRepo.findOne({ where: { code: 'THB' } });
+    }
+    catch (err) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      await this.systemLogsService.createLog(null, {
+        userId: null,
+        action: 'CURRENCY_THB_FETCH_FAILED',
+        details: `Error fetching THB currency: ${errMessage}`,
+      });
+      throw new NotFoundException('Internal Server Error');
+    }
+  }
 }
