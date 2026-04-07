@@ -6,20 +6,26 @@ export class Customer {
   id: string;
 
   @Column()
-  firstName: string;
+  passportImg: string;
+
+  @Column() 
+  passportNo: string;
 
   @Column()
-  lastName: string;
+  fullName: string;
 
-  @Column({ unique: true })
-  passportNumber: string;
+  @Column()
+  nationality: string;
+
+  @Column()
+  phoneNumber: string;
+
+  @Column()
+  hotelName: string;
+
+  @Column()
+  roomNumber: string;
 
   @CreateDateColumn()
   createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
-
-  @DeleteDateColumn()
-  deletedAt?: Date;
 }
