@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
-import { CreateExchangeTransactionDto } from './dto/exchange-transaction.dto';
+import { CreateExchangeTransactionDto , GetExchangeTransactionsFromShiftsDto } from './dto/exchange-transaction.dto';
 import { ShiftsService } from './../../modules/shifts/shifts.service';
 import { TransactionsService } from './../../modules/transactions/transactions.service';
 import { ExchangeRatesService } from './../../modules/exchange-rates/exchange-rates.service';
@@ -7,6 +7,7 @@ import { SystemLogsService } from './../../modules/system-logs/system-logs.servi
 import { CustomersService } from './../../modules/customers/customers.service';
 import { CashCountsService } from './../../modules/cash-counts/cash-counts.service';
 import { CreateCashCountDto } from './../../modules/cash-counts/dto/cash-count.dto';
+import { CreateTransactionDto } from './../../modules/transactions/dto/transaction.dto';
 import { InputValidator } from './helper/input-validator';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository , DataSource , EntityManager} from 'typeorm';
@@ -85,7 +86,11 @@ export class ExchangeTransactionsService {
         // insert section 
         try {
             this.dataSource.transaction(async (manager) => {
-                const transaction = await this.transactionsService.create(manager , body.type);
+                const createTransactionDto : CreateTransactionDto = {
+                    type : "EXCHANGE",  
+                    shiftId : activeShift.id
+                }
+                const transaction = await this.transactionsService.create(manager , createTransactionDto);
                 
                 const customer = insertCustomer ? await this.customerService.create(manager, passportNo , fullName, nationality, phoneNumber, hotelName, roomNumber, customer_img?.filename ?? "") : null;
                 
@@ -138,7 +143,31 @@ export class ExchangeTransactionsService {
             throw new InternalServerErrorException('Failed to create exchange transaction');
         }
 
-    }       
+    }
+    
+    
+    async getTransactionsFromShift(currentUser : any , query : GetExchangeTransactionsFromShiftsDto) {
+        let isEmployee = currentUser.role === 'EMPLOYEE' ? true : false    ;
+
+        const shiftId = isEmployee ? (await this.shiftsService.getActiveShiftByUserId(currentUser.id))?.id : query?.shiftId;
+
+        if (!shiftId) {
+            throw new BadRequestException('No active shift found');
+        }
+
+        const exchangeTransactions = await this.exchangeTransactionRepository.find({
+            relations : {
+                transaction : true ,
+                customer : true ,
+             }
+             , 
+            where : {
+                transaction : {
+                    // shiftId : shiftId
+                }
+            }
+        });
+    }
 
 
 }
