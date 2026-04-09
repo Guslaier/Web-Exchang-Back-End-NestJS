@@ -90,3 +90,9 @@ export class CreateExchangeTransactionDto implements Pick<ExchangeTransactionDat
     @IsOptional()
     roomNumber ?: string;
 }
+
+export class GetExchangeTransactionsFromShiftsDto {
+    @IsUUID()
+    @IsOptional()
+    shiftId: string;
+}
