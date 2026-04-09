@@ -159,12 +159,27 @@ export class ExchangeTransactionsService {
         const exchangeTransactions = await this.exchangeTransactionRepository.find({
             relations : {
                 transaction : true ,
-                customer : true ,
+                exchangeRateFK : true ,
              }
              , 
             where : {
                 transaction : {
                      shiftId : shiftId
+                }
+            }
+            ,
+            select : {
+                id : true , 
+                type : true ,
+                exchangeRateFK : {
+                    name : true ,
+                },
+                exchangeRate : true ,
+                foreignCurrencyAmount : true , 
+                totalthaiBahtAmount : true ,
+                status : true , 
+                transaction : {
+                    createdAt : true
                 }
             }
         });
