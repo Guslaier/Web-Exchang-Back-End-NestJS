@@ -36,13 +36,4 @@ export class ExchangeTransactionsController {
     return ;
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return ;
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return ;
-  }
 }
