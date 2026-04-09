@@ -12,6 +12,7 @@ import { InputValidator } from './helper/input-validator';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository , DataSource , EntityManager} from 'typeorm';
 import { ExchangeTransaction } from './entities/exchange-transaction.entity';
+import { re } from 'mathjs';
 
 
 @Injectable()
@@ -146,7 +147,7 @@ export class ExchangeTransactionsService {
     }
     
     
-    async getTransactionsFromShift(currentUser : any , query : GetExchangeTransactionsFromShiftsDto) {
+    async getTransactionsFromShift(currentUser : any , query : GetExchangeTransactionsFromShiftsDto | undefined) {
         let isEmployee = currentUser.role === 'EMPLOYEE' ? true : false    ;
 
         const shiftId = isEmployee ? (await this.shiftsService.getActiveShiftByUserId(currentUser.id))?.id : query?.shiftId;
@@ -163,10 +164,12 @@ export class ExchangeTransactionsService {
              , 
             where : {
                 transaction : {
-                    // shiftId : shiftId
+                     shiftId : shiftId
                 }
             }
         });
+
+        return exchangeTransactions
     }
 
 
