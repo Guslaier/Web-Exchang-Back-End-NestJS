@@ -1,6 +1,6 @@
-import { Controller, Post, Get, Delete, Body, Param, UseGuards, UseInterceptors, UploadedFile, ParseFilePipe } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Param, UseGuards, UseInterceptors, UploadedFile, ParseFilePipe, Query } from '@nestjs/common';
 import { ExchangeTransactionsService } from './exchange-transactions.service';
-import { CreateExchangeTransactionDto } from './dto/exchange-transaction.dto';
+import { CreateExchangeTransactionDto , GetExchangeTransactionsFromShiftsDto  } from './dto/exchange-transaction.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -31,9 +31,12 @@ export class ExchangeTransactionsController {
     return this.exchangeTransactionsService.create(currentUser, createExchangeTransactionDto, customer_img);
   }
 
-  @Get()
-  findAll() {
-    return ;
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('EMPLOYEE','ADMIN', 'MANAGER')
+  @Get('/shift')
+  getTransactionsFromShift(@CurrentUser() currentUser : any , @Query() query ?: GetExchangeTransactionsFromShiftsDto) {
+    return this.exchangeTransactionsService.getTransactionsFromShift(currentUser , query); 
   }
 
 }
