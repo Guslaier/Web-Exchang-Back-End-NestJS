@@ -1,5 +1,5 @@
-import { BadRequestException, Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
-import { CreateExchangeTransactionDto , GetExchangeTransactionsFromShiftsDto } from './dto/exchange-transaction.dto';
+import { BadRequestException, Inject, Injectable, InternalServerErrorException , NotFoundException } from '@nestjs/common';
+import { CreateExchangeTransactionDto , GetExchangeTransactionsFromShiftsDto , GetExchangeTransactionDto} from './dto/exchange-transaction.dto';
 import { ShiftsService } from './../../modules/shifts/shifts.service';
 import { TransactionsService } from './../../modules/transactions/transactions.service';
 import { ExchangeRatesService } from './../../modules/exchange-rates/exchange-rates.service';
@@ -187,5 +187,131 @@ export class ExchangeTransactionsService {
         return exchangeTransactions
     }
 
+    async getTransactionDetail(currentUser : any , query : GetExchangeTransactionDto) {
+        const isEmployee = currentUser.role === 'EMPLOYEE' ? true : false;  
 
+        if (isEmployee) {   
+            const activeShift = await this.shiftsService.getActiveShiftByUserId(currentUser.id);
+            if (!activeShift) {
+                throw new BadRequestException('Active shift not found for the employee.');
+            }
+            const exchangeTransaction = await this.exchangeTransactionRepository.findOne({
+                relations : {
+                    transaction : true ,
+                } , 
+                where : {
+                    id : query.id , 
+                } , 
+                select : {
+                    transaction : {
+                        shiftId : true ,
+                    }
+                }
+            });
+
+            if (!exchangeTransaction) {
+                throw new NotFoundException('Transaction not exchange transaction.');
+            }
+
+            if(!exchangeTransaction.transaction.shiftId) {
+                throw new BadRequestException('Transaction is not exchange transactions.');
+            }
+
+            if (exchangeTransaction.transaction.shiftId !== activeShift.id) {
+                throw new BadRequestException('Transaction does not belong to the employee\'s active shift.');
+            }
+        }
+
+
+        const exchangeTransaction = await this.exchangeTransactionRepository.findOne({
+            relations : {
+                transaction : {
+                    shift : {
+                        user : true , 
+                        booth : true ,
+                    }
+                } ,
+                exchangeRateFK : true ,
+                customer : true ,
+                employee : true ,
+                approver : true ,
+            } , 
+            where : {
+                id : query.id , 
+            } ,
+            select : {
+                id : true ,
+                type : true ,
+                foreignCurrencyAmount : true ,
+                totalthaiBahtAmount : true ,
+                exchangeRate : true ,
+                isNegotiateRate : true ,
+                note : true ,
+                voidReason : true ,
+                status : true , 
+                exchangeRateFK : {
+                    name : true ,
+                } ,
+                customer : {
+                    id : true ,
+                    fullName : true ,
+                    passportNo : true , 
+                    hotelName : true ,
+                    roomNumber : true ,
+                    phoneNumber : true ,
+                    passportImg : true ,
+                } ,
+                transaction : { 
+                    id : true ,
+                    createdAt : true ,
+                    shift : {
+                        id : true ,
+                        user : {
+                            id : true ,
+                            username : true ,
+                        } , 
+                        booth : {
+                            id : true ,
+                            name : true ,
+                        }
+                    }
+                },
+                employee : {
+                    username : true ,
+                    } ,
+                approver : {
+                    username : true ,
+                }
+            }
+        });
+
+
+        if (!exchangeTransaction) {
+            throw new NotFoundException('Exchange transaction not found.');
+        }
+
+        const {transaction , customer , exchangeRateFK , approver , employee ,  ...restExchangeTransaction} = exchangeTransaction ;
+        const {createdAt , shift , ...restTransaction} = transaction ;
+
+        const {user , booth , ...restShift} = shift ;
+
+
+        const {id , ...customerInfo} = customer ? customer : {id : null , fullName : null , passportNo : null , hotelName : null , roomNumber : null , phoneNumber : null , passportImg : null} ;
+
+        const cashCounts = await this.cashCountsService.getCashCountsByTransactionId({ transactionId : exchangeTransaction.id });
+        const {THB , foreign} = cashCounts;
+        const cleanedTHB = THB.map((item)=> {
+            const { currency , ...rest } = item ;
+            return rest ; 
+        } );
+        const cleanedForeign = foreign.map((item) => {
+            const { currency , ...rest } = item ;
+            return rest ;
+        });
+
+        const exchangeTransactionDetail =  { ...restExchangeTransaction ,  createdAt , employee : user.username , booth : booth.name , exchangeRateName : exchangeRateFK.name , customerInfo , THB : [...cleanedTHB] , foreign : [...cleanedForeign] , voidedBy : employee ? employee.username : null , approvedBy : approver ? approver.username : null } ;
+        
+        return exchangeTransactionDetail;
+
+    }
 }
