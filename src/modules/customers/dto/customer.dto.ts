@@ -13,3 +13,9 @@ export class CreateCustomerDto {
   @IsNotEmpty()
   passportNumber: string;
 }
+
+export class GetImgDto {
+  @IsString()
+  @IsNotEmpty()
+  passportImg: string;
+}
