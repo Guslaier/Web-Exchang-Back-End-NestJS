@@ -155,12 +155,16 @@ export class ExchangeTransactionsService {
             throw new BadRequestException('No active shift found');
         }
 
-        const exchangeTransactions = await this.exchangeTransactionRepository.find({
+        const exchangeTransactionQueries = await this.exchangeTransactionRepository.find({
             relations : {
-                transaction : true ,
+                transaction : {
+                    shift : {
+                        user : true , 
+                        booth : true ,
+                    }
+                } ,
                 exchangeRateFK : true ,
-             }
-             , 
+            } ,
             where : {
                 transaction : {
                      shiftId : shiftId
@@ -168,22 +172,50 @@ export class ExchangeTransactionsService {
             }
             ,
             select : {
-                id : true , 
+                id : true ,
                 type : true ,
+                foreignCurrencyAmount : true ,
+                totalthaiBahtAmount : true ,
+                exchangeRate : true ,
+                isNegotiateRate : true ,
+                status : true , 
                 exchangeRateFK : {
                     name : true ,
+                } ,
+                transaction : { 
+                    id : true ,
+                    createdAt : true ,
+                    shift : {
+                        id : true ,
+                        user : {
+                            id : true ,
+                            username : true ,
+                        } , 
+                        booth : {
+                            id : true ,
+                            name : true ,
+                        }
+                    }
                 },
-                exchangeRate : true ,
-                foreignCurrencyAmount : true , 
-                totalthaiBahtAmount : true ,
-                status : true , 
+            } , 
+              order : {
                 transaction : {
-                    createdAt : true
+                    createdAt : "ASC"
                 }
-            }
+            } ,
         });
 
-        return exchangeTransactions
+        const exchangeTransactions = [] ;
+        
+        for (const exchangeTransaction of exchangeTransactionQueries) {
+            const {transaction , exchangeRateFK , ...restExchangeTransaction} = exchangeTransaction ;
+            const {createdAt , shift , ...restTransaction} = transaction ;
+            const {user , booth , ...restShift} = shift ;
+
+            exchangeTransactions.push({ ...restExchangeTransaction , createdAt , employee : user.username , booth : booth.name , exchangeRateName : exchangeRateFK.name } );
+        }
+
+        return exchangeTransactions;
     }
 
     async getTransactionDetail(currentUser : any , query : GetExchangeTransactionDto) {
