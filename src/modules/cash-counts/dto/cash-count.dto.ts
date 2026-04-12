@@ -34,3 +34,9 @@ export class CreateCashCountDto {
   @Type(() => AmountDto)
   amounts : AmountDto[] ;
 }
+
+export class GetCashCountDto {
+    @IsString()
+    @IsNotEmpty()
+    transactionId : string ;
+}
