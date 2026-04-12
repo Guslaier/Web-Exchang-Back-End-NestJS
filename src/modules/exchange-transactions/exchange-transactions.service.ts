@@ -51,12 +51,12 @@ export class ExchangeTransactionsService {
         
         const activeShift = await this.shiftsService.getActiveShiftByUserId(currentUser.id);
         if (!activeShift) {
-            throw new BadRequestException('No active shift found for the user');
+            throw new NotFoundException('No active shift found for the user');
         }
 
         const exchangeRateId = await this.exchangeRateService.findById(body.exchangeRatesId);
         if (!exchangeRateId) {
-            throw new BadRequestException('Exchange rate not found');
+            throw new NotFoundException('Exchange rate not found');
         }
 
         if (body.type !== 'BUY' && body.type !== 'SELL') {
