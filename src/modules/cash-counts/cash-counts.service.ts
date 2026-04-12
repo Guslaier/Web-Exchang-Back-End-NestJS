@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException , NotFoundException } from '@nestjs/common';
 import { SystemLogsService } from '../../modules/system-logs/system-logs.service';
 import { CurrenciesService } from '../../modules/currencies/currencies.service';
 import { CashCount } from './entities/cash-count.entity';
-import { CreateCashCountDto } from './dto/cash-count.dto';
-import { EntityManager } from 'typeorm';
+import { CreateCashCountDto  ,GetCashCountDto} from './dto/cash-count.dto';
+import { EntityManager, Repository } from 'typeorm';
 import { string } from 'mathjs';
+import { InjectRepository } from '@nestjs/typeorm';
 // Assuming you have an entity for cash count
 
 @Injectable()
@@ -13,6 +14,8 @@ export class CashCountsService {
     constructor(
         private readonly systemLogsService: SystemLogsService,
         private readonly currenciesService: CurrenciesService,
+        @InjectRepository(CashCount)
+        private readonly cashCountRepository: Repository<CashCount>,
     ) {
 
     }
@@ -69,4 +72,33 @@ export class CashCountsService {
         }
 
     }
-}   
+
+
+    async getCashCountsByTransactionId(getCashCountDto: GetCashCountDto) { 
+        const cashCount = await this.cashCountRepository.find({
+            relations : {
+                currency : true
+             },
+            where: { transactionId: getCashCountDto.transactionId },
+            select : {
+                denomination : true,
+                amount : true,
+                currency : {
+                    code : true
+                }
+             }
+        });
+
+        if (cashCount.length === 0) {
+            throw new NotFoundException('No cash counts found for the given transaction ID.');
+         }
+
+        const THBCashCounts = cashCount.filter(cc => cc.currency.code === 'THB');
+        const foreignCashCounts = cashCount.filter(cc => cc.currency.code !== 'THB');
+        
+        return {
+            THB : THBCashCounts,
+            foreign : foreignCashCounts
+        };  
+        }    
+}
