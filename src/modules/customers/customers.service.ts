@@ -1,8 +1,12 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException , NotFoundException , BadRequestException , StreamableFile , Response } from '@nestjs/common';
 import { SystemLogsService } from './../system-logs/system-logs.service';
+import { ShiftsService } from './../shifts/shifts.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository} from 'typeorm';
 import { Customer } from './entities/customer.entity';
+import { GetImgDto } from './dto/customer.dto';
+import { join } from 'path';
+import { existsSync , createReadStream } from 'fs';
 
 
 @Injectable()
@@ -11,7 +15,8 @@ export class CustomersService {
     constructor(
         private readonly systemLogsService : SystemLogsService ,  
         @InjectRepository(Customer)  
-        private readonly customerRepository : Repository<Customer>
+        private readonly customerRepository : Repository<Customer> , 
+        private readonly shiftsService : ShiftsService ,
     ) {
 
     }
@@ -49,6 +54,48 @@ export class CustomersService {
             await this.log(null, 'CREATE_CUSTOMER_FAILED', `Failed to create customer with passportNo: ${passportNo}. Error: ${err}`, manager);
             throw new  InternalServerErrorException('Failed to create customer'); 
         }
+    }
+
+    async getImg(currentUser: any , getImgDto : GetImgDto ) {
+        const isEmployee = currentUser.role === 'EMPLOYEE' ? true : false ;
+
+        if (isEmployee) {
+            const activeShift = await this.shiftsService.getActiveShiftByUserId(currentUser.id);
+
+            if (!activeShift) {
+                throw new NotFoundException('Your active shift is not found.');
+            }
+
+            const shift = await this.customerRepository.findOne({
+                relations: {
+                    exchangeTransaction : {
+                        transaction : true ,
+                    }
+                } , 
+                where : {
+                    passportImg : getImgDto.passportImg ,
+                    exchangeTransaction : {
+                        transaction : {
+                            shiftId : activeShift.id ,
+                        }
+                    }
+                }
+            }) ;   
+            
+            if (!shift) {
+                throw new BadRequestException('This customer image is not in your active shift.');
+            }
+        }
+
+        const filePath = join( 'upload/customers', getImgDto.passportImg);
+
+        if (!existsSync(filePath)) {
+            throw new NotFoundException('Customer image not found.');
+        }
+
+        const file = createReadStream(filePath);
+
+        return new StreamableFile(file) ;
     }
     
 }
