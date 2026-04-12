@@ -64,7 +64,7 @@ export interface CustomerData {
 export interface TransactionData {
     readonly transactionNo: string;
     shiftId: string;
-    type: TranType;
+    type: TranSectionType;
     createdAt: Date;
     updatedAt: Date;
 }
