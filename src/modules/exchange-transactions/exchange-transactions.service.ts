@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, InternalServerErrorException , NotFoundException } from '@nestjs/common';
-import { CreateExchangeTransactionDto , GetExchangeTransactionsFromShiftsDto , GetExchangeTransactionDto} from './dto/exchange-transaction.dto';
+import { CreateExchangeTransactionDto , GetExchangeTransactionsFromShiftsDto , GetExchangeTransactionDto , LimitDto} from './dto/exchange-transaction.dto';
 import { ShiftsService } from './../../modules/shifts/shifts.service';
 import { TransactionsService } from './../../modules/transactions/transactions.service';
 import { ExchangeRatesService } from './../../modules/exchange-rates/exchange-rates.service';
@@ -10,9 +10,8 @@ import { CreateCashCountDto } from './../../modules/cash-counts/dto/cash-count.d
 import { CreateTransactionDto } from './../../modules/transactions/dto/transaction.dto';
 import { InputValidator } from './helper/input-validator';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository , DataSource , EntityManager} from 'typeorm';
+import { Repository , DataSource , EntityManager , IsNull} from 'typeorm';
 import { ExchangeTransaction } from './entities/exchange-transaction.entity';
-import { re } from 'mathjs';
 
 
 @Injectable()
@@ -314,4 +313,76 @@ export class ExchangeTransactionsService {
         return exchangeTransactionDetail;
 
     }
+
+    async getTransactions(currentUser : any , query : LimitDto) {
+
+        const limit = query.limit || 5;
+        const offset = query.offset || 0;
+
+        const exchangeTransactionsQuery = await this.exchangeTransactionRepository.find({
+            relations : {
+                transaction : {
+                    shift : {
+                        user : true , 
+                        booth : true ,
+                    }
+                } ,
+                exchangeRateFK : true ,
+            } , 
+            where : {
+                transaction : {
+                    shift : {
+                        endTime : IsNull()
+                    }
+                }
+            } ,
+             select : {
+                id : true ,
+                type : true ,
+                foreignCurrencyAmount : true ,
+                totalthaiBahtAmount : true ,
+                exchangeRate : true ,
+                isNegotiateRate : true ,
+                status : true , 
+                exchangeRateFK : {
+                    name : true ,
+                } ,
+                transaction : { 
+                    id : true ,
+                    createdAt : true ,
+                    shift : {
+                        id : true ,
+                        user : {
+                            id : true ,
+                            username : true ,
+                        } , 
+                        booth : {
+                            id : true ,
+                            name : true ,
+                        }
+                    }
+                },
+            } , 
+            order : {
+                transaction : {
+                    createdAt : "DESC"
+                }
+            } ,
+            take : limit ,
+            skip : offset ,
+        });
+        
+        const exchangeTransactions = [] ; 
+
+        for (const exchangeTransaction of exchangeTransactionsQuery) {
+            const {transaction , exchangeRateFK , ...restExchangeTransaction} = exchangeTransaction ;
+            const {createdAt , shift , ...restTransaction} = transaction ;
+            const {user , booth , ...restShift} = shift ;
+
+            exchangeTransactions.push({ ...restExchangeTransaction , createdAt , employee : user.username , booth : booth.name , exchangeRateName : exchangeRateFK.name } );
+        }
+
+        return exchangeTransactions  ; 
+    }
+
 }
