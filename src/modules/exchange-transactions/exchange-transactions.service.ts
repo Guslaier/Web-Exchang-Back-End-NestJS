@@ -1,5 +1,5 @@
-import { BadRequestException, Inject, Injectable, InternalServerErrorException , NotFoundException } from '@nestjs/common';
-import { CreateExchangeTransactionDto , GetExchangeTransactionsFromShiftsDto , GetExchangeTransactionDto , LimitDto} from './dto/exchange-transaction.dto';
+import { BadRequestException, Inject, Injectable, InternalServerErrorException , NotFoundException , ForbiddenException} from '@nestjs/common';
+import { CreateExchangeTransactionDto , GetExchangeTransactionsFromShiftsDto , GetExchangeTransactionDto , LimitDto , SetStatusToPendingBodyDto , SetStatusDto} from './dto/exchange-transaction.dto';
 import { ShiftsService } from './../../modules/shifts/shifts.service';
 import { TransactionsService } from './../../modules/transactions/transactions.service';
 import { ExchangeRatesService } from './../../modules/exchange-rates/exchange-rates.service';
@@ -417,4 +417,45 @@ export class ExchangeTransactionsService {
         return exchangeTransactions  ; 
     }
 
+    async setStatusByEmployee(currentUser : any , param : SetStatusDto , body : SetStatusToPendingBodyDto) {
+        const activeShift = await this.shiftsService.getActiveShiftByUserId(currentUser.id);    
+        if (!activeShift) {
+            throw new NotFoundException('Active shift not found for the employee.');
+        }
+
+        const exchangeTransaction = await this.exchangeTransactionRepository.findOne({
+            relations : {
+                transaction : true ,
+            } , 
+            where : {
+                id : param.id ,
+                transaction : {
+                    shiftId : activeShift.id
+                }
+            }
+        });
+
+        if (!exchangeTransaction) {
+            throw new ForbiddenException('Exchange transaction not found for the active shift.');
+        }
+
+        try {
+            this.dataSource.transaction(async (manager) => {
+                const exchangeTransRepo = manager.getRepository(ExchangeTransaction);
+
+
+                const exchangeTransactionUpdateQuery = exchangeTransRepo.update({ id : param.id } , { status : 'PENDING' , voidReason : body.void_reason });
+                const logInsertQuery = this.log(currentUser, 'SET_EXCHANGE_TRANSACTION_PENDING_SUCCESS', `Set exchange transaction with ID: ${param.id} to pending status with reason: ${body.void_reason}`, manager);
+                
+                await Promise.all([exchangeTransactionUpdateQuery , logInsertQuery]);
+            });
+            return ({ message : `Set exchange transaction with ID: ${param.id} to pending status successfully`}) ;
+        }
+        catch (error) {
+            const messagge = error instanceof Error ? error.message : String(error);
+            await this.log(currentUser, 'SET_EXCHANGE_TRANSACTION_PENDING_FAILED', `Failed to set exchange transaction with ID: ${param.id} to pending status. Error: ${messagge}`);
+            throw new InternalServerErrorException('Internal server error.');
+        }
+
+    }
 }
