@@ -2,15 +2,17 @@ import { Injectable , InternalServerErrorException } from '@nestjs/common';
 import { EntityManager} from 'typeorm';
 import { Transaction } from './entities/transaction.entity';
 import { TranType } from 'index';
+import { CreateTransactionDto } from './dto/transaction.dto';
 
 @Injectable()
 export class TransactionsService {
-    async create(manager : EntityManager , type : TranType) {
+    async create(manager : EntityManager , createTransactionDto: CreateTransactionDto)  {
 
         const transactionRepository = manager.getRepository(Transaction); 
 
         const transaction = transactionRepository.create({
-            type : type,
+            type : createTransactionDto.type,
+            shiftId : createTransactionDto?.shiftId ?? null 
         });
 
         for (let i = 0; i < 3; i++) {
