@@ -1,4 +1,5 @@
-import { IsString, IsNotEmpty, IsNumber, IsOptional, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, IsUUID , IsDate, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import type { ExchangeTransactionData , CustomerData , TranType} from './../../../types/index'
 
 export class CreateExchangeTransactionDto implements Pick<ExchangeTransactionData , 'exchangeRatesId' | 'type' | 'foreignAmount' | 'thaiBahtAmount' | 'calculateMethod' |'note'> , Partial<CustomerData>  {
@@ -91,8 +92,26 @@ export class CreateExchangeTransactionDto implements Pick<ExchangeTransactionDat
     roomNumber ?: string;
 }
 
+export class GetExchangeTransactionDto {
+    @IsString()
+    @IsNotEmpty()
+    id: string;
+}
+
 export class GetExchangeTransactionsFromShiftsDto {
     @IsUUID()
     @IsOptional()
     shiftId: string;
+}
+
+export class LimitDto {
+      @IsNumber()
+      @IsOptional()
+      @Min(1) 
+      limit: number;
+
+      @IsNumber() 
+      @IsOptional()
+      @Min(0) 
+      offset: number;
 }
