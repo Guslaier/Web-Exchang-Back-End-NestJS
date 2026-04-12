@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn , PrimaryColumn } from 'typeorm';
+import { Shift } from './../../../modules/shifts/entities/shift.entity';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn , PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
 
 @Entity('transactions')
 export class Transaction {
@@ -7,6 +8,13 @@ export class Transaction {
 
   @Column()
   type: string;
+
+  @Column({ nullable: true })
+  shiftId: string;
+
+  @ManyToOne(() => Shift, (shift) => shift.id)
+  @JoinColumn({ name: 'shiftId' })
+  shift: Shift;
 
   @CreateDateColumn()
   createdAt: Date;
