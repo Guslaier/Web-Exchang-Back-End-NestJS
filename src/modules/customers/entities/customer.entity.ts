@@ -1,9 +1,17 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+import { ExchangeTransaction } from './../../../modules/exchange-transactions/entities/exchange-transaction.entity';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, OneToOne, JoinColumn } from 'typeorm';
 
 @Entity('customers')
 export class Customer {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column({ nullable: true })
+  exchangeTransactionId: string;
+
+  @OneToOne(() => ExchangeTransaction, exchangeTransaction => exchangeTransaction.id)
+  @JoinColumn({ name: 'exchangeTransactionId' })
+  exchangeTransaction: ExchangeTransaction;
 
   @Column()
   passportImg: string;
