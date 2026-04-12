@@ -10,6 +10,9 @@ export class ExchangeTransaction {
   @PrimaryColumn()
   id: string;
 
+  @Column({ default: 'BUY' })
+  type : string;
+
   @OneToOne(() => Transaction)
   @JoinColumn({ name: 'id' })
   transaction: Transaction;
