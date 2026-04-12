@@ -444,12 +444,12 @@ export class ExchangeTransactionsService {
                 const exchangeTransRepo = manager.getRepository(ExchangeTransaction);
 
 
-                const exchangeTransactionUpdateQuery = exchangeTransRepo.update({ id : param.id } , { status : 'PENDING' , voidReason : body.void_reason });
+                const exchangeTransactionUpdateQuery = exchangeTransRepo.update({ id : param.id , status : 'COMPLETED' } , { status : 'PENDING' , voidReason : body.void_reason });
                 const logInsertQuery = this.log(currentUser, 'SET_EXCHANGE_TRANSACTION_PENDING_SUCCESS', `Set exchange transaction with ID: ${param.id} to pending status with reason: ${body.void_reason}`, manager);
                 
                 await Promise.all([exchangeTransactionUpdateQuery , logInsertQuery]);
             });
-            return ({ message : `Set exchange transaction with ID: ${param.id} to pending status successfully`}) ;
+            return { message : `Exchange transaction with ID: ${param.id} has been set to pending status` } ;
         }
         catch (error) {
             const messagge = error instanceof Error ? error.message : String(error);
