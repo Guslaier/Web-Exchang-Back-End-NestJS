@@ -115,3 +115,15 @@ export class LimitDto {
       @Min(0) 
       offset: number;
 }
+
+export class SetStatusDto {
+    @IsString()
+    @IsNotEmpty()
+    id: string;
+}
+
+export class SetStatusToPendingBodyDto {
+    @IsString()
+    @IsNotEmpty()
+    void_reason : string ; 
+}
