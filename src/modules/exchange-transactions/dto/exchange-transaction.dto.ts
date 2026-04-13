@@ -92,7 +92,7 @@ export class CreateExchangeTransactionDto implements Pick<ExchangeTransactionDat
     roomNumber ?: string;
 }
 
-export class GetExchangeTransactionDto {
+export class GetExchangeTransactionDto implements Pick<ExchangeTransactionData , 'id'> {
     @IsString()
     @IsNotEmpty()
     id: string;
@@ -116,16 +116,16 @@ export class LimitDto {
       offset: number;
 }
 
-export class SetStatusDto {
+export class SetStatusDto implements Pick<ExchangeTransactionData , 'id'> {
     @IsString()
     @IsNotEmpty()
     id: string;
 }
 
-export class SetStatusToPendingBodyDto {
+export class SetStatusToPendingBodyDto implements Pick<ExchangeTransactionData , 'voidReason'>  {
     @IsString()
     @IsNotEmpty()
-    void_reason : string ; 
+    voidReason : string ; 
 }
 
 export class SetStatusToApproveBodyDto implements Pick<ExchangeTransactionData , 'status'> {
