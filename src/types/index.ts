@@ -105,9 +105,9 @@ export interface ExchangeTransactionData {
 
 export interface CashCountData {
     readonly id: string;               // PK
-    readonly currenciesCode: string;   // FK (เช่น 'USD', 'THB')
-    readonly transactionNo: string;    // FK (เชื่อมกับ exchange_transactions)
-    denomination: number;     // มูลค่าหน้าบัตร (เช่น 100, 500, 1000)
+    readonly currencyId: string ;   // FK (เช่น 'USD', 'THB')
+    readonly transactionId : string;    // FK (เชื่อมกับ exchange_transactions)
+    denomination: string;     // มูลค่าหน้าบัตร (เช่น 100, 500, 1000)
     amount: number;           // จำนวนฉบับ หรือ ผลรวมมูลค่า
     createdAt: Date;
     updatedAt: Date;
