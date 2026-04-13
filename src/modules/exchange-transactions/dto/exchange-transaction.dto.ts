@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, IsNumber, IsOptional, IsUUID , IsDate, Min, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
-import type { ExchangeTransactionData , CustomerData , TranType , TranStatus} from './../../../types/index'
+import type { ExchangeTransactionData , CustomerData , TranType , TranStatus , ShiftData} from './../../../types/index'
 
 export class CreateExchangeTransactionDto implements Pick<ExchangeTransactionData , 'exchangeRatesId' | 'type' | 'foreignAmount' | 'thaiBahtAmount' | 'calculateMethod' |'note'> , Partial<CustomerData>  {
    
@@ -98,10 +98,10 @@ export class GetExchangeTransactionDto implements Pick<ExchangeTransactionData ,
     id: string;
 }
 
-export class GetExchangeTransactionsFromShiftsDto {
+export class GetExchangeTransactionsFromShiftsDto implements Pick<ShiftData , 'id'> {
     @IsUUID()
     @IsOptional()
-    shiftId: string;
+    id: string;
 }
 
 export class LimitDto {
