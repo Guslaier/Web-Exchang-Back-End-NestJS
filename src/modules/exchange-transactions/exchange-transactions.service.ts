@@ -149,7 +149,7 @@ export class ExchangeTransactionsService {
     async getTransactionsFromShift(currentUser : any , query : GetExchangeTransactionsFromShiftsDto | undefined) {
         let isEmployee = currentUser.role === 'EMPLOYEE' ? true : false    ;
 
-        const shiftId = isEmployee ? (await this.shiftsService.getActiveShiftByUserId(currentUser.id))?.id : query?.shiftId;
+        const shiftId = isEmployee ? (await this.shiftsService.getActiveShiftByUserId(currentUser.id))?.id : query?.id;
 
         if (!shiftId) {
             throw new BadRequestException('No active shift found');
