@@ -1,6 +1,6 @@
 import { Controller, Post, Get, Delete, Body, Param, UseGuards, UseInterceptors, UploadedFile, ParseFilePipe, Query, Put } from '@nestjs/common';
 import { ExchangeTransactionsService } from './exchange-transactions.service';
-import { CreateExchangeTransactionDto , GetExchangeTransactionsFromShiftsDto  , GetExchangeTransactionDto, LimitDto , SetStatusDto , SetStatusToPendingBodyDto } from './dto/exchange-transaction.dto';
+import { CreateExchangeTransactionDto , GetExchangeTransactionsFromShiftsDto  , GetExchangeTransactionDto, LimitDto , SetStatusDto , SetStatusToPendingBodyDto , SetStatusToApproveBodyDto } from './dto/exchange-transaction.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -59,4 +59,12 @@ export class ExchangeTransactionsController {
   setStatusByEmployee(@CurrentUser() currentUser : any , @Param() param : SetStatusDto , @Body() body : SetStatusToPendingBodyDto) {
     return this.exchangeTransactionsService.setStatusByEmployee(currentUser , param , body); 
   }
+
+  @UseGuards(JwtAuthGuard , RolesGuard) 
+  @Roles('ADMIN' , 'MANAGER')
+  @Put('approve/pending/:id')
+  setStatusByNonEmployee(@CurrentUser() currentUser : any , @Param() param : SetStatusDto ,@Body() body : SetStatusToApproveBodyDto) {
+    return this.exchangeTransactionsService.setStatusByNonEmployee(currentUser , param , body); 
+  }
+
 }
