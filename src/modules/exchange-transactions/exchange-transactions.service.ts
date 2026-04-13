@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, InternalServerErrorException , NotFoundException , ForbiddenException} from '@nestjs/common';
-import { CreateExchangeTransactionDto , GetExchangeTransactionsFromShiftsDto , GetExchangeTransactionDto , LimitDto , SetStatusToPendingBodyDto , SetStatusDto} from './dto/exchange-transaction.dto';
+import { CreateExchangeTransactionDto , GetExchangeTransactionsFromShiftsDto , GetExchangeTransactionDto , LimitDto , SetStatusToPendingBodyDto , SetStatusDto , SetStatusToApproveBodyDto} from './dto/exchange-transaction.dto';
 import { ShiftsService } from './../../modules/shifts/shifts.service';
 import { TransactionsService } from './../../modules/transactions/transactions.service';
 import { ExchangeRatesService } from './../../modules/exchange-rates/exchange-rates.service';
@@ -457,5 +457,43 @@ export class ExchangeTransactionsService {
             throw new InternalServerErrorException('Internal server error.');
         }
 
+    }
+
+    async setStatusByNonEmployee(currentUser : any , param : SetStatusDto , body : SetStatusToApproveBodyDto) {
+        const exchangeTransaction = await this.exchangeTransactionRepository.findOne({
+            where : {
+                id : param.id ,
+                status : 'PENDING'
+            }
+        });
+
+        if (!exchangeTransaction) {
+            await this.log(currentUser, 'SET_EXCHANGE_TRANSACTION_APPROVE_FAILED', `Failed to set exchange transaction with ID: ${param.id} cause Pending exchange transaction not found or already processed.`);
+            throw new NotFoundException('Pending exchange transaction not found or already processed.');
+        }
+
+        try {
+            this.dataSource.transaction(async (manager) => {
+                const exchangeTransRepo = manager.getRepository(ExchangeTransaction);
+                const deletedAtValue = body.status === 'VOIDED' ? new Date() : null ;
+
+                const exchangeTransactionUpdateQuery = exchangeTransRepo.update({ id : param.id , status : 'PENDING' } , { status : body.status , approvedBy : currentUser.id , deletedAt : deletedAtValue });
+                const logInsertQuery = this.log(currentUser, 'SET_EXCHANGE_TRANSACTION_APPROVE_SUCCESS', `Set exchange transaction with ID: ${param.id} to ${body.status} status`, manager);
+               
+                const [updateResult , logInsertResult] = await Promise.all([exchangeTransactionUpdateQuery , logInsertQuery]);
+
+                if(updateResult.affected === 0) {
+                    await this.log(currentUser, 'SET_EXCHANGE_TRANSACTION_APPROVE_FAILED', `Failed to set exchange transaction with ID: ${param.id} cause Pending exchange transaction not found or already processed.`);
+                    throw new NotFoundException('Pending exchange transaction not found or already processed.');
+                }
+            });
+
+            return({message : `Exchange transaction with ID: ${param.id} has been set to ${body.status} status`}) ;
+        }
+        catch (error) {
+            const messagge = error instanceof Error ? error.message : String(error);
+            await this.log(currentUser, 'SET_EXCHANGE_TRANSACTION_APPROVE_FAILED', `Failed to set exchange transaction with ID: ${param.id} to ${body.status} status. Error: ${messagge}`);
+            throw new InternalServerErrorException('Internal server error.');
+        }
     }
 }
