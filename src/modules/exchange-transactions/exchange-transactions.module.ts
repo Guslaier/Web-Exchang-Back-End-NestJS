@@ -3,11 +3,19 @@ import { ExchangeTransactionsController } from './exchange-transactions.controll
 import { ExchangeTransactionsService } from './exchange-transactions.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ExchangeTransaction } from './entities/exchange-transaction.entity';
+import { ShiftsModule } from './../../modules/shifts/shifts.module';
+import { ExchangeRatesModule } from './../../modules/exchange-rates/exchange-rates.module';
+import { SystemLogsModule } from './../../modules/system-logs/system-logs.module';
+import { CustomersModule } from './../../modules/customers/customers.module';
+import { InputValidator } from './helper/input-validator';
+import { Transaction } from 'typeorm';
+import { TransactionsModule } from './../../modules/transactions/transactions.module';
+import { CashCountsModule } from './../../modules/cash-counts/cash-counts.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ExchangeTransaction])],
+  imports: [TypeOrmModule.forFeature([ExchangeTransaction]) , ShiftsModule , ExchangeRatesModule , TransactionsModule , SystemLogsModule , CustomersModule , CashCountsModule],
   controllers: [ExchangeTransactionsController],
-  providers: [ExchangeTransactionsService],
+  providers: [ExchangeTransactionsService , InputValidator],
   exports: [ExchangeTransactionsService],
   
 })

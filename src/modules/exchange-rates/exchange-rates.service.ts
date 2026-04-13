@@ -466,4 +466,12 @@ ${JSON.stringify(r.updated)}`).join(', ')}
       await this.log(user, 'DELETE_RATE_SUCCESS', `Deleted rate: ${target.name} id: ${id}`, manager);
     });
   }
+
+  async findById(id: string) { 
+    const rates = await this.exchangeRateRepo.findOne({
+      where: { id :  id  },
+      relations: ['currency'],
+    });
+    return rates;
+  }
 }

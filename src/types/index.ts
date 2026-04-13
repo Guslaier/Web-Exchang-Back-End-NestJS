@@ -49,9 +49,10 @@ export interface ShiftData {
 //== Customer Interfaces ==//
 export interface CustomerData {
     readonly id: string;               // PK จากในรูป
-    passportImageUrl: string; // passport image url
-    passportNo: string;       // passport no
-    fullName: string;         // fullname
+    passportImg: string; // passport image url
+    passportNumber: string;       // passport no
+    firstName : string;         // firstname
+    lastName : string;          // lastname
     nationality: string;      // nationality
     phoneNumber: string;      // phone number
     hotelName: string;        // แก้จาก hotelNumber เป็น hotelName ให้ตรงตามรูป
@@ -62,15 +63,15 @@ export interface CustomerData {
 
 //== Transaction Interfaces ==//
 export interface TransactionData {
-    readonly transactionNo: string;
+    readonly id : string;
     shiftId: string;
-    type: TranType;
+    type: TranSectionType;
     createdAt: Date;
     updatedAt: Date;
 }
 
 export interface TransferTransactionData {
-     readonly transactionNo: string;     // PK, FK (Primary Key & Foreign Key)
+     readonly id: string;     // PK, FK (Primary Key & Foreign Key)
     readonly exchangeRatesId: string;   // FK
     readonly boothId: string;           // FK
      amount: number;            // จำนวนเงิน
@@ -84,7 +85,7 @@ export interface TransferTransactionData {
 }
 
 export interface ExchangeTransactionData {
-    readonly transactionNo: string;      // PK, FK
+    readonly id: string;      // PK, FK
     readonly customerId: string;         // customer_id
     readonly exchangeRatesId: string;    // FK (อ้างอิงไปยังตารางเรท)
      type: TranType;             // type (แนะนำให้ใช้ union type ถ้ามีแค่ซื้อ/ขาย)
@@ -104,9 +105,9 @@ export interface ExchangeTransactionData {
 
 export interface CashCountData {
     readonly id: string;               // PK
-    readonly currenciesCode: string;   // FK (เช่น 'USD', 'THB')
-    readonly transactionNo: string;    // FK (เชื่อมกับ exchange_transactions)
-    denomination: number;     // มูลค่าหน้าบัตร (เช่น 100, 500, 1000)
+    readonly currencyId: string ;   // FK (เช่น 'USD', 'THB')
+    readonly transactionId : string;    // FK (เชื่อมกับ exchange_transactions)
+    denomination: string;     // มูลค่าหน้าบัตร (เช่น 100, 500, 1000)
     amount: number;           // จำนวนฉบับ หรือ ผลรวมมูลค่า
     createdAt: Date;
     updatedAt: Date;

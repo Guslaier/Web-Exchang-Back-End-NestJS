@@ -285,7 +285,7 @@ export class ShiftsService {
         }
     }
 
-    private async getActiveShiftByBoothId(boothId: string) {
+    async getActiveShiftByBoothId(boothId: string) {
         return await this.shiftRepository.findOne({ where: { boothId: boothId, endTime: IsNull() } });
     }
 

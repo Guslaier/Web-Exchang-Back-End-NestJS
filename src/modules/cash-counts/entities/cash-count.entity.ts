@@ -1,4 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, DeleteDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, DeleteDateColumn, OneToOne , JoinColumn , ManyToOne } from 'typeorm';
+import { Transaction } from '../../transactions/entities/transaction.entity';
+import { Currency } from '../../currencies/entities/currency.entity';
+
 
 @Entity('cash_counts')
 export class CashCount {
@@ -6,17 +9,25 @@ export class CashCount {
   id: string;
 
   @Column()
-  shiftId: string;
+  transactionId: string;
+
+  @ManyToOne(() => Transaction, (transaction) => transaction.id)
+  @JoinColumn({ name: 'transactionId' })
+  transaction: Transaction;
+
+  @Column()
+  currencyId: string;
+
+  @ManyToOne(() => Currency, (currency) => currency.id)
+  @JoinColumn({ name: 'currencyId' })
+  currency: Currency;
+
+  @Column()
+  denomination: string;
 
   @Column('decimal', { precision: 12, scale: 2 })
   amount: number;
 
-  @Column()
-  currencyCode: string;
-
   @CreateDateColumn()
   createdAt: Date;
-
-  @DeleteDateColumn()
-  deletedAt?: Date;
 }

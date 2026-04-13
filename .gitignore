@@ -2,3 +2,6 @@ node_modules
 dist
 .env
 
+upload
+
+system-design.txt

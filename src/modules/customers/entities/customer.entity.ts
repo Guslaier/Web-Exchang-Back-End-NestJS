@@ -1,25 +1,39 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+import { ExchangeTransaction } from './../../../modules/exchange-transactions/entities/exchange-transaction.entity';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, OneToOne, JoinColumn } from 'typeorm';
 
 @Entity('customers')
 export class Customer {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
-  firstName: string;
+  @Column({ nullable: true })
+  exchangeTransactionId: string;
+
+  @OneToOne(() => ExchangeTransaction, exchangeTransaction => exchangeTransaction.id)
+  @JoinColumn({ name: 'exchangeTransactionId' })
+  exchangeTransaction: ExchangeTransaction;
 
   @Column()
-  lastName: string;
+  passportImg: string;
 
-  @Column({ unique: true })
-  passportNumber: string;
+  @Column() 
+  passportNo: string;
+
+  @Column()
+  fullName: string;
+
+  @Column()
+  nationality: string;
+
+  @Column()
+  phoneNumber: string;
+
+  @Column()
+  hotelName: string;
+
+  @Column()
+  roomNumber: string;
 
   @CreateDateColumn()
   createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
-
-  @DeleteDateColumn()
-  deletedAt?: Date;
 }

@@ -1,15 +1,43 @@
-import { IsString, IsNotEmpty, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsUUID, IsArray, ArrayNotEmpty, Validate, ValidateNested, IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
+import {CashCountData} from './../../../types/index'; ;
 
-export class CreateCashCountDto {
+class DenominationDto implements Pick<CashCountData, 'denomination'> {
+   @IsString()
+   @IsNotEmpty()
+   denomination: string; 
+}
+
+class AmountDto implements Pick<CashCountData, 'amount'>  {
+    @IsNumber()
+    @IsNotEmpty()
+    amount: number; 
+}
+
+export class CreateCashCountDto implements Pick<CashCountData,   'transactionId'> { 
   @IsString()
   @IsNotEmpty()
-  shiftId: string;
+  transactionId : string ;
 
-  @IsNumber()
-  @IsNotEmpty()
-  amount: number;
+  @IsUUID()
+  @IsOptional()
+  currencyId ?: string ;
 
-  @IsString()
-  @IsNotEmpty()
-  currencyCode: string;
+  @IsArray()
+  @ArrayNotEmpty()
+  @ValidateNested({ each: true })
+  @Type(() => DenominationDto)
+  denominations : DenominationDto[] ; 
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @ValidateNested({ each: true })
+  @Type(() => AmountDto)
+  amounts : AmountDto[] ;
+}
+
+export class GetCashCountDto {
+    @IsString()
+    @IsNotEmpty()
+    transactionId : string ;
 }

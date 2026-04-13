@@ -1,19 +1,135 @@
-import { IsString, IsNotEmpty, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, IsUUID , IsDate, Min, IsIn } from 'class-validator';
+import { Type } from 'class-transformer';
+import type { ExchangeTransactionData , CustomerData , TranType , TranStatus , ShiftData} from './../../../types/index'
 
-export class CreateExchangeTransactionDto {
-  @IsString()
-  @IsNotEmpty()
-  customerId: string;
+export class CreateExchangeTransactionDto implements Pick<ExchangeTransactionData , 'exchangeRatesId' | 'type' | 'foreignAmount' | 'thaiBahtAmount' | 'calculateMethod' |'note'> , Partial<CustomerData>  {
+   
+    @IsUUID()
+    @IsNotEmpty()
+    exchangeRatesId: string;
 
-  @IsString()
-  @IsNotEmpty()
-  currencyCode: string;
+    @IsString()
+    @IsNotEmpty()
+    type: TranType;
 
-  @IsNumber()
-  @IsNotEmpty()
-  amount: number;
+    @IsNumber()
+    @IsNotEmpty()
+    foreignAmount: number;
 
-  @IsNumber()
-  @IsNotEmpty()
-  appliedRate: number;
+    @IsNumber()
+    @IsNotEmpty()
+    oneThousandThaiAmount: number;
+
+    @IsNumber()
+    @IsNotEmpty()
+    fiveHundredThaiAmount: number;
+
+    @IsNumber()
+    @IsNotEmpty()
+    oneHundredThaiAmount: number;
+
+    @IsNumber()
+    @IsNotEmpty()
+    fiftyThaiAmount: number;
+
+    @IsNumber()
+    @IsNotEmpty()
+    twentyThaiAmount: number;
+
+    @IsNumber()
+    @IsNotEmpty()
+    tenThaiAmount: number;
+
+    @IsNumber()
+    @IsNotEmpty()
+    fiveThaiAmount: number;
+
+    @IsNumber()
+    @IsNotEmpty()
+    twoThaiAmount: number;
+
+    @IsNumber()
+    @IsNotEmpty()
+    oneThaiAmount: number;
+
+     @IsNumber()
+    @IsNotEmpty()
+    thaiBahtAmount: number;
+
+    @IsString()
+    @IsNotEmpty()
+    calculateMethod: string;
+
+    @IsString()
+    @IsOptional()
+    note?: string;
+
+    @IsOptional()
+    customer_img ?: any;
+
+    @IsString()
+    @IsOptional()
+    passportNo ?: string;
+
+    @IsString()
+    @IsOptional()
+    fullName ?: string;
+
+    @IsString()
+    @IsOptional()
+    nationality ?: string;
+
+    @IsString()
+    @IsOptional()
+    phoneNumber ?: string;
+
+    @IsString()
+    @IsOptional()
+    hotelName ?: string;
+
+    @IsString()
+    @IsOptional()
+    roomNumber ?: string;
+}
+
+export class GetExchangeTransactionDto implements Pick<ExchangeTransactionData , 'id'> {
+    @IsString()
+    @IsNotEmpty()
+    id: string;
+}
+
+export class GetExchangeTransactionsFromShiftsDto implements Pick<ShiftData , 'id'> {
+    @IsUUID()
+    @IsOptional()
+    id: string;
+}
+
+export class LimitDto {
+      @IsNumber()
+      @IsOptional()
+      @Min(1) 
+      limit: number;
+
+      @IsNumber() 
+      @IsOptional()
+      @Min(0) 
+      offset: number;
+}
+
+export class SetStatusDto implements Pick<ExchangeTransactionData , 'id'> {
+    @IsString()
+    @IsNotEmpty()
+    id: string;
+}
+
+export class SetStatusToPendingBodyDto implements Pick<ExchangeTransactionData , 'voidReason'>  {
+    @IsString()
+    @IsNotEmpty()
+    voidReason : string ; 
+}
+
+export class SetStatusToApproveBodyDto implements Pick<ExchangeTransactionData , 'status'> {
+    @IsIn(['VOIDED', 'CANCELED'])
+    @IsNotEmpty()
+    status: TranStatus;
 }

@@ -32,6 +32,12 @@ export class CurrenciesService implements OnModuleInit {
   // ข้อมูลสำรองกรณี API ล่ม (Fallback Data) - เพิ่มสกุลเงินยอดนิยม
   private readonly fallbackCurrencies = [
     {
+      code: 'THB' , 
+      name: 'ไทย : บาท (THB)',
+      buyRate: 1,
+      sellRate: 1,
+    } , 
+    {
       code: 'USD',
       name: 'สหรัฐอเมริกา : ดอลลาร์ (USD)',
       buyRate: 32.4313,
@@ -180,7 +186,7 @@ export class CurrenciesService implements OnModuleInit {
 
         const detailRates = rateRes.data?.result?.data?.data_detail;
         if (!detailRates) throw new Error('Invalid BOT response');
-
+        detailRates.push({ currency_id: 'THB', currency_name_th: 'ไทย : บาท (THB)', buying_transfer: '1', selling: '1' });
         for (const rate of detailRates) {
           const code = rate.currency_id;
           let buy = parseFloat(rate.buying_transfer) || 0;
@@ -403,5 +409,20 @@ export class CurrenciesService implements OnModuleInit {
       await this.exchangeRatesService.updateRateAll(); // อัปเดตเรทลูกทั้งหมดหลังจากอัปเดตเรทแม่เสร็จ
       return await repo.find({ order: { code: 'ASC' } });
     });
+  }
+
+  async getTHBCurrency() {
+    try {
+      return await this.currencyRepo.findOne({ where: { code: 'THB' } });
+    }
+    catch (err) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      await this.systemLogsService.createLog(null, {
+        userId: null,
+        action: 'CURRENCY_THB_FETCH_FAILED',
+        details: `Error fetching THB currency: ${errMessage}`,
+      });
+      throw new NotFoundException('Internal Server Error');
+    }
   }
 }
