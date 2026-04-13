@@ -70,5 +70,5 @@ export class ExchangeTransaction {
   updatedAt: Date;
   
   @DeleteDateColumn()
-  deletedAt?: Date;
+  deletedAt?: Date | null;
 }
