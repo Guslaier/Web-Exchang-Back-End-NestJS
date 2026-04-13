@@ -1,6 +1,6 @@
-import { IsString, IsNotEmpty, IsNumber, IsOptional, IsUUID , IsDate, Min } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, IsUUID , IsDate, Min, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
-import type { ExchangeTransactionData , CustomerData , TranType} from './../../../types/index'
+import type { ExchangeTransactionData , CustomerData , TranType , TranStatus} from './../../../types/index'
 
 export class CreateExchangeTransactionDto implements Pick<ExchangeTransactionData , 'exchangeRatesId' | 'type' | 'foreignAmount' | 'thaiBahtAmount' | 'calculateMethod' |'note'> , Partial<CustomerData>  {
    
@@ -126,4 +126,10 @@ export class SetStatusToPendingBodyDto {
     @IsString()
     @IsNotEmpty()
     void_reason : string ; 
+}
+
+export class SetStatusToApproveBodyDto implements Pick<ExchangeTransactionData , 'status'> {
+    @IsIn(['VOIDED', 'CANCELED'])
+    @IsNotEmpty()
+    status: TranStatus;
 }
