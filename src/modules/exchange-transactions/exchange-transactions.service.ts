@@ -420,6 +420,7 @@ export class ExchangeTransactionsService {
     async setStatusByEmployee(currentUser : any , param : SetStatusDto , body : SetStatusToPendingBodyDto) {
         const activeShift = await this.shiftsService.getActiveShiftByUserId(currentUser.id);    
         if (!activeShift) {
+            await this.log(currentUser, 'SET_EXCHANGE_TRANSACTION_PENDING_FAILED', `Failed to set exchange transaction with ID: ${param.id} Cause Active shift not found for the employee.`);
             throw new NotFoundException('Active shift not found for the employee.');
         }
 
@@ -436,6 +437,7 @@ export class ExchangeTransactionsService {
         });
 
         if (!exchangeTransaction) {
+            await this.log(currentUser, 'SET_EXCHANGE_TRANSACTION_PENDING_FAILED', `Failed to set exchange transaction with ID: ${param.id} Cause Exchange transaction not found for the active shift.`);
             throw new ForbiddenException('Exchange transaction not found for the active shift.');
         }
 
@@ -444,10 +446,15 @@ export class ExchangeTransactionsService {
                 const exchangeTransRepo = manager.getRepository(ExchangeTransaction);
 
 
-                const exchangeTransactionUpdateQuery = exchangeTransRepo.update({ id : param.id , status : 'COMPLETED' } , { status : 'PENDING' , voidReason : body.void_reason });
-                const logInsertQuery = this.log(currentUser, 'SET_EXCHANGE_TRANSACTION_PENDING_SUCCESS', `Set exchange transaction with ID: ${param.id} to pending status with reason: ${body.void_reason}`, manager);
+                const exchangeTransactionUpdateQuery = exchangeTransRepo.update({ id : param.id , status : 'COMPLETED' } , { status : 'PENDING' , voidReason : body.voidReason  , voidedBy : currentUser.id });
+                const logInsertQuery = this.log(currentUser, 'SET_EXCHANGE_TRANSACTION_PENDING_SUCCESS', `Set exchange transaction with ID: ${param.id} to pending status with reason: ${body.voidReason}`, manager);
                 
-                await Promise.all([exchangeTransactionUpdateQuery , logInsertQuery]);
+                const [updateResult , logInsertResult] = await Promise.all([exchangeTransactionUpdateQuery , logInsertQuery]);
+                
+                if(updateResult.affected === 0) {
+                    await this.log(currentUser, 'SET_EXCHANGE_TRANSACTION_PENDING_FAILED', `Failed to set exchange transaction with ID: ${param.id} to pending status. Exchange transaction not found or already processed.`);
+                    throw new NotFoundException('Exchange transaction not found or already processed.');
+                }
             });
             return { message : `Exchange transaction with ID: ${param.id} has been set to pending status` } ;
         }
