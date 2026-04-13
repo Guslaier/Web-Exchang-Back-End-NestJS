@@ -62,7 +62,7 @@ export interface CustomerData {
 
 //== Transaction Interfaces ==//
 export interface TransactionData {
-    readonly transactionNo: string;
+    readonly id : string;
     shiftId: string;
     type: TranSectionType;
     createdAt: Date;
@@ -70,7 +70,7 @@ export interface TransactionData {
 }
 
 export interface TransferTransactionData {
-     readonly transactionNo: string;     // PK, FK (Primary Key & Foreign Key)
+     readonly id: string;     // PK, FK (Primary Key & Foreign Key)
     readonly exchangeRatesId: string;   // FK
     readonly boothId: string;           // FK
      amount: number;            // จำนวนเงิน
@@ -84,7 +84,7 @@ export interface TransferTransactionData {
 }
 
 export interface ExchangeTransactionData {
-    readonly transactionNo: string;      // PK, FK
+    readonly id: string;      // PK, FK
     readonly customerId: string;         // customer_id
     readonly exchangeRatesId: string;    // FK (อ้างอิงไปยังตารางเรท)
      type: TranType;             // type (แนะนำให้ใช้ union type ถ้ามีแค่ซื้อ/ขาย)
