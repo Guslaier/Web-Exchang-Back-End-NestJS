@@ -49,9 +49,10 @@ export interface ShiftData {
 //== Customer Interfaces ==//
 export interface CustomerData {
     readonly id: string;               // PK จากในรูป
-    passportImageUrl: string; // passport image url
-    passportNo: string;       // passport no
-    fullName: string;         // fullname
+    passportImg: string; // passport image url
+    passportNumber: string;       // passport no
+    firstName : string;         // firstname
+    lastName : string;          // lastname
     nationality: string;      // nationality
     phoneNumber: string;      // phone number
     hotelName: string;        // แก้จาก hotelNumber เป็น hotelName ให้ตรงตามรูป
