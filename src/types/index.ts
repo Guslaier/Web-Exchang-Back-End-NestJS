@@ -64,7 +64,7 @@ export interface CustomerData {
 //== Transaction Interfaces ==//
 export interface TransactionData {
     readonly id : string;
-    shiftId: string;
+    shiftId: string | null; // shiftId อาจเป็น null ได้สำหรับบางประเภทของ transaction เช่น transfer ระหว่างบูธ
     type: TranSectionType;
     createdAt: Date;
     updatedAt: Date;
@@ -72,10 +72,10 @@ export interface TransactionData {
 
 export interface TransferTransactionData {
      readonly id: string;     // PK, FK (Primary Key & Foreign Key)
-    readonly exchangeRatesId: string;   // FK
+    readonly currencyCode: string;   // FK
     readonly boothId: string;           // FK
      amount: number;            // จำนวนเงิน
-     type: TranSectionType;     // ประเภทการโอน
+     type: TransferTransaction;     // ประเภทการโอน
      refBoothId: string;        // ID บูธที่อ้างอิง
      description?: string;      // รายละเอียด (ใส่ ? เพราะปกติมักจะเป็น optional)
      userId: string;            // ผู้ทำรายการ

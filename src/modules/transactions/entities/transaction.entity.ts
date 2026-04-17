@@ -1,3 +1,4 @@
+import { TranSectionType } from 'index';
 import { Shift } from './../../../modules/shifts/entities/shift.entity';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn , PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
 
@@ -7,10 +8,10 @@ export class Transaction {
   id: string;
 
   @Column()
-  type: string;
+  type: TranSectionType;
 
   @Column({ nullable: true })
-  shiftId: string;
+  shiftId: string | null;
 
   @ManyToOne(() => Shift, (shift) => shift.id)
   @JoinColumn({ name: 'shiftId' })

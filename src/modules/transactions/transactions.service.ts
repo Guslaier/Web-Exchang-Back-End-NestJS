@@ -1,7 +1,7 @@
 import { Injectable , InternalServerErrorException } from '@nestjs/common';
 import { EntityManager} from 'typeorm';
 import { Transaction } from './entities/transaction.entity';
-import { TranType } from 'index';
+import { TranSectionType } from 'index';
 import { CreateTransactionDto } from './dto/transaction.dto';
 
 @Injectable()
@@ -11,8 +11,8 @@ export class TransactionsService {
         const transactionRepository = manager.getRepository(Transaction); 
 
         const transaction = transactionRepository.create({
-            type : createTransactionDto.type,
-            shiftId : createTransactionDto?.shiftId ?? null 
+            type: createTransactionDto.type,
+            shiftId: createTransactionDto.shiftId || null, //
         });
 
         for (let i = 0; i < 3; i++) {
