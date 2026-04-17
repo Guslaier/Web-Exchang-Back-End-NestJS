@@ -370,4 +370,15 @@ export class ShiftsService {
 
     }
 
+    async getLastShiftByUserId(user : any) {
+        const shiftQuery =  this.shiftRepository.find({
+            where : { userId : user.id } ,
+            order : { createdAt : 'DESC' } ,
+            take : 1
+        }) ; 
+        const shifts = await shiftQuery ; 
+        return shifts.length > 0 ? shifts[0] : null ;
+            
+    }
+
 }
