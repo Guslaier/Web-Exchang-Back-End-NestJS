@@ -381,4 +381,23 @@ export class ShiftsService {
             
     }
 
+    async create(currentUser: any , boothId : string , manager : EntityManager) {
+        const shiftRepo = manager.getRepository(Shift) ;
+        const row = shiftRepo.create(({
+            userId: currentUser.id,
+            boothId: boothId,
+        })) ;
+
+        try {
+            const savedShift = await shiftRepo.save(row) ;
+            await this.createCacheSummaryShift(savedShift.id , currentUser , manager) ;
+            return {message : 'open shift success.'} ; 
+        }
+        catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err) ;
+            await this.log(currentUser, "OPEN_SHIFT_FAILED", `internal server error: ${errorMessage}` , manager); 
+            throw new InternalServerErrorException('error in internal server. please contact admin.') ; 
+        }
+    }
+
 }
