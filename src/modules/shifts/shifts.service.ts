@@ -4,11 +4,11 @@ import { NotFoundError, throwError } from 'rxjs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Shift } from './entities/shift.entity';
 import { CannotAttachTreeChildrenEntityError, IsNull, Repository, DataSource, EntityManager, Between } from 'typeorm';
-import { SystemLogsService } from '../../modules/system-logs/system-logs.service';
+import { SystemLogsService } from '../../modules/system-logs/system-logs.service'; 
 import { get } from 'http';
 import { error } from 'console';
 import Redis from 'ioredis';
-import { QueryDateDto, QueryShiftId, ShiftIdDto, SummaryData, UserIdDto } from './dto/shift.dto';
+import { QueryDateDto, QueryShiftId, ShiftIdDto, SummaryData, UserIdDto , BoothIdDto} from './dto/shift.dto';
 import { start } from 'repl';
 import { isInstance, isUUID } from 'class-validator';
 import { all } from 'axios';
@@ -111,44 +111,11 @@ export class ShiftsService {
     }
 
 
-    async openShift(currentUser: any , body : UserIdDto) {
-        const userId = currentUser.role === 'EMPLOYEE'  ? currentUser.id : body.userId ;
-        if (!userId) {
-            await this.log(currentUser , 'OPEN_SHIFT_FAILED' , 'No employee id from admin or manager.'  ) ; 
-            throw new BadRequestException('No employee id.') ; 
-        }  
-
-        const booth = await this.boothService.findBoothByShiftId(userId)  ; 
-        const boothId = booth ? booth.id : null ;
-        if(!boothId) {
-            await this.log(currentUser , 'OPEN_SHIFT_FAILED' , 'Booth for employee not found.'  ) ; 
-            throw new NotFoundException('Booth for employee not found.')  ; 
+    async openShift(currentUser: any , body : BoothIdDto) {
+        const shift = currentUser.role === 'EMPLOYEE' ? await this.getLastShiftByUserId(currentUser.id) : await this.getLastShiftByBoothId(body.boothId) ;
+        if (!shift) {
+            
         }
-
-        const shift = await this.getLastShiftByUserId(userId) ; 
-        try {
-
-            await this.dataSource.transaction( async (manager)=>{
-                if(!shift) {
-                    return this.create(currentUser , userId , boothId , manager) ;  
-                }      
-
-                const shiftRepo = manager.getRepository(Shift) ;
-                const shiftQuery = shiftRepo.update(
-                    {id : shift.id } ,
-                     {status : 'OPEN' , endTime : null} 
-                ) ; 
-                const cache = this.getSummary(currentUser , {shiftId : shift.id} ) ;
-                const logQuery = this.log(currentUser , 'OPEN_SHIFT_SUCCESS' , `updated shift id : ${shift.id}  to Open`, manager) ;  
-                await Promise.all([shiftQuery , cache ,  logQuery]) ; 
-            });
-        } 
-        catch(err) {
-            const errMessage = err instanceof Error ? err.message : String(err) ; 
-            await this.log(currentUser , 'OPEN_SHIFT_FAILED' , `open shift failed  err : ${errMessage}`) ; 
-            throw new InternalServerErrorException('Internal server error.') ; 
-        }   
-        return {message : 'Open shift success.'} ; 
     }   
 
     async setStatusToCLose(currentUser: any , body : ShiftIdDto) {
@@ -382,6 +349,25 @@ export class ShiftsService {
         const shifts = await shiftQuery ; 
         return shifts.length > 0 ? shifts[0] : null ;
             
+    }
+
+    async getLastShiftByBoothId(boothId : string |  undefined) {
+        if (!boothId) {
+            return null ;
+        }
+
+        const fromDate = new Date() ; 
+        const toDate = new Date() ; 
+        fromDate.setHours(0,0,0,0) ; 
+        toDate.setHours(23,59,59,999) ;
+
+        const shiftQuery =  this.shiftRepository.find({
+            where : { boothId : boothId , startTime : Between(fromDate , toDate) } ,
+            order : { createdAt : 'DESC' } ,
+            take : 1
+        }) ; 
+        const shifts = await shiftQuery ; 
+        return shifts.length > 0 ? shifts[0] : null ;
     }
 
     async create(currentUser : any ,userId : string , boothId : string , manager : EntityManager) {
