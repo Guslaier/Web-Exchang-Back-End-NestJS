@@ -1,6 +1,6 @@
 import { Controller, Post, Get, Put, Delete, Param, Body, UseGuards, Query } from '@nestjs/common';
 import { ShiftsService } from './shifts.service';
-import { QueryDateDto, QueryShiftId, SummaryData , UserIdDto} from './dto/shift.dto';
+import { QueryDateDto, QueryShiftId, SummaryData , UserIdDto , ShiftIdDto} from './dto/shift.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -45,10 +45,10 @@ export class ShiftsController {
   }
 
   @UseGuards(JwtAuthGuard , RolesGuard) 
-  @Roles("EMPLOYEE")
+  @Roles("EMPLOYEE" , "ADMIN" , "MANAGER")
   @Put()
-  close(@CurrentUser() currentUser : any) {
-    return this.shiftsService.setStatusToCLose(currentUser) ; 
+  close(@CurrentUser() currentUser : any , @Body() body : ShiftIdDto ) {
+    return this.shiftsService.setStatusToCLose(currentUser , body) ; 
   }
 
   @UseGuards(JwtAuthGuard , RolesGuard) 
