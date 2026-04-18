@@ -55,3 +55,9 @@ export class UserIdDto  implements Pick<ShiftData , 'userId'> {
   userId: string; 
 
 }
+
+export class ShiftIdDto implements Pick<ShiftData , 'id'>   {
+  @IsUUID() 
+  @IsOptional() 
+  id: string; 
+}
