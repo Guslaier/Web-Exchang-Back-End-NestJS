@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, IsOptional, IsDateString , IsDate, IsNumber, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
-import { NumberLiteralType } from 'typescript';
+import type  {ShiftData} from './../../../types/index' ;  
 
 
 export class CreateShiftDto {
@@ -47,4 +47,11 @@ export class SummaryData {
 export class QueryShiftId {
   @IsString()
   shiftId : string
+}
+
+export class UserIdDto  implements Pick<ShiftData , 'userId'> {
+  @IsUUID() 
+  @IsOptional() 
+  userId: string; 
+
 }
