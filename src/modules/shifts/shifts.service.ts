@@ -112,10 +112,51 @@ export class ShiftsService {
 
 
     async openShift(currentUser: any , body : BoothIdDto) {
-        const shift = currentUser.role === 'EMPLOYEE' ? await this.getLastShiftByUserId(currentUser.id) : await this.getLastShiftByBoothId(body.boothId) ;
-        if (!shift) {
-            
+        const isEmployee = currentUser.role === 'EMPLOYEE' ;
+
+        if (!isEmployee && !body.boothId) {
+            console.log(body) ;
+            await this.log(currentUser , 'OPEN_SHIFT_FAILED' , 'Booth ID is required for managers.') ;
+            throw new BadRequestException('Booth ID is required for managers.') ;
         }
+
+        const boothId = isEmployee ? (await this.boothService.findBoothByShiftId(currentUser.id))?.id  : body.boothId ;
+        if (!boothId) {
+            await this.log(currentUser , 'OPEN_SHIFT_FAILED' , 'This employee is not assigned to any booth.') ; 
+            throw new NotFoundException('No booth found.') ; 
+        }
+
+         const userId = isEmployee ? currentUser.id : (await this.boothService.findOne(boothId))?.currentShiftId ;
+        if (!userId) {
+            await this.log(currentUser , 'OPEN_SHIFT_FAILED' , 'Booth not found or not assigned to any employee.') ; 
+            throw new NotFoundException('Booth not found or not assigned to any employee.') ; 
+        }
+
+        const shift = await this.getLastShiftByUserId(userId) ;
+        try {
+            await this.dataSource.transaction( async (manager)=>{
+                if (!shift) {
+                    return await this.create(currentUser , userId , boothId , manager) ;
+                }
+
+                const shiftRepo = manager.getRepository(Shift) ;
+                const shiftQuery = shiftRepo.update(
+                    {id : shift.id } ,
+                     {status : 'OPEN' , endTime : null} 
+                ) ; 
+                const cache = this.getSummary(currentUser , {shiftId : shift.id} ) ;
+                const logQuery = this.log(currentUser , 'OPEN_SHIFT_SUCCESS' , `updated shift id : ${shift.id}  to Open`, manager) ;  
+                await Promise.all([shiftQuery , cache ,  logQuery]) ; 
+            });
+
+        }
+        catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err) ;
+            await this.log(currentUser, "OPEN_SHIFT_FAILED", `internal server error: ${errorMessage}`); 
+            throw new InternalServerErrorException('error in internal server. please contact admin.') ; 
+        }
+
+        return {message : 'Open shift success.'} ;
     }   
 
     async setStatusToCLose(currentUser: any , body : ShiftIdDto) {
