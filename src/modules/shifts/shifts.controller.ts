@@ -1,11 +1,10 @@
 import { Controller, Post, Get, Put, Delete, Param, Body, UseGuards, Query } from '@nestjs/common';
 import { ShiftsService } from './shifts.service';
-import { QueryDateDto, QueryShiftId, SummaryData } from './dto/shift.dto';
+import { QueryDateDto, QueryShiftId, SummaryData , UserIdDto} from './dto/shift.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UUID } from 'crypto';
 
 @Controller('shifts')
 export class ShiftsController {
@@ -39,10 +38,10 @@ export class ShiftsController {
   }
 
   @UseGuards(JwtAuthGuard , RolesGuard) 
-  @Roles("EMPLOYEE")
+  @Roles("EMPLOYEE" , "ADMIN" , "MANAGER")
   @Post()
-  open(@CurrentUser() currentUser : any) {
-    return  this.shiftsService.openShift(currentUser) ; 
+  open(@CurrentUser() currentUser : any , @Body() body : UserIdDto ) {
+    return  this.shiftsService.openShift(currentUser , body) ; 
   }
 
   @UseGuards(JwtAuthGuard , RolesGuard) 
