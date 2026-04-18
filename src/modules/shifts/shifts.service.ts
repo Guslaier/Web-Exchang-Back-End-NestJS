@@ -8,7 +8,7 @@ import { SystemLogsService } from '../../modules/system-logs/system-logs.service
 import { get } from 'http';
 import { error } from 'console';
 import Redis from 'ioredis';
-import { QueryDateDto, QueryShiftId, SummaryData, UserIdDto } from './dto/shift.dto';
+import { QueryDateDto, QueryShiftId, ShiftIdDto, SummaryData, UserIdDto } from './dto/shift.dto';
 import { start } from 'repl';
 import { isInstance, isUUID } from 'class-validator';
 import { all } from 'axios';
@@ -151,32 +151,27 @@ export class ShiftsService {
         return {message : 'Open shift success.'} ; 
     }   
 
-    async setStatusToCLose(currentUser: any) {
-        return await this.dataSource.transaction(async (manager) => {
-            const activeShift = await this.getActiveShiftByUserId(currentUser.id);
-            if (!activeShift) {
-                await this.log(currentUser, "close shift FAILED", "active shift from this employee not found.", manager);
-                throw new NotFoundException('you active shift is not found.');
-            }
-
-            await this.deleteCacheSummaryShift(activeShift.id, manager);
-
-            const shiftRepo = manager.getRepository(Shift);
-
-
-            try {
-                await shiftRepo.update(activeShift.id, { status: "close", endTime: new Date() });
-                await this.log(currentUser, "close shift SUCCESS", "", manager);
-            }
-            catch (err) {
-                await this.log(currentUser, "close shift failed", "internal server error", manager);
-                throw new InternalServerErrorException('error in internal server. please contact admin.');
-            }
-
-            return {
-                message: 'close shift successfuly.'
-            };
-        });
+    async setStatusToCLose(currentUser: any , body : ShiftIdDto) {
+        const shiftId = currentUser.role === 'EMPLOYEE' ? (await this.getLastShiftByUserId(currentUser.id))?.id : body.id ;
+        if (!shiftId) {
+            await this.log(currentUser , 'CLOSE_SHIFT_FAILED' , 'No shift found.') ; 
+            throw new NotFoundException('No active shift found.') ; 
+        }
+        
+        try {
+            await this.dataSource.transaction( async (manager)=>{
+                const shiftRepo = manager.getRepository(Shift) ;
+                await shiftRepo.update({id : shiftId } , {status : 'CLOSE' , endTime : new Date()}) ; 
+                const logQuery = this.log(currentUser , 'CLOSE_SHIFT_SUCCESS' , `closed shift id : ${shiftId}` , manager) ; 
+                const cache = this.deleteCacheSummaryShift(shiftId , manager) ; 
+                await Promise.all([cache , logQuery]) ; 
+            }) ;
+        } catch (err) {
+            const errMessage = err instanceof Error ? err.message : String(err) ; 
+            await this.log(currentUser , 'CLOSE_SHIFT_FAILED' , `close shift failed  err : ${errMessage}`) ; 
+            throw new InternalServerErrorException('Internal server error.') ; 
+        }
+        return {message : 'Close shift success.'} ;
 
     }
 
