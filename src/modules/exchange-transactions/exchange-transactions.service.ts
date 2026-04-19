@@ -122,7 +122,8 @@ export class ExchangeTransactionsService {
                     exchangeRate : exchangeRate , 
                     isNegotiateRate : body.calculateMethod == "Negotiate"  ? true : false ,
                     note : body.note ? body.note : null ,
-                    status : 'COMPLETED'
+                    status : 'COMPLETED',
+                    type : body.type ,
                 });
 
                 await exchangeTransRepo.save(createdExchangeTran);

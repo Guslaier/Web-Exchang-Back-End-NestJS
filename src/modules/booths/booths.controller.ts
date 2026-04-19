@@ -54,13 +54,6 @@ export class BoothsController {
   }
 
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'MANAGER')
-  @Put('set-status/:id')
-  setStatus(@CurrentUser() user: any, @Param('id') id: string, @Body('isOpen') isOpen: boolean) {
-    return this.boothsService.setStatus(user, id, isOpen);
-  }
-
   @UseGuards(JwtAuthGuard)
   @Put('set-deactive/:id')
   setDeActive(@CurrentUser() user: any, @Param('id') id: string) {

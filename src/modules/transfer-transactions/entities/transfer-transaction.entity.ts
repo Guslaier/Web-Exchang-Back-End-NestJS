@@ -7,68 +7,93 @@ import {
   DeleteDateColumn,
   ManyToOne,
   JoinColumn,
+  OneToOne,
+  PrimaryColumn,
 } from 'typeorm';
 import { Booth } from '../../booths/entities/booth.entity';
 import { User } from '../../users/entities/user.entity';
 import { Currency } from '../../currencies/entities/currency.entity';
+import { Transaction } from '../../transactions/entities/transaction.entity';
+import {
+  TransferTransactionData,
+  TranStatus,
+  TransferTransactionType,
+} from '../../../types';
+import { IsString } from 'class-validator';
+import { Shift } from '../../shifts/entities/shift.entity';
 
 @Entity('transfer_transactions')
-export class TransferTransaction {
-  @PrimaryGeneratedColumn('uuid')
+export class TransferTransaction implements Omit<
+  TransferTransactionData,
+  'id' | 'boothId' | 'userId' | 'currencyCode' | 'refBoothId' | 'shiftId'
+> {
+ @PrimaryColumn() // ใช้ ID จาก Transaction แม่
   id: string;
 
-  @Column({ unique: true, nullable: true })
-  transaction_no: string;
+  @OneToOne(() => Transaction)
+  @JoinColumn({ name: 'id' })
+  transaction: Transaction;
 
-  @Column('uuid')
-  booth_id: string;
+  // แนะนำให้ระบุชื่อ name ใน DB ให้ชัดเจนเพื่อกันพลาด
+  @Column('uuid', { name: 'booth_id' })
+  boothId: string;
 
-  @ManyToOne(() => Booth, { nullable: false })
+  @ManyToOne(() => Booth)
   @JoinColumn({ name: 'booth_id' })
   booth: Booth;
 
-  @Column({ nullable: true })
-  currency_name: string;
+  @Column('uuid', { name: 'shift_id', nullable: true })
+  shiftId?: string | null;
+
+  @ManyToOne(() => Shift)
+  @JoinColumn({ name: 'shift_id' })
+  shift?: Shift | null;
 
   @Column('decimal', { precision: 15, scale: 2 })
   amount: number;
 
-  @Column()
-  currencies_code: string;
+  @Column({ name: 'currency_code' })
+  currencyCode: string;
 
-  @ManyToOne(() => Currency, { nullable: false })
-  @JoinColumn({ name: 'currencies_code' })
+  @ManyToOne(() => Currency)
+  @JoinColumn({ name: 'currency_code', referencedColumnName: 'code' })
   currency: Currency;
 
   @Column()
-  type: string; // BOOTH_TO_BOOTH, CENTER_TO_BOOTH, etc.
+  type: TransferTransactionType;
 
-  @Column('uuid', { nullable: true })
-  ref_booth_id: string;
+  @Column('uuid', { name: 'refbooth_id', nullable: true })
+  refBoothId: string;
 
-  @ManyToOne(() => Booth, { nullable: true })
-  @JoinColumn({ name: 'ref_booth_id' })
+  @ManyToOne(() => Booth)
+  @JoinColumn({ name: 'refbooth_id' })
   refBooth: Booth;
 
-  @Column({ nullable: true })
-  description: string;
+  @Column('uuid', { name: 'refshift_id', nullable: true })
+  refShiftId?: string | null;
 
-  @Column('uuid')
-  user_id: string;
+  @ManyToOne(() => Shift)
+  @JoinColumn({ name: 'refshift_id' })
+  refShift?: Shift | null;
+  @Column('uuid', { name: 'user_id' })
+  userId: string;
 
-  @ManyToOne(() => User, { nullable: false })
+  @ManyToOne(() => User)
   @JoinColumn({ name: 'user_id' })
   user: User;
 
   @Column({ default: 'PENDING' })
-  status: string;
+  status: TranStatus;
+
+  @Column({ nullable: true })
+  description: string;
 
   @CreateDateColumn()
-  created_at: Date;
+  createdAt: Date;
 
   @UpdateDateColumn()
-  updated_at: Date;
+  updatedAt: Date;
 
   @DeleteDateColumn()
-  deleted_at?: Date;
+  deletedAt?: Date;
 }

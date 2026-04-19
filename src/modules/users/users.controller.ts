@@ -22,7 +22,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard) // ใช้ Guards ทั้ง JWT และ Roles เพื่อป้องกันการเข้าถึง Endpoint นี้
   @Roles('MANAGER', 'ADMIN') // จำกัดเฉพาะผู้ใช้ที่มี Role เป็น 'MANAGER' หรือ 'ADMIN' เท่านั้นที่สามารถเข้าถึง Endpoint นี้ได้
   @Post('register')
-  create(@Body() createUserDto: CreateUserDto) {
+  create(@Body() createUserDto: Omit<CreateUserDto, 'passwordHash'|'role'>) {
     return this.usersService.create(createUserDto);
   }
 

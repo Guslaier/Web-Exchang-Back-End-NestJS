@@ -11,15 +11,19 @@ import { TransactionsModule } from '../transactions/transactions.module';
 import { Booth } from '../booths/entities/booth.entity';
 import { Currency } from '../currencies/entities/currency.entity';
 import { User } from '../users/entities/user.entity';
+import { Shift } from '../shifts/entities/shift.entity';
+import { Transaction } from '../transactions/entities/transaction.entity';
+import { ShiftsModule } from '../shifts/shifts.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([TransferTransaction, Booth, Currency, User]),
+    TypeOrmModule.forFeature([TransferTransaction, Booth, Currency, User, Shift, Transaction]),
     BoothsModule,
     CurrenciesModule,
     CashCountsModule,
     SystemLogsModule,
     TransactionsModule,
+    ShiftsModule,
   ],
   controllers: [TransferTransactionsController],
   providers: [TransferTransactionsService],

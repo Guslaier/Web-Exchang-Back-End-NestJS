@@ -49,7 +49,7 @@ export class UsersService {
   }
 
   // +++++++++++++++++++++++++++ สร้างผู้ใช้ใหม่ (Transaction) ++++++++++++++++++++++++++++
-  async create(createUserDto: CreateUserDto) {
+  async create(createUserDto: Omit<CreateUserDto, 'passwordHash' | 'role'>) {
     return await this.dataSource.transaction(async (manager) => {
       const userRepo = manager.getRepository(User);
 

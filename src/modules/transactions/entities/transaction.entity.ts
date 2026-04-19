@@ -1,6 +1,7 @@
 import { TranSectionType } from 'index';
 import { Shift } from './../../../modules/shifts/entities/shift.entity';
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn , PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn , PrimaryColumn, ManyToOne, JoinColumn, OneToOne } from 'typeorm';
+import { ExchangeTransaction } from '../../exchange-transactions/entities/exchange-transaction.entity';
 
 @Entity('transactions')
 export class Transaction {
@@ -19,5 +20,9 @@ export class Transaction {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @OneToOne(() => ExchangeTransaction ,(ExchangeTransaction) => ExchangeTransaction.transaction)
+  exchangetransaction: any;
+  
 
 }

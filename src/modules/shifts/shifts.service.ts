@@ -128,8 +128,8 @@ export class ShiftsService {
 
             const shiftRepo = manager.getRepository(Shift);
             const row = await shiftRepo.create(({
-                userId: currentUser.id,
-                boothId: boothId,
+                userId: currentUser.id as string,
+                boothId: boothId as string,
             }))
 
             try {

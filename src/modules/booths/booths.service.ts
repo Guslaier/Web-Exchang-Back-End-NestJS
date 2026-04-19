@@ -9,10 +9,12 @@ import {
 import { CreateBoothDto, UpdateBoothDto } from './dto/booth.dto';
 import { Booth } from './entities/booth.entity';
 import { User } from '../users/entities/user.entity';
-import { DataSource, Not, Repository, EntityManager } from 'typeorm';
+import { DataSource, Not, Repository, EntityManager, MoreThanOrEqual, IsNull } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SystemLogsService } from '../system-logs/system-logs.service';
 import { ExclusiveExchangeRatesService } from '../exclusive-exchange-rates/exclusive-exchange-rates.service';
+import { Shift } from '../shifts/entities/shift.entity';
+import { i } from 'mathjs';
 
 @Injectable()
 export class BoothsService {
@@ -26,6 +28,9 @@ export class BoothsService {
     private readonly systemLogsService: SystemLogsService,
     @Inject(ExclusiveExchangeRatesService)
     private readonly exclusiveRateService: ExclusiveExchangeRatesService,
+    @InjectRepository(Shift)
+    private readonly shift: Repository<Shift>,
+  
     ) {}
 
   /**
@@ -135,8 +140,8 @@ export class BoothsService {
       const booth = await boothRepo.findOne({ where: { id } });
       if (!booth) throw new NotFoundException('Booth not found');
 
-      if (booth.currentShiftId || booth.isOpen) {
-        await this.log(user, 'DEACTIVATE_FAILED', `Booth ${id} is ${booth.isOpen ? 'open' : 'busy'}`, manager);
+      if (booth.currentShiftId) {
+        await this.log(user, 'DEACTIVATE_FAILED', `Booth ${id} is 'busy'`, manager);
         throw new ForbiddenException('Cannot deactivate booth while open or busy');
       }
 
@@ -169,29 +174,7 @@ export class BoothsService {
     });
   }
 
-  // เปิด/ปิด ร้าน (isOpen)
-  async setStatus(user: any, id: string, isOpen: boolean) {
-    return await this.dataSource.transaction(async (manager) => {
-      const boothRepo = manager.getRepository(Booth);
-      const booth = await boothRepo.findOne({ where: { id } });
-      if (!booth) throw new NotFoundException('Booth not found');
-      if (!booth.isActive) throw new ForbiddenException('Booth not active');
 
-      if (booth.isOpen === isOpen){
-        await this.log(user, 'SET_STATUS_FAILED', `Already ${isOpen ? 'open' : 'closed'} Booth: ${id}`, manager);
-        throw new BadRequestException(`Already ${isOpen ? 'open' : 'closed'}`);
-      }
-
-      if (isOpen && booth.currentShiftId === null) {
-        await this.log(user, 'SET_STATUS_FAILED', `No worker at booth ${id}`, manager);
-        throw new ForbiddenException('Cannot open booth without worker');
-      }
-
-      await boothRepo.update(id, { isOpen });
-      await this.log(user, 'SET_STATUS_SUCCESS', `Booth ${id} is ${isOpen ? 'OPEN' : 'CLOSED'}`, manager);
-      return { message: `Booth ${isOpen ? 'opened' : 'closed'} successfully` };
-    });
-  }
 
   // จัดการพนักงานเข้ากะ
   async setCurrentShift(user: any, id: string, shiftId: string | null) {
@@ -211,7 +194,25 @@ export class BoothsService {
         return { message: 'Current shift cleared successfully' };
       }
 
-      if (booth.isOpen) throw new ForbiddenException('Cannot assign shift to open booth');
+      // ถ้าshift ในวันนั้นมีการเปิดกะอยู่แล้ว จะไม่อนุญาตให้ทำการ assign พนักงานเข้ากะที่บูธนั้น
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const activeShift = await manager
+        .getRepository(Shift)
+        .findOne({
+          where: {
+            id: shiftId,
+            endTime: IsNull(),
+            createdAt: MoreThanOrEqual(todayStart),
+          },
+        });
+
+      if (activeShift) {
+        if (activeShift.status == 'OPEN') {
+          await this.log(user, 'ASSIGN_SHIFT_FAILED', `No active shift found for shiftId: ${shiftId}`, manager);
+          throw new BadRequestException('No active shift found for the given shiftId');
+        }
+      }
 
       const worker = await userRepo.findOne({ where: { id: shiftId } });
       if (!worker) throw new NotFoundException('Worker not found');
@@ -236,9 +237,13 @@ export class BoothsService {
 
   async findBoothByShiftId(shiftId: string) {
     if (!shiftId) return null;
-    return await this.boothRepository.findOne({
-      where: { currentShiftId: shiftId },
-      select: ['id', 'name', 'location', 'isActive', 'isOpen'],
-    });
+    const booth = await this.boothRepository.findOne({ where: { currentShiftId: shiftId } });
+    const shift = await this.shift.findOne({ where: { id: shiftId } });
+    return { 
+      id : booth?.id || null, 
+      boothName: booth?.name || null, 
+      location: booth?.location || null, 
+      IsOpen: shift?.status === 'OPEN' ? true : false
+    };
   }
 }

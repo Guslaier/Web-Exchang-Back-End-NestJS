@@ -26,9 +26,6 @@ export class Booth {
   @Column({ default: true })
   isActive: boolean;
 
-  @Column({ default: false })
-  isOpen: boolean;
-
   @Column({ nullable: true , type: 'uuid' })
   currentShiftId: string | null;
 

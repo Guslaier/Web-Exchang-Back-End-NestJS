@@ -10,12 +10,11 @@ import {
   
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import type { TransferTransactionData,TransferTransaction,TranSectionType,TranStatus } from './../../../types';
+import type { TransferTransactionData,TranSectionType,TranStatus, TransferTransactionType } from './../../../types';
+
 
 
 export class CreateTransferTransactionDto implements Omit<TransferTransactionData, 'createdAt' | 'updatedAt' | 'id'> {
-  
-  id: string;     // PK, FK (Primary Key & Foreign Key)
 
   @IsUUID()
   currencyCode: string;   // FK
@@ -28,17 +27,25 @@ export class CreateTransferTransactionDto implements Omit<TransferTransactionDat
   @IsNotEmpty()
   boothId: string;           // FK
 
+  @IsUUID()
+  @IsOptional()
+  ShiftId?: string | null ;
+
   @IsNumber()
   @IsNotEmpty()
   amount: number;            // จำนวนเงิน
 
   @IsString()
   @IsNotEmpty()
-  type: TranSectionType;     // ประเภทการโอน
+  type: TransferTransactionType;     // ประเภทการโอน
 
   @IsUUID()
   @IsNotEmpty()
   refBoothId: string;        // ID บูธที่อ้างอิง
+
+    @IsUUID()
+  @IsOptional()
+  refShiftId?: string | null | undefined;
 
   @IsString()
   @IsOptional()
@@ -56,7 +63,7 @@ export class CreateTransferTransactionDto implements Omit<TransferTransactionDat
   shiftId?: string | null; // อนุญาตให้เป็น null ได้สำหรับบางประเภทของ transaction เช่น transfer ระหว่างบูธ
 }
 
-export class TransferBoothToBoothDto implements Omit<TransferTransactionData, |'type'|'createdAt' | 'updatedAt' | 'id' > {
+export class TransferBoothToBoothDto implements Omit<TransferTransactionData, 'userId'|'status' |'type'|'createdAt' | 'updatedAt' | 'id' > {
   @IsUUID()
   @IsNotEmpty()
   boothId: string;
@@ -76,18 +83,13 @@ export class TransferBoothToBoothDto implements Omit<TransferTransactionData, |'
 
   @IsString()
   @IsOptional()
-  type?: TranSectionType;
+  type?: TransferTransactionType; // กำหนดเป็น optional และใช้ TransferTransactionType แทน TranSectionType เพราะเราต้องการระบุประเภทการโอนที่ชัดเจน เช่น 'TRANSFER_IN' หรือ 'TRANSFER_OUT'
 
   @IsString()
   @IsOptional()
   description?: string;
 
-  @IsUUID()
-  @IsNotEmpty()
-  userId: string;
 
-  @IsString()
-  status: TranStatus;
 }
 
 export class TransferCenterToBoothDto implements Omit<TransferTransactionData,'refBoothId' |'type'|'createdAt' | 'updatedAt' | 'id' > {
