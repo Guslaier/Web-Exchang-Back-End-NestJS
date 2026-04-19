@@ -3,6 +3,7 @@ import { CreateExchangeTransactionDto , GetExchangeTransactionsFromShiftsDto , G
 import { ShiftsService } from './../../modules/shifts/shifts.service';
 import { TransactionsService } from './../../modules/transactions/transactions.service';
 import { ExchangeRatesService } from './../../modules/exchange-rates/exchange-rates.service';
+import { ExclusiveExchangeRatesService } from './../../modules/exclusive-exchange-rates/exclusive-exchange-rates.service';
 import { SystemLogsService } from './../../modules/system-logs/system-logs.service';
 import { CustomersService } from './../../modules/customers/customers.service';
 import { CashCountsService } from './../../modules/cash-counts/cash-counts.service';
@@ -21,6 +22,7 @@ export class ExchangeTransactionsService {
         @Inject(ShiftsService)
         private readonly shiftsService: ShiftsService , 
         private readonly exchangeRateService : ExchangeRatesService ,
+        private readonly exclusiveExchangeRatesService : ExclusiveExchangeRatesService ,
         private readonly customerService : CustomersService , 
         private readonly systemLogsService : SystemLogsService ,
         private readonly cashCountsService : CashCountsService ,
@@ -49,13 +51,15 @@ export class ExchangeTransactionsService {
         
         // validate input section
         
-        const activeShift = await this.shiftsService.getActiveShiftByUserId(currentUser.id);
+        const activeShift = await this.shiftsService.getLastShiftByUserId(currentUser.id);
         if (!activeShift) {
+            await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', 'Failed to create exchange transaction due to no active shift found for the user');
             throw new NotFoundException('No active shift found for the user');
         }
 
         const exchangeRateId = await this.exchangeRateService.findById(body.exchangeRatesId);
         if (!exchangeRateId) {
+            await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Failed to create exchange transaction due to invalid exchangeRatesId: ${body.exchangeRatesId}`);
             throw new NotFoundException('Exchange rate not found');
         }
 
@@ -64,10 +68,12 @@ export class ExchangeTransactionsService {
         }
 
         if (body.type === 'SELL' && !body.calculateMethod) {
+            await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', 'Failed to create exchange transaction due to missing calculateMethod for SELL transaction');
             throw new BadRequestException('calculateMethod is required for SELL transactions');
         }
 
         if (body.calculateMethod && body.calculateMethod !== 'Auto' && body.calculateMethod !== 'Negotiate') {
+            await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Failed to create exchange transaction due to invalid calculateMethod: ${body.calculateMethod}`);
             throw new BadRequestException('calculateMethod must be either Auto or Negotiate');
         }
 
@@ -78,6 +84,12 @@ export class ExchangeTransactionsService {
         this.inputValidator.validateSumOfThaiBahtAmount(cashAmounts, body.thaiBahtAmount);
 
         const exchangeRate : number = body.foreignAmount / body.thaiBahtAmount;
+        const isRateAllow = body.type === 'SELL' ? await this.exchangeRateService.isSellRateAllowed(currentUser, body.exchangeRatesId, exchangeRate) : await this.exclusiveExchangeRatesService.isBuyRateAllowed(currentUser, body.exchangeRatesId, exchangeRate);
+
+        if (!isRateAllow) {
+            await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Failed to create exchange transaction due to proposed exchange rate of ${exchangeRate} is not allowed based on current exchange rate settings.`);
+            throw new BadRequestException(`Proposed exchange rate of ${exchangeRate} is not allowed based on current exchange rate settings.`);
+        }
 
         const { passportNo = "", fullName = "" , nationality = "" , phoneNumber = "" , hotelName = ""  , roomNumber = ""} = body ;
         const customerFields = [passportNo, fullName , nationality , phoneNumber , hotelName , roomNumber , customer_img?.filename ?? ""]; ;
@@ -85,7 +97,7 @@ export class ExchangeTransactionsService {
 
         // insert section 
         try {
-            this.dataSource.transaction(async (manager) => {
+            await this.dataSource.transaction(async (manager) => {
                 const createTransactionDto : CreateTransactionDto = {
                     type : "EXCHANGE",  
                     shiftId : activeShift.id
@@ -94,12 +106,12 @@ export class ExchangeTransactionsService {
                 
                 const customer = insertCustomer ? await this.customerService.create(manager, passportNo , fullName, nationality, phoneNumber, hotelName, roomNumber, customer_img?.filename ?? "") : null;
                 
-                // const cashCountForeignData : CreateCashCountDto = {
-                //     transactionId : transaction.id ,
-                //     currencyId : exchangeRateId.currencyId , 
-                //     denominations : [...] ,
-                //     amounts : [...]
-                // }
+                 const cashCountForeignData : CreateCashCountDto = {
+                     transactionId : transaction.id ,
+                     currencyId : exchangeRateId.currencyId , 
+                     denominations : [{denomination : '1'}] ,
+                     amounts : [{amount : body.foreignAmount}] ,
+                }
 
                 const cashCountTHBData : CreateCashCountDto = {
                     transactionId : transaction.id ,
@@ -107,9 +119,11 @@ export class ExchangeTransactionsService {
                     amounts : [{ amount: body.oneThousandThaiAmount },{ amount: body.fiveHundredThaiAmount },{ amount: body.oneHundredThaiAmount },{ amount: body.fiftyThaiAmount },{ amount: body.twentyThaiAmount },{ amount: body.tenThaiAmount },{ amount: body.fiveThaiAmount },{ amount: body.twoThaiAmount },{ amount: body.oneThaiAmount },] 
                 }
 
-                await this.cashCountsService.create(currentUser, cashCountTHBData, manager);
+                const createdCashCountTHB =  this.cashCountsService.create(currentUser, cashCountTHBData, manager);
 
-                // await this.cashCountsService.create(currentUser, cashCountForeignData, manager); เผื่อจะทำระบบ cash count ของสกุลเงินต่างประเทศในอนาคต
+                const createdCashCountForeign =  this.cashCountsService.create(currentUser, cashCountForeignData, manager); 
+                
+                await Promise.all([createdCashCountTHB , createdCashCountForeign]);
 
                 const exchangeTransRepo = manager.getRepository(ExchangeTransaction);
 
@@ -118,7 +132,7 @@ export class ExchangeTransactionsService {
                     customerId : customer ? customer.id : null , 
                     exchangeRateId : body.exchangeRatesId , 
                     foreignCurrencyAmount : body.foreignAmount , 
-                    totalthaiBahtAmount : body.thaiBahtAmount , 
+                    totalthaiBahtAmount : Math.trunc(body.thaiBahtAmount) , 
                     exchangeRate : exchangeRate , 
                     isNegotiateRate : body.calculateMethod == "Negotiate"  ? true : false ,
                     note : body.note ? body.note : null ,
@@ -141,6 +155,7 @@ export class ExchangeTransactionsService {
             return { message : "Exchange transaction created successfully" } ;
         }
         catch (error) {
+            await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Failed to create exchange transaction. Error: ${error instanceof Error ? error.message : String(error)}`);
             throw new InternalServerErrorException('Failed to create exchange transaction');
         }
 
