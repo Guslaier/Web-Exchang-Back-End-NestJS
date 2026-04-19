@@ -13,7 +13,7 @@ export class InputValidator {
     validateSumOfThaiBahtAmount(cash : number[] , totalThaiBahtAmount : number ) {
         const thaiDenominations = [1000, 500, 100, 50, 20, 10, 5, 2, 1];
         const sum = cash.reduce((acc, val , index) => acc + (val * thaiDenominations[index]), 0);
-        if (sum !== totalThaiBahtAmount) {
+        if (sum !== Math.trunc(totalThaiBahtAmount)) {
             throw new BadRequestException('Sum of cash amounts does not match total Thai Baht amount');
         }
     }
