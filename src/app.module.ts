@@ -19,6 +19,7 @@ import { ShiftStocksReportModule } from './modules/shift-stocks-report/shift-sto
 import { ShiftThaiCashReportModule } from './modules/shift-thai-cash-report/shift-thai-cash-report.module';
 import { SystemLogsModule } from './modules/system-logs/system-logs.module';
 import { RedisModule } from './modules/redis/redis.module';
+import { SseModule } from './modules/sse/sse.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { RedisModule } from './modules/redis/redis.module';
     ShiftThaiCashReportModule,
     SystemLogsModule,
     RedisModule,
+    SseModule,
   ],
 })
 export class AppModule {}
