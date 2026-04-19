@@ -25,7 +25,7 @@ export class Shift {
   startTime: Date;
 
   @Column({ type: 'timestamp', nullable: true })
-  endTime: Date;
+  endTime: Date | null ;
 
   @Column({type : 'decimal' , scale : 2 , nullable : true , default : 0})
   total_receive : number ; 
