@@ -11,9 +11,10 @@ import { InputValidator } from './helper/input-validator';
 import { Transaction } from 'typeorm';
 import { TransactionsModule } from './../../modules/transactions/transactions.module';
 import { CashCountsModule } from './../../modules/cash-counts/cash-counts.module';
+import {ExclusiveExchangeRatesModule} from './../../modules/exclusive-exchange-rates/exclusive-exchange-rates.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ExchangeTransaction]) , ShiftsModule , ExchangeRatesModule , TransactionsModule , SystemLogsModule , CustomersModule , CashCountsModule],
+  imports: [TypeOrmModule.forFeature([ExchangeTransaction]) , ShiftsModule , ExchangeRatesModule , TransactionsModule , SystemLogsModule , CustomersModule , CashCountsModule , ExclusiveExchangeRatesModule],
   controllers: [ExchangeTransactionsController],
   providers: [ExchangeTransactionsService , InputValidator],
   exports: [ExchangeTransactionsService],
