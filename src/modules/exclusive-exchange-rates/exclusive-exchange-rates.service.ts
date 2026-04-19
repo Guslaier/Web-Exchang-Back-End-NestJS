@@ -627,4 +627,14 @@ export class ExclusiveExchangeRatesService {
       updated_at: rate.updated_at
     }));
   }
+
+  async isBuyRateAllowed(currentUser : any,exclusiveRateId: string , proposedRate : number ) {
+    const exclusiveRate = await this.findById(exclusiveRateId);
+    if (!exclusiveRate) {
+      await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Exclusive ID ${exclusiveRateId} not found`);
+      throw new NotFoundException('Exclusive rate not found');
+    }
+
+    return !(proposedRate > exclusiveRate.buy_rate_max || proposedRate < exclusiveRate.buy_rate);
+  }
 }
