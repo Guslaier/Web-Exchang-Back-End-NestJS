@@ -474,4 +474,15 @@ ${JSON.stringify(r.updated)}`).join(', ')}
     });
     return rates;
   }
+
+  async isSellRateAllowed(currentUser : any, exchangeRateId: string, proposedRate : number) {
+    const exchangeRate = await this.findById(exchangeRateId);
+    if (!exchangeRate) {
+      await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Exchange ID ${exchangeRateId} not found`);
+      throw new NotFoundException('Exchange rate not found');
+    }
+
+    return !(proposedRate < exchangeRate.sell_rate);
+
+  }
 }

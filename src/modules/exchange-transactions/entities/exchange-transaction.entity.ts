@@ -12,6 +12,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { ExchangeRate } from '../../exchange-rates/entities/exchange-rate.entity';
+import { ExclusiveExchangeRate } from '../../exclusive-exchange-rates/entities/exclusive-exchange-rate.entity';
 import { Customer } from '../../customers/entities/customer.entity';
 import { User } from '../../users/entities/user.entity';
 import { Transaction } from '../../transactions/entities/transaction.entity';
@@ -42,6 +43,13 @@ export class ExchangeTransaction {
   @ManyToOne(() => ExchangeRate, (exchangeRate) => exchangeRate.id)
   @JoinColumn({ name: 'exchangeRateId' })
   exchangeRateFK: ExchangeRate;
+
+  @Column() 
+  exclusiveExchangeRateId : string;
+
+  @ManyToOne(() => ExclusiveExchangeRate, (exclusiveRate) => exclusiveRate.id)
+  @JoinColumn({ name: 'exclusiveExchangeRateId' })
+  exclusiveExchangeRateFK: ExclusiveExchangeRate;
 
   @Column('decimal', { precision: 12, scale: 2 })
   foreignCurrencyAmount: number;
