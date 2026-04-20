@@ -142,6 +142,9 @@ export class TransferTransactionsService {
           `Failed to log movement creation failure: ${logError instanceof Error ? logError.message : String(logError)}`,
         );
       }
+      this.logger.error(
+        `Failed to create movement: ${error instanceof Error ? error.message : String(error)}`,
+      );
       throw new InternalServerErrorException('Failed to create movement');
     }
   }
@@ -157,6 +160,12 @@ export class TransferTransactionsService {
     // ตรวจสอบยอดเงินในกะของบูธต้นทาง
     const balanceCheck = sourceActiveShift.balance || 0;
     if (balanceCheck < transferDto.amount) {
+      await this.log(
+        user,
+        'TRANSFER_BOOTH_TO_BOOTH_FAILED',
+        `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Insufficient balance`,
+        manager,
+      );
       throw new BadRequestException(
         `Insufficient balance in source booth. Available: ${balanceCheck}, Required: ${transferDto.amount}`,
       );
@@ -173,17 +182,28 @@ export class TransferTransactionsService {
     }, 0);
 
     if (sumCashCount !== transferDto.amount) {
+      await this.log(
+        user,
+        'TRANSFER_BOOTH_TO_BOOTH_FAILED',
+        `Total cash count amount (${sumCashCount}) does not match transfer amount (${transferDto.amount})`,
+      );
       throw new BadRequestException(
         `Total cash count amount (${sumCashCount}) does not match transfer amount (${transferDto.amount})`,
       );
     }
 
     const cashCountCheckBycheck = await this.cashCountsService.getcashCountfromShiftByCurrency(sourceActiveShift.id, (await this.currenciesService.getCurrencyByCode(transferDto.currencyCode)).id as unknown as string);
-    transferDto.cashCountData.forEach((item) => {
+    for (const item of transferDto.cashCountData) {
       if (!cashCountCheckBycheck.cashCountDetails[item.denomination] || cashCountCheckBycheck.cashCountDetails[item.denomination] < item.amount) {
+        await this.log(
+          user,
+          'TRANSFER_BOOTH_TO_BOOTH_FAILED',
+          `Insufficient cash count for denomination ${item.denomination}`,
+          manager,
+        );
         throw new BadRequestException(`Insufficient cash count for denomination ${item.denomination}`);
       }
-    });
+    }
 
     const transferTransactionFormainBooth = await this.createMovement(
       user,
@@ -254,6 +274,12 @@ export class TransferTransactionsService {
       manager,
     );
 
+    await this.log(
+      user,
+      'TRANSFER_BOOTH_TO_BOOTH_SUCCESS',
+      `Transferred ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}`,
+      manager,
+    );
     return {
       message: `Successfully transferred`,
       transactionId: transferTransactionFormainBooth.id,
@@ -272,6 +298,11 @@ export class TransferTransactionsService {
 
   async transferBoothToBooth(user: any, transferDto: TransferBoothToBoothDto) {
     if (transferDto.amount <= 0) {
+        await this.log(
+          user,
+          'TRANSFER_BOOTH_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Invalid transfer amount`,
+        );
       throw new BadRequestException(
         'Transfer amount must be greater than zero',
       );
@@ -285,6 +316,12 @@ export class TransferTransactionsService {
         .getRepository(Booth)
         .findOne({ where: { id: transferDto.boothId, isActive: true } });
       if (!sourceBooth) {
+        await this.log(
+          user,
+          'TRANSFER_BOOTH_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Source booth not found or inactive`,
+          manager,
+        );
         throw new NotFoundException(
           `Source booth with ID ${transferDto.boothId} not found or inactive`,
         );
@@ -299,6 +336,12 @@ export class TransferTransactionsService {
       });
 
       if (!activeShift) {
+        await this.log(
+          user,
+          'TRANSFER_BOOTH_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Source booth does not have an active shift`,
+          manager,
+        );
         throw new BadRequestException(
           `Source booth with ID ${transferDto.boothId} does not have an active shift`,
         );
@@ -308,7 +351,13 @@ export class TransferTransactionsService {
         .getRepository(Booth)
         .findOne({ where: { id: transferDto.refBoothId, isActive: true } });
       if (!targetBooth) {
-        throw new NotFoundException(
+        await this.log(
+          user,
+          'TRANSFER_BOOTH_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Target booth not found or inactive`,
+          manager,
+        );
+        throw new BadRequestException(
           `Target booth with ID ${transferDto.refBoothId} not found or inactive`,
         );
       }
@@ -317,6 +366,12 @@ export class TransferTransactionsService {
         where: { boothId: transferDto.refBoothId, endTime: IsNull() },
       });
       if (!targetActiveShift) {
+        await this.log(
+          user,
+          'TRANSFER_BOOTH_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Target booth does not have an active shift`,
+          manager,
+        );
         throw new BadRequestException(
           `Target booth with ID ${transferDto.refBoothId} does not have an active shift`,
         );
@@ -324,6 +379,12 @@ export class TransferTransactionsService {
 
       // เช็คว่าบูธต้นทางและปลายทางไม่เหมือนกัน
       if (transferDto.boothId === transferDto.refBoothId) {
+        await this.log(
+          user,
+          'TRANSFER_BOOTH_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Source and target booths cannot be the same`,
+          manager,
+        );
         throw new BadRequestException(
           'Source and target booths cannot be the same',
         );
@@ -334,6 +395,12 @@ export class TransferTransactionsService {
         .getRepository(Currency)
         .findOne({ where: { code: transferDto.currencyCode } });
       if (!currency) {
+        await this.log(
+          user,
+          'TRANSFER_BOOTH_TO_BOOTH_FAILED',
+            `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Currency not found`,
+          manager,
+        );
         throw new NotFoundException(
           `Currency with code ${transferDto.currencyCode} not found`,
         );
@@ -418,11 +485,16 @@ export class TransferTransactionsService {
         0,
       );
 
-      console.log('Total exchanged amount:', totalExchangedAmount);
       let countSummary = totalExchangedAmount + totalTransferredAmount;
 
       // ตรวจสอบว่าจำนวนเงินที่ต้องการโอนมากกว่าจำนวนเงินที่แลกในกะนั้นหรือไม่ ถ้ามากกว่าจะไม่อนุญาตให้ทำการโอนระหว่างบูธ
       if (countSummary < transferDto.amount) {
+        await this.log(
+          user,
+          'TRANSFER_BOOTH_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Insufficient exchanged amount in active shift`,
+          manager,
+        );
         throw new BadRequestException(
           `Cannot transfer ${transferDto.amount} ${transferDto.currencyCode} because total exchanged amount in active shift is only ${countSummary} ${transferDto.currencyCode}`,
         );
@@ -482,6 +554,13 @@ export class TransferTransactionsService {
         cashCountData_targetBooth,
         manager,
       );
+
+      await this.log(
+        user,
+        'TRANSFER_BOOTH_TO_BOOTH_SUCCESS',
+        `Transferred ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}`,
+        manager,
+      );  
       return {
         message: 'Successfully transferred',
         transactionId: transferTransactionFormainBooth.id,
@@ -501,6 +580,12 @@ export class TransferTransactionsService {
   ) {
     return await this.dataSource.transaction(async (manager) => {
       if (transferDto.amount <= 0) {
+          await this.log(
+            user,
+            'TRANSFER_CENTER_TO_BOOTH_FAILED',
+            `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from center to booth ${transferDto.boothId}: Invalid transfer amount`,
+            manager,
+          );
         throw new BadRequestException(
           'Transfer amount must be greater than zero',
         );
@@ -510,6 +595,12 @@ export class TransferTransactionsService {
         .getRepository(Booth)
         .findOne({ where: { id: transferDto.boothId, isActive: true } });
       if (!targetBooth) {
+          await this.log(
+            user,
+            'TRANSFER_CENTER_TO_BOOTH_FAILED',
+            `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from center to booth ${transferDto.boothId}: Target booth not found or inactive`,
+            manager,
+          );
         throw new NotFoundException(
           `Target booth with ID ${transferDto.boothId} not found or inactive`,
         );
@@ -519,6 +610,12 @@ export class TransferTransactionsService {
         where: { boothId: transferDto.boothId, endTime: IsNull() },
       });
       if (!targetActiveShift) {
+          await this.log(
+            user,
+            'TRANSFER_CENTER_TO_BOOTH_FAILED',
+            `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from center to booth ${transferDto.boothId}: Target booth does not have an active shift`,
+            manager,
+          );
         throw new BadRequestException(
           `Target booth with ID ${transferDto.boothId} does not have an active shift`,
         );
@@ -527,6 +624,12 @@ export class TransferTransactionsService {
         .getRepository(Currency)
         .findOne({ where: { code: transferDto.currencyCode } });
       if (!currency) {
+          await this.log(
+            user,
+            'TRANSFER_CENTER_TO_BOOTH_FAILED',
+            `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from center to booth ${transferDto.boothId}: Currency not found`,
+            manager,
+          );
         throw new NotFoundException(
           `Currency with code ${transferDto.currencyCode} not found`,
         );
@@ -545,6 +648,12 @@ export class TransferTransactionsService {
       }, 0);
 
       if (sumCashCount !== transferDto.amount) {
+          await this.log(
+            user,
+            'TRANSFER_CENTER_TO_BOOTH_FAILED',
+            `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from center to booth ${transferDto.boothId}: Total cash count amount (${sumCashCount}) does not match transfer amount (${transferDto.amount})`,
+            manager,
+          );
         throw new BadRequestException(
           `Total cash count amount (${sumCashCount}) does not match transfer amount (${transferDto.amount})`,
         );
@@ -617,6 +726,13 @@ export class TransferTransactionsService {
       manager,
     );
 
+    await this.log(
+      user,
+      'TRANSFER_CENTER_TO_BOOTH_SUCCESS',
+      `Transferred ${transferDto.amount} ${transferDto.currencyCode} from center to booth ${transferDto.boothId}`,
+      manager,
+    );
+
     return {
       message: 'Successfully transferred from Center to Booth',
       transactionId: transferTransactionForTargetBooth.id,
@@ -641,11 +757,17 @@ export class TransferTransactionsService {
     manager: EntityManager,
   ) {
     const cashCountCheckBycheck = await this.cashCountsService.getcashCountfromShiftByCurrency(targetActiveShift.id, (await this.currenciesService.getCurrencyByCode(transferDto.currencyCode)).id as unknown as string);
-    transferDto.cashCountData.forEach((item) => {
+    for (const item of transferDto.cashCountData) {
       if (!cashCountCheckBycheck.cashCountDetails[item.denomination] || cashCountCheckBycheck.cashCountDetails[item.denomination] < item.amount) {
+        await this.log(
+          user,
+          'TRANSFER_BOOTH_TO_CENTER_FAILED',
+          `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth center: Insufficient cash count for denomination ${item.denomination}`,
+          manager,
+        );
         throw new BadRequestException(`Insufficient cash count for denomination ${item.denomination}`);
       }
-    });
+    }
     const transferTransactionForTargetBooth = await this.createMovement(
       user,
       {
@@ -676,6 +798,12 @@ export class TransferTransactionsService {
     await this.shiftsService.setTotalExchange(
       transferDto.boothId,
       transferDto.amount,
+      manager,
+    );
+    await this.log(
+      user,
+      'TRANSFER_BOOTH_TO_CENTER_SUCCESS',
+      `Transferred ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth center`,
       manager,
     );
 
