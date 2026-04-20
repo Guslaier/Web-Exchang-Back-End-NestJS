@@ -9,6 +9,8 @@ import {
   JoinColumn,
   OneToOne,
   PrimaryColumn,
+  OneToMany,
+  ReadPreference,
 } from 'typeorm';
 import { Booth } from '../../booths/entities/booth.entity';
 import { User } from '../../users/entities/user.entity';
@@ -21,6 +23,7 @@ import {
 } from '../../../types';
 import { IsString } from 'class-validator';
 import { Shift } from '../../shifts/entities/shift.entity';
+import {CashCount} from '../../cash-counts/entities/cash-count.entity'
 
 @Entity('transfer_transactions')
 export class TransferTransaction implements Omit<
@@ -55,9 +58,15 @@ export class TransferTransaction implements Omit<
   @Column({ name: 'currency_code' })
   currencyCode: string;
 
-  @ManyToOne(() => Currency)
-  @JoinColumn({ name: 'currency_code', referencedColumnName: 'code' })
+  @ManyToOne(() => Currency,(Currency)=>Currency.code)
+  @JoinColumn({ 
+    name: 'currency_code',           // ชื่อคอลัมน์ในตารางปัจจุบัน
+    referencedColumnName: 'code'     // ชื่อคอลัมน์ในตาราง Currency ที่เราจะไปเกาะ
+  })
   currency: Currency;
+
+  @OneToMany(() => CashCount,(CashCount) => CashCount.transaction)
+  cashCounts: CashCount[];
 
   @Column()
   type: TransferTransactionType;

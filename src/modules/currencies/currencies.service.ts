@@ -425,4 +425,21 @@ export class CurrenciesService implements OnModuleInit {
       throw new NotFoundException('Internal Server Error');
     }
   }
+
+  async getCurrencyByCode(code: string) {
+    try {
+      const currency = await this.currencyRepo.findOne({ where: { code } });
+      if (!currency) throw new NotFoundException('Currency not found');
+      return currency;
+    } catch (err) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      await this.systemLogsService.createLog(null, {
+        userId: null,
+        action: 'CURRENCY_FETCH_FAILED',
+        details: `Error fetching currency ${code}: ${errMessage}`,
+      });
+      throw new NotFoundException('Internal Server Error');
+    }
+
+  }
 }

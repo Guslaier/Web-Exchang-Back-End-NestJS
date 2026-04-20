@@ -23,6 +23,7 @@ export class Transaction {
 
   @OneToOne(() => ExchangeTransaction ,(ExchangeTransaction) => ExchangeTransaction.transaction)
   exchangetransaction: any;
+
   
 
 }

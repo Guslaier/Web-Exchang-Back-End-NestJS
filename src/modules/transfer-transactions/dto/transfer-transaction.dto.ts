@@ -7,24 +7,22 @@ import {
   IsArray,
   ValidateNested,
   IsDecimal,
+  IsNumberString,
+  Matches,
   
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import type { TransferTransactionData,TranSectionType,TranStatus, TransferTransactionType } from './../../../types';
+import type { TransferTransactionData,TranSectionType,TranStatus, TransferTransactionType,CashCountData } from './../../../types';
+import { CreateCashCountDto } from '../../cash-counts/dto/cash-count.dto';
 
 
 
-export class CreateTransferTransactionDto implements Omit<TransferTransactionData, 'createdAt' | 'updatedAt' | 'id'> {
-
-  @IsUUID()
-  currencyCode: string;   // FK
-
+export class CreateTransferTransactionDto implements Omit<TransferTransactionData,'refBoothId'| 'createdAt' | 'updatedAt' | 'id'> {
   @IsString()
-  @IsOptional()
-  currencyName?: string;   // ชื่อสกุลเงิน
+  currencyCode: string;   // ชื่อสกุลเงิน
 
   @IsUUID()
-  @IsNotEmpty()
+  @IsOptional()
   boothId: string;           // FK
 
   @IsUUID()
@@ -40,8 +38,8 @@ export class CreateTransferTransactionDto implements Omit<TransferTransactionDat
   type: TransferTransactionType;     // ประเภทการโอน
 
   @IsUUID()
-  @IsNotEmpty()
-  refBoothId: string;        // ID บูธที่อ้างอิง
+  @IsOptional()
+  refBoothId?: string;        // ID บูธที่อ้างอิง
 
     @IsUUID()
   @IsOptional()
@@ -81,6 +79,11 @@ export class TransferBoothToBoothDto implements Omit<TransferTransactionData, 'u
   @IsNotEmpty()
   currencyCode: string;
 
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateCashCountTransferDto)
+  cashCountData: CreateCashCountTransferDto[];
+
   @IsString()
   @IsOptional()
   type?: TransferTransactionType; // กำหนดเป็น optional และใช้ TransferTransactionType แทน TranSectionType เพราะเราต้องการระบุประเภทการโอนที่ชัดเจน เช่น 'TRANSFER_IN' หรือ 'TRANSFER_OUT'
@@ -92,7 +95,7 @@ export class TransferBoothToBoothDto implements Omit<TransferTransactionData, 'u
 
 }
 
-export class TransferCenterToBoothDto implements Omit<TransferTransactionData,'refBoothId' |'type'|'createdAt' | 'updatedAt' | 'id' > {
+export class TransferCenterToBoothDto implements Omit<TransferTransactionData,'userId'|'refBoothId' |'type'|'createdAt' | 'updatedAt' | 'id' > {
   @IsUUID()
   @IsNotEmpty()
   boothId: string;
@@ -106,33 +109,32 @@ export class TransferCenterToBoothDto implements Omit<TransferTransactionData,'r
   currencyCode: string;
 
   @IsString()
-  @IsOptional()
-  type?: TranSectionType;
+  type: TransferTransactionType; // กำหนดเป็น optional และใช้ TransferTransactionType แทน TranSectionType เพราะเราต้องการระบุประเภทการโอนที่ชัดเจน เช่น 'TRANSFER_IN' หรือ 'TRANSFER_OUT'
 
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => CashCountDataDto)
-  cashCountData: CashCountDataDto[];
+  @Type(() => CreateCashCountTransferDto)
+  cashCountData: CreateCashCountTransferDto[];
 
   @IsString()
   @IsOptional()
   description?: string;
 
-  @IsUUID()
-  @IsNotEmpty()
-  userId: string;
-
   @IsString()
+  @IsOptional()
   status: TranStatus;
 
 }
 
-export class CashCountDataDto {
-  @IsNumber()
-  denomination: number;
-
+export class CreateCashCountTransferDto implements Pick<CashCountData, 'denomination' | 'amount'> {
   @IsNumber()
   amount: number;
+
+  @IsNotEmpty()
+  @Matches(/^[0-9]+$/, {
+    message: 'Denomination must contain only digits',
+  })
+  denomination: string;
 }
 
 export class UpdateTransferTransactionDto {

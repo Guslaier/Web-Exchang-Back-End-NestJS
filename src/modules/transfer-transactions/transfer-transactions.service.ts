@@ -20,8 +20,8 @@ import {
   CreateTransferTransactionDto,
   TransferBoothToBoothDto,
   TransferCenterToBoothDto,
-  CashCountDataDto,
   UpdateTransferTransactionDto,
+  CreateCashCountTransferDto,
 } from './dto/transfer-transaction.dto';
 import { BoothsService } from '../booths/booths.service';
 import { CurrenciesService } from '../currencies/currencies.service';
@@ -35,8 +35,9 @@ import { Shift } from '../shifts/entities/shift.entity';
 import { CashCount } from '../cash-counts/entities/cash-count.entity';
 import { Transaction } from '../transactions/entities/transaction.entity';
 import { TranType } from 'index';
-import { number, re, sum } from 'mathjs';
+import { i, number, re, sum, to } from 'mathjs';
 import { ShiftsService } from '../shifts/shifts.service';
+import { CreateCashCountDto } from '../cash-counts/dto/cash-count.dto';
 
 @Injectable()
 export class TransferTransactionsService {
@@ -103,7 +104,7 @@ export class TransferTransactionsService {
     });
 
     const transferTransaction = manager
-      ?.getRepository(TransferTransaction)
+      .getRepository(TransferTransaction)
       .create({
         id: transaction.id, // ใช้ ID เดียวกับ Transaction
         userId: createDto.userId,
@@ -129,12 +130,18 @@ export class TransferTransactionsService {
       );
       return transferTransaction;
     } catch (error) {
-      await this.log(
-        user,
-        'CREATE_MOVEMENT_FAILED',
-        `Failed to create movement of ${createDto.amount} ${createDto.currencyCode} for booth ${createDto.boothId}`,
-        manager,
-      );
+      try {
+        await this.log(
+          user,
+          'CREATE_MOVEMENT_FAILED',
+          `Failed to create movement of ${createDto.amount} ${createDto.currencyCode} for booth ${createDto.boothId}`,
+          manager,
+        );
+      } catch (logError) {
+        this.logger.error(
+          `Failed to log movement creation failure: ${logError instanceof Error ? logError.message : String(logError)}`,
+        );
+      }
       throw new InternalServerErrorException('Failed to create movement');
     }
   }
@@ -147,7 +154,6 @@ export class TransferTransactionsService {
     targetActiveShift: Shift,
     manager: EntityManager,
   ) {
-
     // ตรวจสอบยอดเงินในกะของบูธต้นทาง
     const balanceCheck = sourceActiveShift.balance || 0;
     if (balanceCheck < transferDto.amount) {
@@ -155,6 +161,29 @@ export class TransferTransactionsService {
         `Insufficient balance in source booth. Available: ${balanceCheck}, Required: ${transferDto.amount}`,
       );
     }
+
+    let denominations = transferDto.cashCountData.map((item) => ({
+      denomination: item.denomination,
+    }));
+    let amounts = transferDto.cashCountData.map((item) => ({
+      amount: item.amount,
+    }));
+    const sumCashCount = transferDto.cashCountData.reduce((acc, item) => {
+      return acc + Number(item.amount) * Number(item.denomination);
+    }, 0);
+
+    if (sumCashCount !== transferDto.amount) {
+      throw new BadRequestException(
+        `Total cash count amount (${sumCashCount}) does not match transfer amount (${transferDto.amount})`,
+      );
+    }
+
+    const cashCountCheckBycheck = await this.cashCountsService.getcashCountfromShiftByCurrency(sourceActiveShift.id, (await this.currenciesService.getCurrencyByCode(transferDto.currencyCode)).id as unknown as string);
+    transferDto.cashCountData.forEach((item) => {
+      if (!cashCountCheckBycheck.cashCountDetails[item.denomination] || cashCountCheckBycheck.cashCountDetails[item.denomination] < item.amount) {
+        throw new BadRequestException(`Insufficient cash count for denomination ${item.denomination}`);
+      }
+    });
 
     const transferTransactionFormainBooth = await this.createMovement(
       user,
@@ -172,10 +201,8 @@ export class TransferTransactionsService {
       },
       manager,
     );
-    
-    
-    
-    
+
+
     const transferTransactionForTargetBooth = await this.createMovement(
       user,
       {
@@ -192,11 +219,43 @@ export class TransferTransactionsService {
       },
       manager,
     );
-    
-    this.shiftsService.setTotalExchange(transferDto.boothId, transferDto.amount);
-    this.shiftsService.setTotalReceive(transferDto.refBoothId, transferDto.amount);
 
-    return { message: `Successfully transferred`,
+    let currencyId =
+      (await this.currenciesService.getTHBCurrency()) as unknown as string;
+    const cashCountData_mainBooth: CreateCashCountDto = {
+      transactionId: transferTransactionFormainBooth.id,
+      currencyId,
+      denominations,
+      amounts,
+    };
+
+    const cashCountData_targetBooth: CreateCashCountDto = {
+      transactionId: transferTransactionForTargetBooth.id,
+      currencyId,
+      denominations,
+      amounts,
+    };
+
+    await this.cashCountsService.create(user, cashCountData_mainBooth, manager);
+    await this.cashCountsService.create(
+      user,
+      cashCountData_targetBooth,
+      manager,
+    );
+
+    await this.shiftsService.setTotalExchange(
+      transferDto.boothId,
+      transferDto.amount,
+      manager,
+    );
+    await this.shiftsService.setTotalReceive(
+      transferDto.refBoothId,
+      transferDto.amount,
+      manager,
+    );
+
+    return {
+      message: `Successfully transferred`,
       transactionId: transferTransactionFormainBooth.id,
       fromBooth: transferDto.boothId,
       transactionIdForTargetBooth: transferTransactionForTargetBooth.id,
@@ -204,12 +263,18 @@ export class TransferTransactionsService {
       amount: transferDto.amount,
       currency: transferDto.currencyCode,
       balanceAfterTransfer: balanceCheck - transferDto.amount,
+      cashCounts: cashCountData_mainBooth.amounts.map((item, index) => ({
+        denomination: cashCountData_mainBooth.denominations[index].denomination,
+        amount: item.amount,
+      })),
     };
   }
 
   async transferBoothToBooth(user: any, transferDto: TransferBoothToBoothDto) {
-    if(transferDto.amount <= 0){
-      throw new BadRequestException('Transfer amount must be greater than zero');
+    if (transferDto.amount <= 0) {
+      throw new BadRequestException(
+        'Transfer amount must be greater than zero',
+      );
     }
     return await this.dataSource.transaction(async (manager) => {
       // Validate booths
@@ -353,6 +418,7 @@ export class TransferTransactionsService {
         0,
       );
 
+      console.log('Total exchanged amount:', totalExchangedAmount);
       let countSummary = totalExchangedAmount + totalTransferredAmount;
 
       // ตรวจสอบว่าจำนวนเงินที่ต้องการโอนมากกว่าจำนวนเงินที่แลกในกะนั้นหรือไม่ ถ้ามากกว่าจะไม่อนุญาตให้ทำการโอนระหว่างบูธ
@@ -379,6 +445,13 @@ export class TransferTransactionsService {
         manager,
       );
 
+      const cashCountData_mainBooth: CreateCashCountDto = {
+        transactionId: transferTransactionFormainBooth.id,
+        currencyId: currency.id,
+        denominations: [{ denomination: '1' }],
+        amounts: [{ amount: transferDto.amount }],
+      };
+
       const transferTransactionForTargetBooth = await this.createMovement(
         user,
         {
@@ -396,16 +469,230 @@ export class TransferTransactionsService {
         manager,
       );
 
+      const cashCountData_targetBooth: CreateCashCountDto = {
+        transactionId: transferTransactionForTargetBooth.id,
+        currencyId: currency.id,
+        denominations: [{ denomination: '1' }],
+        amounts: [{ amount: transferDto.amount }],
+      };
+
+      await this.cashCountsService.create(user, cashCountData_mainBooth, manager);
+      await this.cashCountsService.create(
+        user,
+        cashCountData_targetBooth,
+        manager,
+      );
       return {
         message: 'Successfully transferred',
         transactionId: transferTransactionFormainBooth.id,
-      fromBooth: transferDto.boothId,
-      transactionIdForTargetBooth: transferTransactionForTargetBooth.id,
-      toBooth: transferDto.refBoothId,
-      amount: transferDto.amount,
-      currency: transferDto.currencyCode,
-      balanceAfterTransfer: countSummary - transferDto.amount, // บอกยอดคงเหลือในกะหลังโอน
+        fromBooth: transferDto.boothId,
+        transactionIdForTargetBooth: transferTransactionForTargetBooth.id,
+        toBooth: transferDto.refBoothId,
+        amount: transferDto.amount,
+        currency: transferDto.currencyCode,
+        balanceAfterTransfer: countSummary - transferDto.amount, // บอกยอดคงเหลือในกะหลังโอน
       };
     });
   }
+
+  async transferCenterToBooth(
+    user: any,
+    transferDto: TransferCenterToBoothDto,
+  ) {
+    return await this.dataSource.transaction(async (manager) => {
+      if (transferDto.amount <= 0) {
+        throw new BadRequestException(
+          'Transfer amount must be greater than zero',
+        );
+      }
+
+      const targetBooth = await manager
+        .getRepository(Booth)
+        .findOne({ where: { id: transferDto.boothId, isActive: true } });
+      if (!targetBooth) {
+        throw new NotFoundException(
+          `Target booth with ID ${transferDto.boothId} not found or inactive`,
+        );
+      }
+
+      const targetActiveShift = await manager.getRepository(Shift).findOne({
+        where: { boothId: transferDto.boothId, endTime: IsNull() },
+      });
+      if (!targetActiveShift) {
+        throw new BadRequestException(
+          `Target booth with ID ${transferDto.boothId} does not have an active shift`,
+        );
+      }
+      const currency = await manager
+        .getRepository(Currency)
+        .findOne({ where: { code: transferDto.currencyCode } });
+      if (!currency) {
+        throw new NotFoundException(
+          `Currency with code ${transferDto.currencyCode} not found`,
+        );
+      }
+
+      let denominations = transferDto.cashCountData.map((item) => ({
+        denomination: item.denomination,
+      }));
+      let amounts = transferDto.cashCountData.map((item) => ({
+        amount: item.amount,
+      }));
+
+
+      const sumCashCount = transferDto.cashCountData.reduce((acc, item) => {
+        return acc + Number(item.amount) * Number(item.denomination);
+      }, 0);
+
+      if (sumCashCount !== transferDto.amount) {
+        throw new BadRequestException(
+          `Total cash count amount (${sumCashCount}) does not match transfer amount (${transferDto.amount})`,
+        );
+      }
+      
+      if (transferDto.type === 'CASH_IN') {
+        return await this.tnfCtoB_CashIn(
+          user,
+          transferDto,
+          targetActiveShift,
+          currency,
+          amounts,
+          denominations,
+          manager,
+        );
+      } else if (transferDto.type === 'CASH_OUT') {
+        return await this.tnfCtoB_CashOut(
+          user,
+          transferDto,
+          targetActiveShift,
+          currency,
+          amounts,
+          denominations,
+          manager,
+        );
+      }
+    });
+  }
+
+  async tnfCtoB_CashIn(
+    user: any,
+    transferDto: TransferCenterToBoothDto,
+    targetActiveShift: Shift,
+    currency: Currency,
+    amounts: { amount: number }[],
+    denominations: { denomination: string }[],
+    manager: EntityManager,
+  ) {
+
+    const transferTransactionForTargetBooth = await this.createMovement(
+      user,
+      {
+        boothId: transferDto.boothId,
+        shiftId: targetActiveShift.id,
+        amount: transferDto.amount,
+        currencyCode: transferDto.currencyCode,
+        type: 'CASH_IN',
+        description: transferDto.description,
+        userId: user.id,
+        status: 'COMPLETED',
+      },
+      manager,
+    );
+
+    const cashCountData_targetBooth: CreateCashCountDto = {
+      transactionId: transferTransactionForTargetBooth.id,
+      currencyId: currency.id,
+      denominations,
+      amounts,
+    };
+    await this.cashCountsService.create(
+      user,
+      cashCountData_targetBooth,
+      manager,
+    );
+
+    await this.shiftsService.setTotalReceive(
+      transferDto.boothId,
+      transferDto.amount,
+      manager,
+    );
+
+    return {
+      message: 'Successfully transferred from Center to Booth',
+      transactionId: transferTransactionForTargetBooth.id,
+      toBooth: transferDto.boothId,
+      amount: transferDto.amount,
+      currency: transferDto.currencyCode,
+      cashCounts: cashCountData_targetBooth.amounts.map((item, index) => ({
+        denomination:
+          cashCountData_targetBooth.denominations[index].denomination,
+        amount: item.amount,
+      })),
+    };
+  }
+
+  async tnfCtoB_CashOut(
+    user: any,
+    transferDto: TransferCenterToBoothDto,
+    targetActiveShift: Shift,
+    currency: Currency,
+    amounts: { amount: number }[],
+    denominations: { denomination: string }[],
+    manager: EntityManager,
+  ) {
+    const cashCountCheckBycheck = await this.cashCountsService.getcashCountfromShiftByCurrency(targetActiveShift.id, (await this.currenciesService.getCurrencyByCode(transferDto.currencyCode)).id as unknown as string);
+    transferDto.cashCountData.forEach((item) => {
+      if (!cashCountCheckBycheck.cashCountDetails[item.denomination] || cashCountCheckBycheck.cashCountDetails[item.denomination] < item.amount) {
+        throw new BadRequestException(`Insufficient cash count for denomination ${item.denomination}`);
+      }
+    });
+    const transferTransactionForTargetBooth = await this.createMovement(
+      user,
+      {
+        boothId: transferDto.boothId,
+        shiftId: targetActiveShift.id,
+        amount: transferDto.amount,
+        currencyCode: transferDto.currencyCode,
+        type: 'CASH_OUT',
+        description: transferDto.description,
+        userId: user.id,
+        status: 'COMPLETED',
+      },
+      manager,
+    );
+
+    const cashCountData_targetBooth: CreateCashCountDto = {
+      transactionId: transferTransactionForTargetBooth.id,
+      currencyId: currency.id,
+      denominations,
+      amounts,
+    };
+    await this.cashCountsService.create(
+      user,
+      cashCountData_targetBooth,
+      manager,
+    );
+
+    await this.shiftsService.setTotalExchange(
+      transferDto.boothId,
+      transferDto.amount,
+      manager,
+    );
+
+    return {
+      message: 'Successfully transferred from Booth to Center',
+      transactionId: transferTransactionForTargetBooth.id,
+      fromBooth: transferDto.boothId,
+      amount: transferDto.amount,
+      currency: transferDto.currencyCode,
+      cashCounts: cashCountData_targetBooth.amounts.map((item, index) => ({
+        denomination:
+          cashCountData_targetBooth.denominations[index].denomination,
+        amount: item.amount,
+      })),
+    };
+  }
+
+  
+
 }

@@ -1,9 +1,21 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, DeleteDateColumn, UpdateDateColumn , PrimaryColumn , ManyToOne, JoinColumn, OneToOne} from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  DeleteDateColumn,
+  UpdateDateColumn,
+  PrimaryColumn,
+  ManyToOne,
+  JoinColumn,
+  OneToOne,
+  OneToMany,
+} from 'typeorm';
 import { ExchangeRate } from '../../exchange-rates/entities/exchange-rate.entity';
 import { Customer } from '../../customers/entities/customer.entity';
 import { User } from '../../users/entities/user.entity';
 import { Transaction } from '../../transactions/entities/transaction.entity';
-
+import { CashCount } from '../../cash-counts/entities/cash-count.entity';
 
 @Entity('exchange_transactions')
 export class ExchangeTransaction {
@@ -11,7 +23,7 @@ export class ExchangeTransaction {
   id: string;
 
   @Column({ default: 'BUY' })
-  type : string;
+  type: string;
 
   @OneToOne(() => Transaction)
   @JoinColumn({ name: 'id' })
@@ -25,7 +37,7 @@ export class ExchangeTransaction {
   customer: Customer;
 
   @Column()
-  exchangeRateId : string;
+  exchangeRateId: string;
 
   @ManyToOne(() => ExchangeRate, (exchangeRate) => exchangeRate.id)
   @JoinColumn({ name: 'exchangeRateId' })
@@ -43,12 +55,12 @@ export class ExchangeTransaction {
   @Column({ type: 'boolean', default: false })
   isNegotiateRate: boolean;
 
-  @Column('text' , { nullable: true })
-  note: string | null ;
+  @Column('text', { nullable: true })
+  note: string | null;
 
-  @Column('text' , { nullable: true })
+  @Column('text', { nullable: true })
   voidReason: string;
-  
+
   @Column({ nullable: true })
   voidedBy: string;
 
@@ -63,12 +75,15 @@ export class ExchangeTransaction {
   @JoinColumn({ name: 'approvedBy' })
   approver: User;
 
+  @OneToMany(() => CashCount, (cashCount) => cashCount.transaction)
+  cashCounts: CashCount[];
+
   @Column()
   status: string;
 
   @UpdateDateColumn()
   updatedAt: Date;
-  
+
   @DeleteDateColumn()
   deletedAt?: Date | null;
 }
