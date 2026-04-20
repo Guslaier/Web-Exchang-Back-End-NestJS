@@ -635,6 +635,6 @@ export class ExclusiveExchangeRatesService {
       throw new NotFoundException('Exclusive rate not found');
     }
 
-    return !(proposedRate > exclusiveRate.buy_rate_max || proposedRate < exclusiveRate.buy_rate);
+    return !(proposedRate > exclusiveRate.buy_rate_max || proposedRate < Math.trunc(exclusiveRate.buy_rate));
   }
 }

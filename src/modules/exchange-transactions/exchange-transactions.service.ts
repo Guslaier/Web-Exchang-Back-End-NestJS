@@ -83,11 +83,27 @@ export class ExchangeTransactionsService {
         const cashAmounts = [body.oneThousandThaiAmount,body.fiveHundredThaiAmount , body.oneHundredThaiAmount, body.fiftyThaiAmount, body.twentyThaiAmount, body.tenThaiAmount, body.fiveThaiAmount, body.twoThaiAmount,  body.oneThaiAmount ];
         this.inputValidator.validateSumOfThaiBahtAmount(cashAmounts, body.thaiBahtAmount);
 
-        const exchangeRate : number = body.foreignAmount / body.thaiBahtAmount;
-        const isRateAllow = body.type === 'SELL' ? await this.exchangeRateService.isSellRateAllowed(currentUser, body.exchangeRatesId, exchangeRate) : await this.exclusiveExchangeRatesService.isBuyRateAllowed(currentUser, body.exchangeRatesId, exchangeRate);
-
+        const exchangeRate : number = body.thaiBahtAmount / body.foreignAmount;
+        const exclusiveExchangeRates = await this.exclusiveExchangeRatesService.findByExchangeRate(body.exchangeRatesId);
+        let exclusiveExchangeRate : any = null ;
+        for (const exclusiveRate of exclusiveExchangeRates) {
+            if (exclusiveRate.booth_id === activeShift.boothId) {
+                exclusiveExchangeRate = exclusiveRate ;
+                break ;
+            }
+        }
+        const isRateAllow = ((body.type === 'SELL' && Math.trunc(exchangeRate) == Math.trunc(exchangeRateId.sell_rate)) || (body.type === 'BUY' && Math.trunc(exchangeRate) >= Math.trunc(exclusiveExchangeRate.buy_rate) && Math.trunc(exchangeRate) <= Math.trunc(exclusiveExchangeRate.buy_rate_max) ) ) ? true : false ;
+        
         if (!isRateAllow) {
-            await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Failed to create exchange transaction due to proposed exchange rate of ${exchangeRate} is not allowed based on current exchange rate settings.`);
+            if (body.type === 'SELL') {
+                console.log(`Proposed sell exchange rate of ${exchangeRate} does not match the current sell rate of ${exchangeRateId.sell_rate}.`);
+                  await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Proposed sell exchange rate of ${exchangeRate} does not match the current sell rate of ${exchangeRateId.sell_rate}.`);
+            }
+            else {
+                console.log(`Proposed buy exchange rate of ${exchangeRate} is not allowed. It must be between ${exclusiveExchangeRate.buy_rate} and ${exclusiveExchangeRate.buy_rate_max}.`);
+                await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Proposed buy exchange rate of ${exchangeRate} is not allowed. It must be between ${exclusiveExchangeRate.buy_rate} and ${exclusiveExchangeRate.buy_rate_max}.`);
+            }
+          
             throw new BadRequestException(`Proposed exchange rate of ${exchangeRate} is not allowed based on current exchange rate settings.`);
         }
 
@@ -119,22 +135,22 @@ export class ExchangeTransactionsService {
                     amounts : [{ amount: body.oneThousandThaiAmount },{ amount: body.fiveHundredThaiAmount },{ amount: body.oneHundredThaiAmount },{ amount: body.fiftyThaiAmount },{ amount: body.twentyThaiAmount },{ amount: body.tenThaiAmount },{ amount: body.fiveThaiAmount },{ amount: body.twoThaiAmount },{ amount: body.oneThaiAmount },] 
                 }
 
-                const createdCashCountTHB =  this.cashCountsService.create(currentUser, cashCountTHBData, manager);
+                await this.cashCountsService.create(currentUser, cashCountTHBData, manager);
 
-                const createdCashCountForeign =  this.cashCountsService.create(currentUser, cashCountForeignData, manager); 
-                
-                await Promise.all([createdCashCountTHB , createdCashCountForeign]);
+                await this.cashCountsService.create(currentUser, cashCountForeignData, manager); 
 
                 const exchangeTransRepo = manager.getRepository(ExchangeTransaction);
+
 
                 const createdExchangeTran = exchangeTransRepo.create({
                     id : transaction.id , 
                     customerId : customer ? customer.id : null , 
                     exchangeRateId : body.exchangeRatesId , 
+                    exclusiveExchangeRateId : exclusiveExchangeRate ,
                     foreignCurrencyAmount : body.foreignAmount , 
                     totalthaiBahtAmount : Math.trunc(body.thaiBahtAmount) , 
                     exchangeRate : exchangeRate , 
-                    isNegotiateRate : body.calculateMethod == "Negotiate"  ? true : false ,
+                    isNegotiateRate : body.type === 'BUY' && Math.trunc(exchangeRate) !== Math.trunc(exclusiveExchangeRate.buy_rate) ? true : false ,
                     note : body.note ? body.note : null ,
                     status : 'COMPLETED',
                     type : body.type ,
