@@ -442,4 +442,5 @@ export class CurrenciesService implements OnModuleInit {
     }
 
   }
+  
 }

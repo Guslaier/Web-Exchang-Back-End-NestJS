@@ -5,9 +5,14 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CashCount } from './entities/cash-count.entity';
 import { SystemLogsModule } from '../../modules/system-logs/system-logs.module';
 import { CurrenciesModule } from '../../modules/currencies/currencies.module';
-
+import { Transaction } from '../transactions/entities/transaction.entity';
+import { TransferTransaction } from '../transfer-transactions/entities/transfer-transaction.entity';
 @Module({
-  imports: [TypeOrmModule.forFeature([CashCount]) , SystemLogsModule , CurrenciesModule],
+  imports: [
+    TypeOrmModule.forFeature([CashCount, Transaction, TransferTransaction]),
+    SystemLogsModule,
+    CurrenciesModule,
+  ],
   controllers: [CashCountsController],
   providers: [CashCountsService],
   exports: [CashCountsService],
