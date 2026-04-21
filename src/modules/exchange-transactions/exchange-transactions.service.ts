@@ -63,25 +63,9 @@ export class ExchangeTransactionsService {
             throw new NotFoundException('Exchange rate not found');
         }
 
-        if (body.type !== 'BUY' && body.type !== 'SELL') {
-            throw new BadRequestException('type must be either BUY or SELL');
-        }
 
-        if (body.type === 'SELL' && !body.calculateMethod) {
-            await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', 'Failed to create exchange transaction due to missing calculateMethod for SELL transaction');
-            throw new BadRequestException('calculateMethod is required for SELL transactions');
-        }
-
-        if (body.calculateMethod && body.calculateMethod !== 'Auto' && body.calculateMethod !== 'Negotiate') {
-            await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Failed to create exchange transaction due to invalid calculateMethod: ${body.calculateMethod}`);
-            throw new BadRequestException('calculateMethod must be either Auto or Negotiate');
-        }
-
-        const numberFields = [body.foreignAmount,body.oneThousandThaiAmount,body.fiveHundredThaiAmount , body.oneHundredThaiAmount, body.fiftyThaiAmount, body.twentyThaiAmount, body.tenThaiAmount, body.fiveThaiAmount, body.twoThaiAmount,  body.oneThaiAmount , body.thaiBahtAmount ];
+        const numberFields = [body.foreignAmount, body.thaiBahtAmount ];
         this.inputValidator.validateNumberFieldsPositive(numberFields);
-
-        const cashAmounts = [body.oneThousandThaiAmount,body.fiveHundredThaiAmount , body.oneHundredThaiAmount, body.fiftyThaiAmount, body.twentyThaiAmount, body.tenThaiAmount, body.fiveThaiAmount, body.twoThaiAmount,  body.oneThaiAmount ];
-        this.inputValidator.validateSumOfThaiBahtAmount(cashAmounts, body.thaiBahtAmount);
 
         const exchangeRate : number = body.thaiBahtAmount / body.foreignAmount;
         const exclusiveExchangeRates = await this.exclusiveExchangeRatesService.findByExchangeRate(body.exchangeRatesId);
@@ -92,20 +76,21 @@ export class ExchangeTransactionsService {
                 break ;
             }
         }
-        const isRateAllow = ((body.type === 'SELL' && Math.trunc(exchangeRate) == Math.trunc(exchangeRateId.sell_rate)) || (body.type === 'BUY' && Math.trunc(exchangeRate) >= Math.trunc(exclusiveExchangeRate.buy_rate) && Math.trunc(exchangeRate) <= Math.trunc(exclusiveExchangeRate.buy_rate_max) ) ) ? true : false ;
+        const isRateAllow = ((body.type === 'SELL' && Math.trunc(exchangeRate) >= Math.trunc(exchangeRateId.sell_rate)) || (body.type === 'BUY'  &&  Math.trunc(exchangeRate) <= Math.trunc(exclusiveExchangeRate.buy_rate_max) ) ) ? true : false ;
         
         if (!isRateAllow) {
             if (body.type === 'SELL') {
-                console.log(`Proposed sell exchange rate of ${exchangeRate} does not match the current sell rate of ${exchangeRateId.sell_rate}.`);
-                  await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Proposed sell exchange rate of ${exchangeRate} does not match the current sell rate of ${exchangeRateId.sell_rate}.`);
+                await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Proposed sell exchange rate of ${exchangeRate} does not match the current sell rate of ${exchangeRateId.sell_rate}.`);
+                throw new BadRequestException(`Proposed sell exchange rate of ${exchangeRate} does not match the current sell rate of ${exchangeRateId.sell_rate}.`);
+
             }
             else {
-                console.log(`Proposed buy exchange rate of ${exchangeRate} is not allowed. It must be between ${exclusiveExchangeRate.buy_rate} and ${exclusiveExchangeRate.buy_rate_max}.`);
                 await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Proposed buy exchange rate of ${exchangeRate} is not allowed. It must be between ${exclusiveExchangeRate.buy_rate} and ${exclusiveExchangeRate.buy_rate_max}.`);
+                throw new BadRequestException(`Proposed buy exchange rate of ${exchangeRate} is not allowed. It must be between ${exclusiveExchangeRate.buy_rate} and ${exclusiveExchangeRate.buy_rate_max}.`);
             }
-          
-            throw new BadRequestException(`Proposed exchange rate of ${exchangeRate} is not allowed based on current exchange rate settings.`);
         }
+
+        // checkStock
 
         const { passportNo = "", fullName = "" , nationality = "" , phoneNumber = "" , hotelName = ""  , roomNumber = ""} = body ;
         const customerFields = [passportNo, fullName , nationality , phoneNumber , hotelName , roomNumber , customer_img?.filename ?? ""]; ;
@@ -122,25 +107,7 @@ export class ExchangeTransactionsService {
                 
                 const customer = insertCustomer ? await this.customerService.create(manager, passportNo , fullName, nationality, phoneNumber, hotelName, roomNumber, customer_img?.filename ?? "") : null;
                 
-                 const cashCountForeignData : CreateCashCountDto = {
-                     transactionId : transaction.id ,
-                     currencyId : exchangeRateId.currencyId , 
-                     denominations : [{denomination : '1'}] ,
-                     amounts : [{amount : body.foreignAmount}] ,
-                }
-
-                const cashCountTHBData : CreateCashCountDto = {
-                    transactionId : transaction.id ,
-                    denominations : [{ denomination: '1000' },{ denomination: '500' },{ denomination: '100' },{ denomination: '50' },{ denomination: '20' },{ denomination: '10' },{ denomination: '5' },{ denomination: '2' },{ denomination: '1' },] ,
-                    amounts : [{ amount: body.oneThousandThaiAmount },{ amount: body.fiveHundredThaiAmount },{ amount: body.oneHundredThaiAmount },{ amount: body.fiftyThaiAmount },{ amount: body.twentyThaiAmount },{ amount: body.tenThaiAmount },{ amount: body.fiveThaiAmount },{ amount: body.twoThaiAmount },{ amount: body.oneThaiAmount },] 
-                }
-
-                await this.cashCountsService.create(currentUser, cashCountTHBData, manager);
-
-                await this.cashCountsService.create(currentUser, cashCountForeignData, manager); 
-
                 const exchangeTransRepo = manager.getRepository(ExchangeTransaction);
-
 
                 const createdExchangeTran = exchangeTransRepo.create({
                     id : transaction.id , 
@@ -150,7 +117,7 @@ export class ExchangeTransactionsService {
                     foreignCurrencyAmount : body.foreignAmount , 
                     totalthaiBahtAmount : Math.trunc(body.thaiBahtAmount) , 
                     exchangeRate : exchangeRate , 
-                    isNegotiateRate : body.type === 'BUY' && Math.trunc(exchangeRate) !== Math.trunc(exclusiveExchangeRate.buy_rate) ? true : false ,
+                    isNegotiateRate : (body.type === 'BUY' && Math.trunc(exchangeRate) !== Math.trunc(exclusiveExchangeRate.buy_rate)) || (body.type === 'SELL' && Math.trunc(exchangeRate) !== Math.trunc(exclusiveExchangeRate.sell_rate)) ? true : false ,
                     note : body.note ? body.note : null ,
                     status : 'COMPLETED',
                     type : body.type ,
@@ -175,8 +142,7 @@ export class ExchangeTransactionsService {
             throw new InternalServerErrorException('Failed to create exchange transaction');
         }
 
-    }
-    
+    }    
     
     async getTransactionsFromShift(currentUser : any , query : GetExchangeTransactionsFromShiftsDto | undefined) {
         let isEmployee = currentUser.role === 'EMPLOYEE' ? true : false    ;
