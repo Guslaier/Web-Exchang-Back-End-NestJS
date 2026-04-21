@@ -182,3 +182,14 @@ export interface SystemLog {
     createdAt: Date;          // วันเวลาที่เกิดเหตุการณ์
     updatedAt: Date;
 }
+
+export interface StockData {
+    readonly id: string;               
+    readonly shiftId: string;           
+    exchangeRateId : string;      
+    total_received: number;         
+    total_exchanged: number;          
+    total_balance: number;          
+    createdAt: Date;
+    updatedAt: Date;
+}

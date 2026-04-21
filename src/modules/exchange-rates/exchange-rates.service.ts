@@ -485,4 +485,22 @@ ${JSON.stringify(r.updated)}`).join(', ')}
     return !(proposedRate < exchangeRate.sell_rate);
 
   }
+
+  async findByCurrency(currencyCode: string) {
+    const rates = await this.exchangeRateRepo.find({
+      where: { currency: { code: currencyCode } },
+      relations: ['currency'],
+    });
+    return rates;
+  }
+
+  async findByTHBCurency() {
+    const exchangeRates = await this.findByCurrency('THB');
+    for (const rate of exchangeRates) {
+      if (rate.currency.code === 'THB') {
+        return rate;
+      }
+    }
+  }
 }
+

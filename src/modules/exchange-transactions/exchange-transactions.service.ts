@@ -7,6 +7,7 @@ import { ExclusiveExchangeRatesService } from './../../modules/exclusive-exchang
 import { SystemLogsService } from './../../modules/system-logs/system-logs.service';
 import { CustomersService } from './../../modules/customers/customers.service';
 import { CashCountsService } from './../../modules/cash-counts/cash-counts.service';
+import { StocksService} from './../../modules/stocks/stocks.service';
 import { CreateCashCountDto } from './../../modules/cash-counts/dto/cash-count.dto';
 import { CreateTransactionDto } from './../../modules/transactions/dto/transaction.dto';
 import { InputValidator } from './helper/input-validator';
@@ -26,6 +27,7 @@ export class ExchangeTransactionsService {
         private readonly customerService : CustomersService , 
         private readonly systemLogsService : SystemLogsService ,
         private readonly cashCountsService : CashCountsService ,
+        private readonly stocksService : StocksService ,
         private readonly inputValidator : InputValidator , 
         @InjectRepository(ExchangeTransaction)
         private readonly exchangeTransactionRepository : Repository<ExchangeTransaction> , 
@@ -89,9 +91,7 @@ export class ExchangeTransactionsService {
                 throw new BadRequestException(`Proposed buy exchange rate of ${exchangeRate} is not allowed. It must be between ${exclusiveExchangeRate.buy_rate} and ${exclusiveExchangeRate.buy_rate_max}.`);
             }
         }
-
-        // checkStock
-
+        
         const { passportNo = "", fullName = "" , nationality = "" , phoneNumber = "" , hotelName = ""  , roomNumber = ""} = body ;
         const customerFields = [passportNo, fullName , nationality , phoneNumber , hotelName , roomNumber , customer_img?.filename ?? ""]; ;
         const insertCustomer = this.inputValidator.validateCustomerFieldFilled(customerFields);
@@ -99,6 +99,9 @@ export class ExchangeTransactionsService {
         // insert section 
         try {
             await this.dataSource.transaction(async (manager) => {
+
+                await this.stocksService.updateStockByExchangeTransaction(currentUser , { userId : currentUser.id , type : body.type , foreignRateId : body.exchangeRatesId , foreingCurrencyAmount : body.foreignAmount , totalThaiBahtAmount : body.thaiBahtAmount } , manager) ;
+
                 const createTransactionDto : CreateTransactionDto = {
                     type : "EXCHANGE",  
                     shiftId : activeShift.id
