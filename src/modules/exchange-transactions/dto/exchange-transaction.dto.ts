@@ -18,6 +18,10 @@ export class CreateExchangeTransactionDto implements Pick<ExchangeTransactionDat
 
     @IsNumber()
     @IsNotEmpty()
+    exchangeRate: number;
+
+    @IsNumber()
+    @IsNotEmpty()
     thaiBahtAmount: number;
 
 
