@@ -60,7 +60,7 @@ export class ExchangeTransactionsService {
         }
 
         const exchangeRateId = await this.exchangeRateService.findById(body.exchangeRatesId);
-        if (!exchangeRateId) {
+        if (!exchangeRateId || exchangeRateId && exchangeRateId.name.includes('THB')) {
             await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Failed to create exchange transaction due to invalid exchangeRatesId: ${body.exchangeRatesId}`);
             throw new NotFoundException('Exchange rate not found');
         }
@@ -70,6 +70,12 @@ export class ExchangeTransactionsService {
         this.inputValidator.validateNumberFieldsPositive(numberFields);
 
         const exchangeRate : number = body.thaiBahtAmount / body.foreignAmount;
+
+        if (body.exchangeRate != exchangeRate) {
+            await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Failed to create exchange transaction due to mismatch in calculated exchange rate: ${exchangeRate} and provided exchange rate: ${body.exchangeRate}`);
+            throw new BadRequestException(`Mismatch in calculated exchange rate: ${exchangeRate} and provided exchange rate: ${body.exchangeRate}`);
+        }
+
         const exclusiveExchangeRates = await this.exclusiveExchangeRatesService.findByExchangeRate(body.exchangeRatesId);
         let exclusiveExchangeRate : any = null ;
         for (const exclusiveRate of exclusiveExchangeRates) {
@@ -115,8 +121,7 @@ export class ExchangeTransactionsService {
                 const createdExchangeTran = exchangeTransRepo.create({
                     id : transaction.id , 
                     customerId : customer ? customer.id : null , 
-                    exchangeRateId : body.exchangeRatesId , 
-                    exclusiveExchangeRateId : exclusiveExchangeRate ,
+                    exchangeRateName : exchangeRateId.name ,
                     foreignCurrencyAmount : body.foreignAmount , 
                     totalthaiBahtAmount : Math.trunc(body.thaiBahtAmount) , 
                     exchangeRate : exchangeRate , 
@@ -150,7 +155,7 @@ export class ExchangeTransactionsService {
     async getTransactionsFromShift(currentUser : any , query : GetExchangeTransactionsFromShiftsDto | undefined) {
         let isEmployee = currentUser.role === 'EMPLOYEE' ? true : false    ;
 
-        const shiftId = isEmployee ? (await this.shiftsService.getActiveShiftByUserId(currentUser.id))?.id : query?.id;
+        const shiftId = isEmployee ? (await this.shiftsService.getLastShiftByUserId(currentUser.id))?.id : query?.id;
 
         if (!shiftId) {
             throw new BadRequestException('No active shift found');
@@ -164,7 +169,6 @@ export class ExchangeTransactionsService {
                         booth : true ,
                     }
                 } ,
-                exchangeRateFK : true ,
             } ,
             where : {
                 transaction : {
@@ -180,9 +184,7 @@ export class ExchangeTransactionsService {
                 exchangeRate : true ,
                 isNegotiateRate : true ,
                 status : true , 
-                exchangeRateFK : {
-                    name : true ,
-                } ,
+                exchangeRateName : true ,
                 transaction : { 
                     id : true ,
                     createdAt : true ,
@@ -209,11 +211,11 @@ export class ExchangeTransactionsService {
         const exchangeTransactions = [] ;
         
         for (const exchangeTransaction of exchangeTransactionQueries) {
-            const {transaction , exchangeRateFK , ...restExchangeTransaction} = exchangeTransaction ;
+            const {transaction  , ...restExchangeTransaction} = exchangeTransaction ;
             const {createdAt , shift , ...restTransaction} = transaction ;
             const {user , booth , ...restShift} = shift ;
 
-            exchangeTransactions.push({ ...restExchangeTransaction , createdAt , employee : user.username , booth : booth.name , exchangeRateName : exchangeRateFK.name } );
+            exchangeTransactions.push({ ...restExchangeTransaction , createdAt , employee : user.username , booth : booth.name  } );
         }
 
         return exchangeTransactions;
@@ -223,7 +225,7 @@ export class ExchangeTransactionsService {
         const isEmployee = currentUser.role === 'EMPLOYEE' ? true : false;  
 
         if (isEmployee) {   
-            const activeShift = await this.shiftsService.getActiveShiftByUserId(currentUser.id);
+            const activeShift = await this.shiftsService.getLastShiftByUserId(currentUser.id);
             if (!activeShift) {
                 throw new BadRequestException('Active shift not found for the employee.');
             }
@@ -263,7 +265,6 @@ export class ExchangeTransactionsService {
                         booth : true ,
                     }
                 } ,
-                exchangeRateFK : true ,
                 customer : true ,
                 employee : true ,
                 approver : true ,
@@ -281,9 +282,7 @@ export class ExchangeTransactionsService {
                 note : true ,
                 voidReason : true ,
                 status : true , 
-                exchangeRateFK : {
-                    name : true ,
-                } ,
+                exchangeRateName : true ,
                 customer : {
                     id : true ,
                     fullName : true ,
@@ -322,7 +321,7 @@ export class ExchangeTransactionsService {
             throw new NotFoundException('Exchange transaction not found.');
         }
 
-        const {transaction , customer , exchangeRateFK , approver , employee ,  ...restExchangeTransaction} = exchangeTransaction ;
+        const {transaction , customer , approver , employee ,  ...restExchangeTransaction} = exchangeTransaction ;
         const {createdAt , shift , ...restTransaction} = transaction ;
 
         const {user , booth , ...restShift} = shift ;
@@ -330,18 +329,7 @@ export class ExchangeTransactionsService {
 
         const {id , ...customerInfo} = customer ? customer : {id : null , fullName : null , passportNo : null , hotelName : null , roomNumber : null , phoneNumber : null , passportImg : null} ;
 
-        const cashCounts = await this.cashCountsService.getCashCountsByTransactionId({ transactionId : exchangeTransaction.id });
-        const {THB , foreign} = cashCounts;
-        const cleanedTHB = THB.map((item)=> {
-            const { currency , ...rest } = item ;
-            return rest ; 
-        } );
-        const cleanedForeign = foreign.map((item) => {
-            const { currency , ...rest } = item ;
-            return rest ;
-        });
-
-        const exchangeTransactionDetail =  { ...restExchangeTransaction ,  createdAt , employee : user.username , booth : booth.name , exchangeRateName : exchangeRateFK.name , customerInfo , THB : [...cleanedTHB] , foreign : [...cleanedForeign] , voidedBy : employee ? employee.username : null , approvedBy : approver ? approver.username : null } ;
+        const exchangeTransactionDetail =  { ...restExchangeTransaction ,  createdAt , employee : user.username , booth : booth.name ,  voidedBy : employee ? employee.username : null , approvedBy : approver ? approver.username : null } ;
         
         return exchangeTransactionDetail;
 
@@ -360,7 +348,6 @@ export class ExchangeTransactionsService {
                         booth : true ,
                     }
                 } ,
-                exchangeRateFK : true ,
             } , 
             where : {
                 transaction : {
@@ -377,9 +364,7 @@ export class ExchangeTransactionsService {
                 exchangeRate : true ,
                 isNegotiateRate : true ,
                 status : true , 
-                exchangeRateFK : {
-                    name : true ,
-                } ,
+                exchangeRateName : true ,
                 transaction : { 
                     id : true ,
                     createdAt : true ,
@@ -408,18 +393,18 @@ export class ExchangeTransactionsService {
         const exchangeTransactions = [] ; 
 
         for (const exchangeTransaction of exchangeTransactionsQuery) {
-            const {transaction , exchangeRateFK , ...restExchangeTransaction} = exchangeTransaction ;
+            const {transaction  , ...restExchangeTransaction} = exchangeTransaction ;
             const {createdAt , shift , ...restTransaction} = transaction ;
             const {user , booth , ...restShift} = shift ;
 
-            exchangeTransactions.push({ ...restExchangeTransaction , createdAt , employee : user.username , booth : booth.name , exchangeRateName : exchangeRateFK.name } );
+            exchangeTransactions.push({ ...restExchangeTransaction , createdAt , employee : user.username , booth : booth.name  } );
         }
 
         return exchangeTransactions  ; 
     }
 
     async setStatusByEmployee(currentUser : any , param : SetStatusDto , body : SetStatusToPendingBodyDto) {
-        const activeShift = await this.shiftsService.getActiveShiftByUserId(currentUser.id);    
+        const activeShift = await this.shiftsService.getLastShiftByUserId(currentUser.id);    
         if (!activeShift) {
             await this.log(currentUser, 'SET_EXCHANGE_TRANSACTION_PENDING_FAILED', `Failed to set exchange transaction with ID: ${param.id} Cause Active shift not found for the employee.`);
             throw new NotFoundException('Active shift not found for the employee.');
