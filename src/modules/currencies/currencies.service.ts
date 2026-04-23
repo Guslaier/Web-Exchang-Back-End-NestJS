@@ -7,9 +7,8 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { isUUID } from 'class-validator';
 import { HttpService } from '@nestjs/axios';
-import { Cron, Interval, CronExpression } from '@nestjs/schedule';
+import { Cron, Interval } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Currency } from './entities/currency.entity';
@@ -17,6 +16,8 @@ import { firstValueFrom } from 'rxjs';
 import { SystemLogsService } from '../system-logs/system-logs.service';
 import { UpdateMode } from './dto/currency.dto';
 import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
+import { handleError } from '../../common/error/error';
+
 @Injectable()
 export class CurrenciesService implements OnModuleInit {
   private readonly logger = new Logger(CurrenciesService.name);
@@ -32,11 +33,11 @@ export class CurrenciesService implements OnModuleInit {
   // ข้อมูลสำรองกรณี API ล่ม (Fallback Data) - เพิ่มสกุลเงินยอดนิยม
   private readonly fallbackCurrencies = [
     {
-      code: 'THB' , 
+      code: 'THB',
       name: 'ไทย : บาท (THB)',
       buyRate: 1,
       sellRate: 1,
-    } , 
+    },
     {
       code: 'USD',
       name: 'สหรัฐอเมริกา : ดอลลาร์ (USD)',
@@ -114,7 +115,11 @@ export class CurrenciesService implements OnModuleInit {
   }
 
   // ทุกๆ 5 ชั่วโมง (18000000 ms) จะพยายามอัปเดตจาก BOT API
-  @Interval(process.env.UPDATE_RATE_INTERVAL ? parseInt(process.env.UPDATE_RATE_INTERVAL) : 18000000) // 5 ชั่วโมง
+  @Interval(
+    process.env.UPDATE_RATE_INTERVAL
+      ? parseInt(process.env.UPDATE_RATE_INTERVAL)
+      : 18000000,
+  ) // 5 ชั่วโมง
   async handleIntervalUpdate() {
     this.logger.log('[Interval] Starting 5-hour periodic update...');
     await this.updateAutoRateAll();
@@ -141,23 +146,27 @@ export class CurrenciesService implements OnModuleInit {
 
   // +++++++++++++++++++++++++++ 1. Seed Fallback Data ++++++++++++++++++++++++++++
   private async seedFallbackData() {
-    return await this.dataSource.transaction(async (manager) => {
-      const repo = manager.getRepository(Currency);
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const repo = manager.getRepository(Currency);
 
-      // ตรวจสอบอีกครั้งว่ามีข้อมูลหรือไม่ เพื่อป้องกันการซ้ำซ้อน
-      for (const data of this.fallbackCurrencies) {
-        const currency = repo.create({
-          ...data, // มาร์คไว้ว่ายังไม่เคยผ่าน BOT (ทำให้ยัง Manual ไม่ได้)
-          updateMode: UpdateMode.AUTO,
-        });
-        await repo.save(currency);
-        await this.exchangeRatesService.createDefaultSubRate(
-          manager,
-          currency as Currency,
-        ); // สร้างเรทลูกเริ่มต้นให้ด้วย
-      }
-      this.logger.log('Fallback data seeded successfully.');
-    });
+        // ตรวจสอบอีกครั้งว่ามีข้อมูลหรือไม่ เพื่อป้องกันการซ้ำซ้อน
+        for (const data of this.fallbackCurrencies) {
+          const currency = repo.create({
+            ...data, // มาร์คไว้ว่ายังไม่เคยผ่าน BOT (ทำให้ยัง Manual ไม่ได้)
+            updateMode: UpdateMode.AUTO,
+          });
+          await repo.save(currency);
+          await this.exchangeRatesService.createDefaultSubRate(
+            manager,
+            currency as Currency,
+          ); // สร้างเรทลูกเริ่มต้นให้ด้วย
+        }
+        this.logger.log('Fallback data seeded successfully.');
+      });
+    } catch (error) {
+      handleError(error, 'Failed to seed fallback data');
+    }
   }
 
   // +++++++++++++++++++++++++++ 2. Auto Update All (BOT API) ++++++++++++++++++++++++++++
@@ -186,12 +195,17 @@ export class CurrenciesService implements OnModuleInit {
 
         const detailRates = rateRes.data?.result?.data?.data_detail;
         if (!detailRates) throw new Error('Invalid BOT response');
-        detailRates.push({ currency_id: 'THB', currency_name_th: 'ไทย : บาท (THB)', buying_transfer: '1', selling: '1' });
+        detailRates.push({
+          currency_id: 'THB',
+          currency_name_th: 'ไทย : บาท (THB)',
+          buying_transfer: '1',
+          selling: '1',
+        });
         for (const rate of detailRates) {
           const code = rate.currency_id;
           let buy = parseFloat(rate.buying_transfer) || 0;
           let sell = parseFloat(rate.selling) || 0;
-            
+
           // Normalize สำหรับสกุลเงินที่มีหน่วยย่อยมาก เช่น JPY (เยน) และ IDR (รูเปียห์) ให้หารด้วย 100 หรือ 1000 ตามลำดับ เพื่อให้แสดงผลเป็นอัตราแลกเปลี่ยนต่อหน่วยหลัก
           if (code === 'JPY') {
             buy /= 100;
@@ -262,88 +276,93 @@ export class CurrenciesService implements OnModuleInit {
   }
 
   // +++++++++++++++++++++++++++ 3. Manual Update Bulk ++++++++++++++++++++++++++++
-  async updateManualBulk(user: any,
+  async updateManualBulk(
+    user: any,
     updateData: { id: string; buyRate: number; sellRate: number }[],
   ) {
-    return await this.dataSource.transaction(async (manager) => {
-      const repo = manager.getRepository(Currency);
-      const updatedCodes: any = [];
-      const skippedCodes: any = []; // เก็บตัวที่ข้ามเพราะไม่ใช่โหมด MANUAL
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const repo = manager.getRepository(Currency);
+        const updatedCodes: any = [];
+        const skippedCodes: any = []; // เก็บตัวที่ข้ามเพราะไม่ใช่โหมด MANUAL
 
-      // 1. Validation เบื้องต้น
-      if (
-        !updateData ||
-        !Array.isArray(updateData) ||
-        updateData.length === 0
-      ) {
-        throw new BadRequestException(
-          'Invalid input data. Expecting an array.',
-        );
-      }
-
-      for (const item of updateData) {
-        // ค้นหาข้อมูล Currency
-        const currency = await repo.findOne({ where: { id: item.id } });
-
-        if (!currency) {
-          this.logger.warn(`ID ${item.id} not found during bulk update`);
-          continue; // หรือจะ throw Error ก็ได้แล้วแต่ดีไซน์ครับ
+        // 1. Validation เบื้องต้น
+        if (
+          !updateData ||
+          !Array.isArray(updateData) ||
+          updateData.length === 0
+        ) {
+          throw new BadRequestException(
+            'Invalid input data. Expecting an array.',
+          );
         }
 
-        // ตรวจสอบโหมด: ถ้าไม่ใช่ MANUAL ให้ข้ามไป (Skipped)
-        if (currency.updateMode !== UpdateMode.MANUAL) {
-          skippedCodes.push(currency.code);
-          continue; // ข้ามการอัปเดตตัวนี้ไปทำงานตัวถัดไป
+        for (const item of updateData) {
+          // ค้นหาข้อมูล Currency
+          const currency = await repo.findOne({ where: { id: item.id } });
+
+          if (!currency) {
+            this.logger.warn(`ID ${item.id} not found during bulk update`);
+            continue; // หรือจะ throw Error ก็ได้แล้วแต่ดีไซน์ครับ
+          }
+
+          // ตรวจสอบโหมด: ถ้าไม่ใช่ MANUAL ให้ข้ามไป (Skipped)
+          if (currency.updateMode !== UpdateMode.MANUAL) {
+            skippedCodes.push(currency.code);
+            continue; // ข้ามการอัปเดตตัวนี้ไปทำงานตัวถัดไป
+          }
+
+          if (item.buyRate > item.sellRate) {
+            skippedCodes.push(currency.code);
+            continue; // ข้ามการอัปเดตตัวนี้ไปทำงานตัวถัดไป
+          }
+
+          // 2. อัปเดตเฉพาะตัวที่เป็น MANUAL
+          await repo.update(item.id, {
+            buyRate: item.buyRate,
+            sellRate: item.sellRate,
+            updatedAt: new Date(),
+          });
+
+          updatedCodes.push({
+            code: currency.code,
+            buyRate: item.buyRate,
+            sellRate: item.sellRate,
+          });
         }
 
-        if (item.buyRate > item.sellRate){
-          skippedCodes.push(currency.code);
-          continue; // ข้ามการอัปเดตตัวนี้ไปทำงานตัวถัดไป
-        }
-
-        // 2. อัปเดตเฉพาะตัวที่เป็น MANUAL
-        await repo.update(item.id, {
-          buyRate: item.buyRate,
-          sellRate: item.sellRate,
-          updatedAt: new Date(),
-        });
-
-        updatedCodes.push({
-          code: currency.code,
-          buyRate: item.buyRate,
-          sellRate: item.sellRate,
-        });
-      }
-
-      // 3. บันทึก Log เฉพาะตัวที่อัปเดตสำเร็จ
-      if (updatedCodes.length > 0) {
-        await this.systemLogsService.createLog(
-          null,
-          {
-            userId: null,
-            action: 'CURRENCY_MANUAL_UPDATE_BULK_SUCCESS',
-            details: `Successfully updated details: 
+        // 3. บันทึก Log เฉพาะตัวที่อัปเดตสำเร็จ
+        if (updatedCodes.length > 0) {
+          await this.systemLogsService.createLog(
+            null,
+            {
+              userId: null,
+              action: 'CURRENCY_MANUAL_UPDATE_BULK_SUCCESS',
+              details: `Successfully updated details: 
         ${updatedCodes.map((c: any) => `${c.code} (b/s): ${c.buyRate.toFixed(4)}/${c.sellRate.toFixed(4)}`).join(', ')}
         ${skippedCodes.length > 0 ? `| Skipped (Not Manual): ${skippedCodes.join(', ')}` : ''}`,
-          },
-          manager,
-        );
-      }
+            },
+            manager,
+          );
+        }
 
-      await this.exchangeRatesService.updateRateAll(user, manager); // อัปเดตเรทลูกทั้งหมดหลังจากอัปเดตเรทแม่เสร็จ
-      // 4. คืนผลลัพธ์ให้ชัดเจนว่าตัวไหนผ่าน ตัวไหนติด
-      return {
-        message: 'Bulk update processed',
-        successCount: updatedCodes.length,
-        updated: updatedCodes,
-        skippedCount: skippedCodes.length,
-        skipped: skippedCodes,
-        note:
-          skippedCodes.length > 0
-            ? 'Some currencies were skipped because they are in AUTO mode.'
-            : null,
-      };
-    });
+        await this.exchangeRatesService.updateRateAll(user, manager); // อัปเดตเรทลูกทั้งหมดหลังจากอัปเดตเรทแม่เสร็จ
+        // 4. คืนผลลัพธ์ให้ชัดเจนว่าตัวไหนผ่าน ตัวไหนติด
+        return {
+          message: 'Bulk update processed',
+          successCount: updatedCodes.length,
+          updated: updatedCodes,
+          skippedCount: skippedCodes.length,
+          skipped: skippedCodes,
+          note:
+            skippedCodes.length > 0
+              ? 'Some currencies were skipped because they are in AUTO mode.'
+              : null,
+        };
+      });
+    } catch (err) {
+      handleError(err, 'Failed to update manual bulk');
+    }
   }
   // +++++++++++++++++++++++++++ 4. Select All ++++++++++++++++++++++++++++
   async findAll() {
@@ -383,39 +402,42 @@ export class CurrenciesService implements OnModuleInit {
   }
 
   async setUpdateModeAll(user: any, mode: UpdateMode) {
-    return await this.dataSource.transaction(async (manager) => {
-      const repo = manager.getRepository(Currency);
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const repo = manager.getRepository(Currency);
 
-      await repo
-        .createQueryBuilder()
-        .update(Currency)
-        .set({ updateMode: mode, updatedAt: new Date() })
-        .execute();
+        await repo
+          .createQueryBuilder()
+          .update(Currency)
+          .set({ updateMode: mode, updatedAt: new Date() })
+          .execute();
 
-      await this.systemLogsService.createLog(
-        user,
-        {
-          userId: user?.id || null,
-          action: 'CURRENCY_MODE_CHANGE_ALL_SUCCESS',
-          details: `All currencies update mode changed to: ${mode}`,
-        },
-        manager,
-      );
+        await this.systemLogsService.createLog(
+          user,
+          {
+            userId: user?.id || null,
+            action: 'CURRENCY_MODE_CHANGE_ALL_SUCCESS',
+            details: `All currencies update mode changed to: ${mode}`,
+          },
+          manager,
+        );
 
-      if (mode === UpdateMode.AUTO) {
-        this.updateAutoRateAll(); // พยายามอัปเดตทันทีถ้าเปลี่ยนเป็น AUTO
-      }
-      console.log('All currencies update mode changed to:', mode);
-      await this.exchangeRatesService.updateRateAll(); // อัปเดตเรทลูกทั้งหมดหลังจากอัปเดตเรทแม่เสร็จ
-      return await repo.find({ order: { code: 'ASC' } });
-    });
+        if (mode === UpdateMode.AUTO) {
+          this.updateAutoRateAll(); // พยายามอัปเดตทันทีถ้าเปลี่ยนเป็น AUTO
+        }
+        console.log('All currencies update mode changed to:', mode);
+        await this.exchangeRatesService.updateRateAll(); // อัปเดตเรทลูกทั้งหมดหลังจากอัปเดตเรทแม่เสร็จ
+        return await repo.find({ order: { code: 'ASC' } });
+      });
+    } catch (err) {
+      handleError(err, 'Failed to set update mode for all currencies');
+    }
   }
 
   async getTHBCurrency() {
     try {
       return await this.currencyRepo.findOne({ where: { code: 'THB' } });
-    }
-    catch (err) {
+    } catch (err) {
       const errMessage = err instanceof Error ? err.message : String(err);
       await this.systemLogsService.createLog(null, {
         userId: null,
@@ -440,7 +462,5 @@ export class CurrenciesService implements OnModuleInit {
       });
       throw new NotFoundException('Internal Server Error');
     }
-
   }
-  
 }

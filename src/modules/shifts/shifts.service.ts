@@ -8,11 +8,9 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { BoothsService } from '../../modules/booths/booths.service';
-import { NotFoundError, throwError } from 'rxjs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Shift } from './entities/shift.entity';
 import {
-  CannotAttachTreeChildrenEntityError,
   IsNull,
   Repository,
   DataSource,
@@ -20,21 +18,16 @@ import {
   Between,
 } from 'typeorm';
 import { SystemLogsService } from '../../modules/system-logs/system-logs.service';
-import { get } from 'http';
-import { error } from 'console';
 import Redis from 'ioredis';
 import {
   QueryDateDto,
   QueryShiftId,
   ShiftIdDto,
   SummaryData,
-  UserIdDto,
   BoothIdDto,
 } from './dto/shift.dto';
-import { start } from 'repl';
-import { isInstance, isUUID } from 'class-validator';
-import { all } from 'axios';
-import { weightSrvRecords } from 'ioredis/built/cluster/util';
+import { isUUID } from 'class-validator';
+import { handleError } from '../../common/error/error';
 
 @Injectable()
 export class ShiftsService {
@@ -198,9 +191,7 @@ export class ShiftsService {
         'OPEN_SHIFT_FAILED',
         `internal server error: ${errorMessage}`,
       );
-      throw new InternalServerErrorException(
-        'error in internal server. please contact admin.',
-      );
+      handleError(err, 'ShiftsService.openShift');
     }
 
     return { message: 'Open shift success.' };
@@ -239,7 +230,7 @@ export class ShiftsService {
         'CLOSE_SHIFT_FAILED',
         `close shift failed  err : ${errMessage}`,
       );
-      throw new InternalServerErrorException('Internal server error.');
+      handleError(err, 'ShiftsService.setStatusToCLose');
     }
     return { message: 'Close shift success.' };
   }
@@ -405,7 +396,7 @@ export class ShiftsService {
         'UPDATE_TOTAL_EXCHANGE_FAILED',
         `Shift: ${shiftId}, Error: ${err}`,
       );
-      throw new InternalServerErrorException(err || 'Internal Server Error');
+      handleError(err, 'ShiftsService.setTotalExchange');
     }
   }
 
@@ -479,7 +470,7 @@ export class ShiftsService {
         'SET_CLOSE_DAILY_FAILED',
         `Internal Server Error : ${err}`,
       );
-      throw new InternalServerErrorException('Internal Server Error.');
+      handleError(err, 'ShiftsService.setCloseDaily');
     }
   }
 

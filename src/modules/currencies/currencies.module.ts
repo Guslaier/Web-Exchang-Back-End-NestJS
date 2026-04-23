@@ -8,6 +8,7 @@ import { SystemLogsModule } from '../system-logs/system-logs.module';
 import { CurrenciesController } from './currencies.controller';
 import { ExchangeRatesModule } from '../exchange-rates/exchange-rates.module';
 
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([Currency]),

@@ -10,9 +10,11 @@ import { ExchangeRate } from '../exchange-rates/entities/exchange-rate.entity';
 import { Booth } from '../booths/entities/booth.entity';
 import { SystemLogsService } from '../system-logs/system-logs.service';
 import { Inject } from '@nestjs/common';
-import { evaluate } from 'mathjs';
+import { evaluate, im } from 'mathjs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { isUUID } from 'class-validator';
+import { handleError } from '../../common/error/error';
+import { SseService } from '../sse/sse.service';
 
 @Injectable()
 export class ExclusiveExchangeRatesService {
@@ -25,6 +27,8 @@ export class ExclusiveExchangeRatesService {
     private readonly exchangeRateRepo: Repository<ExchangeRate>,
     @InjectRepository(Booth)
     private readonly boothRepo: Repository<Booth>,
+    @Inject(SseService)
+    private readonly sseService: SseService,
   ) {}
 
   private async log(
@@ -132,8 +136,7 @@ export class ExclusiveExchangeRatesService {
         manager,
       );
     } catch (err: any) {
-      await this.log(null, 'DELETE_EXCLUSIVE_FAILED', `Error: ${err.message}`, manager);
-      throw err;
+      handleError(err, 'DELETE_EXCLUSIVE_FAILED');
     }
   }
 
@@ -173,6 +176,7 @@ export class ExclusiveExchangeRatesService {
         `Updated all exclusives for master rate ID: ${exchangeRate.id}`,
         manager,
       );
+      this.sseService.triggerRefreshSignal(); 
     } catch (err: any) {
       await this.log(null, 'UPDATE_BY_MASTER_FAILED', `Error: ${err.message}`, manager);
       throw err;
@@ -359,7 +363,7 @@ export class ExclusiveExchangeRatesService {
       `Updated ID: ${id} | Result: ${saved.buy_rate} < ${saved.buy_rate_max} < ${baseSellRate}`,
       manager,
     );
-
+    this.sseService.triggerRefreshSignal();
     return saved;
   }
 
@@ -456,6 +460,7 @@ export class ExclusiveExchangeRatesService {
     if (isAdjusted) {
       await this.log(null, 'SYSTEM_RATE_ADJUSTED_SUCCESS', `ID: ${childId} | ${remark}`, manager);
     }
+    this.sseService.triggerRefreshSignal();
   }
 
   // // กดยืนยันการตรวจสอบเรทแบบกลุ่ม

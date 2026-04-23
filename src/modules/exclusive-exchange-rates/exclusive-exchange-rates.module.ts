@@ -6,11 +6,12 @@ import { ExclusiveExchangeRate } from './entities/exclusive-exchange-rate.entity
 import { SystemLogsModule } from '../system-logs/system-logs.module';
 import { Booth } from '../booths/entities/booth.entity';
 import { ExchangeRate } from '../exchange-rates/entities/exchange-rate.entity';
-
+import { SseModule } from '../sse/sse.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([ExclusiveExchangeRate, Booth, ExchangeRate]),
     SystemLogsModule,
+    SseModule,
   ],
   controllers: [ExclusiveExchangeRatesController],
   providers: [ExclusiveExchangeRatesService],

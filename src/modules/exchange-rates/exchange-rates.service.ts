@@ -8,13 +8,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { ExchangeRate } from './entities/exchange-rate.entity';
 import { Currency } from '../currencies/entities/currency.entity';
 import { SystemLogsService } from '../system-logs/system-logs.service';
-import { evaluate, i, im, re } from 'mathjs';
+import { evaluate} from 'mathjs';
 import { DataSource } from 'typeorm';
 import { ExclusiveExchangeRatesService } from '../exclusive-exchange-rates/exclusive-exchange-rates.service';
+import { handleError } from '../../common/error/error';
+import { SseService } from '../sse/sse.service';
 
 @Injectable()
 export class ExchangeRatesService {
@@ -27,7 +29,8 @@ export class ExchangeRatesService {
     private readonly dataSource: DataSource,
     @Inject(forwardRef(() => ExclusiveExchangeRatesService))
     private readonly exclusiveRateService: ExclusiveExchangeRatesService,
-
+    @Inject(SseService)
+    private readonly sseService: SseService,
   ) {}
 
   // บันทึก Log ลง Database
@@ -119,6 +122,7 @@ export class ExchangeRatesService {
       'CREATE_DEFAULT_SUBRATE_SUCCESS',
       `Created default sub-rate for ${currency.code} with Name: ${defaultSubRate.name} id: ${defaultSubRate.id}`,
     );
+    this.sseService.triggerRefreshSignal();
   }
   // อัปเดตเรทลูกตามเรทแม่ (Sync BOT)
   async updateRatesForCurrency(
@@ -148,6 +152,7 @@ export class ExchangeRatesService {
         `Name:"${updated.name}" = buy: ${updated.buy_rate} sell: ${updated.sell_rate} id: ${updated.id}`,
       );
     }
+    this.sseService.triggerRefreshSignal();
   }
 
   // อัปเดตเรททั้งหมดในระบบ (Bulk Sync)
@@ -170,7 +175,7 @@ export class ExchangeRatesService {
     updates: any[], // รับ Flat Array มาเลย
   ): Promise<{ success: boolean; message: string; details?: any }> {
     console.log('Processing bulk update request:', updates);
-
+    try {
     return this.dataSource.transaction(async (manager) => {
       const results = [];
 
@@ -216,6 +221,10 @@ ${JSON.stringify(r.updated)}`).join(', ')}
         details: results,
       };
     });
+    } catch (error) {
+      handleError(error, 'ExchangeRatesService.Mutiupdate');
+    }
+    return { success: false, message: 'An error occurred during bulk update' };
   }
 
   // สร้างเรทใหม่ (พร้อมเช็คขอบเขตและสูตร)
@@ -260,6 +269,7 @@ ${JSON.stringify(r.updated)}`).join(', ')}
       'CREATE_RATE_SUCCESS',
       `Name: "${saved.name}" = buy: ${saved.buy_rate} sell: ${saved.sell_rate} id: ${saved.id}`,
     );
+    this.sseService.triggerRefreshSignal();
     return saved;
   }
 
@@ -310,6 +320,7 @@ ${JSON.stringify(r.updated)}`).join(', ')}
       'UPDATE_RATE_SUCCESS',
       `Name: "${updated.name}" = buy: ${updated.buy_rate} sell: ${updated.sell_rate} id: ${updated.id}`,
     );
+    this.sseService.triggerRefreshSignal();
     return {
       id: updated.id,
       name: updated.name,
@@ -443,6 +454,7 @@ ${JSON.stringify(r.updated)}`).join(', ')}
   }
 
   async delete(user: any, id: string): Promise<void> {
+      try {
     return this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(ExchangeRate);
       const target = await repo.findOne({ where: { id } });
@@ -465,6 +477,9 @@ ${JSON.stringify(r.updated)}`).join(', ')}
       await this.exclusiveRateService.deleteByExchangeRateId(manager, id); // ลบเรทลูกที่เกี่ยวข้องด้วย
       await this.log(user, 'DELETE_RATE_SUCCESS', `Deleted rate: ${target.name} id: ${id}`, manager);
     });
+  } catch (error) {
+      handleError(error, 'ExchangeRatesService.delete');
+    }
   }
 
   async findById(id: string) { 

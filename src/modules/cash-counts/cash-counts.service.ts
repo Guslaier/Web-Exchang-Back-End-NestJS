@@ -9,11 +9,9 @@ import { CurrenciesService } from '../../modules/currencies/currencies.service';
 import { CashCount } from './entities/cash-count.entity';
 import { CreateCashCountDto, GetCashCountDto } from './dto/cash-count.dto';
 import { EntityManager, Repository } from 'typeorm';
-import { string } from 'mathjs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Transaction } from '../transactions/entities/transaction.entity';
 import { TransferTransaction } from '../transfer-transactions/entities/transfer-transaction.entity';
-import { In } from 'typeorm';
 // Assuming you have an entity for cash count
 
 @Injectable()

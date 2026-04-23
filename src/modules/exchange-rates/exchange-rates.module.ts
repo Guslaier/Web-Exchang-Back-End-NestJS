@@ -5,9 +5,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ExchangeRate } from './entities/exchange-rate.entity';
 import { SystemLogsModule } from '../system-logs/system-logs.module';
 import { ExclusiveExchangeRatesModule } from '../exclusive-exchange-rates/exclusive-exchange-rates.module';
+import { SseModule } from '../sse/sse.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ExchangeRate]), SystemLogsModule, forwardRef(() => ExclusiveExchangeRatesModule)],
+  imports: [TypeOrmModule.forFeature([ExchangeRate]), SystemLogsModule, forwardRef(() => ExclusiveExchangeRatesModule), SseModule ],
   controllers: [ExchangeRatesController],
   providers: [ExchangeRatesService],
   exports: [ExchangeRatesService],

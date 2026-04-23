@@ -4,9 +4,8 @@ import { Stock } from './entities/stocks.entitiy' ;
 import {ShiftsService} from './../shifts/shifts.service';
 import {ExchangeRatesService} from './../exchange-rates/exchange-rates.service' ;
 import {SystemLogsService} from './../system-logs/system-logs.service' ;
-import {EntityManager, In, Repository} from "typeorm";
+import {EntityManager, Repository} from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
-import { isThisTypeNode } from "typescript";
 
 
 @Injectable()

@@ -1,7 +1,6 @@
 import { Injectable , InternalServerErrorException } from '@nestjs/common';
 import { EntityManager} from 'typeorm';
 import { Transaction } from './entities/transaction.entity';
-import { TranSectionType } from 'index';
 import { CreateTransactionDto } from './dto/transaction.dto';
 
 @Injectable()

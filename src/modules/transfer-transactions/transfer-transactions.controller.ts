@@ -76,17 +76,7 @@ export class TransferTransactionsController {
     );
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'MANAGER')
-  @Get(':transactionId')
-  async getTransferTransactionById(
-    @Param('transactionId') transactionId: string,
-  ) {
-    return this.transferTransactionsService.getTransferTransactionById(
-      transactionId,
-    );
-  }
-
+  
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER')
   @Get()
@@ -102,7 +92,7 @@ export class TransferTransactionsController {
       boothId,
     );
   }
-
+  
   
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER')
@@ -125,6 +115,16 @@ export class TransferTransactionsController {
       shiftId,
     );
   }
-
   
+  
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Get(':transactionId')
+  async getTransferTransactionById(
+    @Param('transactionId') transactionId: string,
+  ) {
+    return this.transferTransactionsService.getTransferTransactionById(
+      transactionId,
+    );
+  }
 }

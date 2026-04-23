@@ -16,6 +16,7 @@ import Redis from 'ioredis';
 import { SystemLogsService } from '../system-logs/system-logs.service';
 import { isUUID } from 'class-validator';
 import { Booth } from '../booths/entities/booth.entity';
+import { handleError } from '../../common/error/error';
 
 @Injectable()
 export class UsersService {
@@ -50,291 +51,326 @@ export class UsersService {
 
   // +++++++++++++++++++++++++++ สร้างผู้ใช้ใหม่ (Transaction) ++++++++++++++++++++++++++++
   async create(createUserDto: Omit<CreateUserDto, 'passwordHash' | 'role'>) {
-    return await this.dataSource.transaction(async (manager) => {
-      const userRepo = manager.getRepository(User);
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const userRepo = manager.getRepository(User);
 
-      // เช็ค Email ซ้ำ
-      const existingUser = await userRepo.findOne({
-        where: { email: createUserDto.email },
-      });
-      if (existingUser) {
+        // เช็ค Email ซ้ำ
+        const existingUser = await userRepo.findOne({
+          where: { email: createUserDto.email },
+        });
+        if (existingUser) {
+          await this.log(
+            null,
+            'CREATE_USER_FAILED',
+            `Email already in use: ${createUserDto.email}`,
+            manager,
+          );
+          throw new UnauthorizedException('Email already in use');
+        }
+
+        const rawPassword = crypto
+          .randomBytes(6)
+          .toString('base64')
+          .slice(0, 8);
+        const passwordHash = await bcrypt.hash(rawPassword, 10);
+
+        const user = userRepo.create({
+          ...createUserDto,
+          passwordHash,
+        });
+
+        const savedUser = await userRepo.save(user);
         await this.log(
           null,
-          'CREATE_USER_FAILED',
-          `Email already in use: ${createUserDto.email}`,
+          'CREATE_USER_SUCCESS',
+          `Created: ${savedUser.email}`,
           manager,
         );
-        throw new UnauthorizedException('Email already in use');
-      }
 
-      const rawPassword = crypto.randomBytes(6).toString('base64').slice(0, 8);
-      const passwordHash = await bcrypt.hash(rawPassword, 10);
-
-      const user = userRepo.create({
-        ...createUserDto,
-        passwordHash,
+        return {
+          user: {
+            id: savedUser.id,
+            email: savedUser.email,
+            username: savedUser.username,
+            role: savedUser.role,
+          },
+          generatedPassword: rawPassword,
+        };
       });
-
-      const savedUser = await userRepo.save(user);
-      await this.log(
-        null,
-        'CREATE_USER_SUCCESS',
-        `Created: ${savedUser.email}`,
-        manager,
-      );
-
-      return {
-        user: {
-          id: savedUser.id,
-          email: savedUser.email,
-          username: savedUser.username,
-          role: savedUser.role,
-        },
-        generatedPassword: rawPassword,
-      };
-    });
+    } catch (error) {
+      handleError(error, 'UsersService.create');
+    }
   }
 
   // +++++++++++++++++++++++++++ อัปเดตข้อมูล (Transaction) ++++++++++++++++++++++++++++
   async update(currentUser: any, id: string, updateUserDto: UpdateUserDto) {
-    return await this.dataSource.transaction(async (manager) => {
-      const userRepo = manager.getRepository(User);
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const userRepo = manager.getRepository(User);
 
-      // 1. ตรวจสอบว่า ID เป็น UUID ไหม (ใช้ Helper ที่คุณเขียนไว้)
-      if (!isUUID(id)) {
-        await this.log(
-          null,
-          'UPDATE_USER_FAILED',
-          `Invalid UUID format: ${id}`,
-          manager,
-        );
-        throw new BadRequestException(`Invalid UUID format: ${id}`);
-      }
+        // 1. ตรวจสอบว่า ID เป็น UUID ไหม (ใช้ Helper ที่คุณเขียนไว้)
+        if (!isUUID(id)) {
+          await this.log(
+            null,
+            'UPDATE_USER_FAILED',
+            `Invalid UUID format: ${id}`,
+            manager,
+          );
+          throw new BadRequestException(`Invalid UUID format: ${id}`);
+        }
 
-      // 2. ตรวจสอบว่าผู้ใช้ที่จะแก้ไขมีอยู่จริงไหม
-      const existingUser = await userRepo.findOne({ where: { id } });
-      if (!existingUser) {
-        await this.log(
-          null,
-          'UPDATE_USER_FAILED',
-          `User not found: ${id}`,
-          manager,
-        );
-        throw new NotFoundException('User not found');
-      }
+        // 2. ตรวจสอบว่าผู้ใช้ที่จะแก้ไขมีอยู่จริงไหม
+        const existingUser = await userRepo.findOne({ where: { id } });
+        if (!existingUser) {
+          await this.log(
+            null,
+            'UPDATE_USER_FAILED',
+            `User not found: ${id}`,
+            manager,
+          );
+          throw new NotFoundException('User not found');
+        }
 
-      // 2. ตรวจสอบสิทธิ์ (Business Logic)
-      if (currentUser.id === id && updateUserDto.role) {
-        await this.log(
-          currentUser,
-          'UPDATE_USER_FAILED',
-          `Cannot change own role: ${id}`,
-          manager,
-        );
-        throw new ForbiddenException('Cannot change own role');
-      }
-      if (existingUser.role === 'ADMIN') {
-        await this.log(
-          currentUser,
-          'UPDATE_USER_FAILED',
-          `Cannot modify admin: ${id}`,
-          manager,
-        );
-        throw new ForbiddenException('Cannot modify admin');
-      }
-      if (currentUser.role === 'MANAGER' && existingUser.role !== 'EMPLOYEE') {
-        await this.log(
-          currentUser,
-          'UPDATE_USER_FAILED',
-          `Manager can only update employee: ${id}`,
-          manager,
-        );
-        throw new ForbiddenException('Manager can only update employee');
-      }
-      // 3. ตรวจสอบ Email ซ้ำ (กรณีมีการเปลี่ยนเมล)
-      if (updateUserDto.email && updateUserDto.email !== existingUser.email) {
-        const emailInUse = await userRepo.findOne({
-          where: { email: updateUserDto.email, id: Not(id) },
-        });
-        if (emailInUse) {
+        // 2. ตรวจสอบสิทธิ์ (Business Logic)
+        if (currentUser.id === id && updateUserDto.role) {
           await this.log(
             currentUser,
             'UPDATE_USER_FAILED',
-            `Email already in use by another user: ${updateUserDto.email}`,
+            `Cannot change own role: ${id}`,
             manager,
           );
-          throw new BadRequestException('Email already in use by another user');
+          throw new ForbiddenException('Cannot change own role');
         }
-      }
+        if (existingUser.role === 'ADMIN') {
+          await this.log(
+            currentUser,
+            'UPDATE_USER_FAILED',
+            `Cannot modify admin: ${id}`,
+            manager,
+          );
+          throw new ForbiddenException('Cannot modify admin');
+        }
+        if (
+          currentUser.role === 'MANAGER' &&
+          existingUser.role !== 'EMPLOYEE'
+        ) {
+          await this.log(
+            currentUser,
+            'UPDATE_USER_FAILED',
+            `Manager can only update employee: ${id}`,
+            manager,
+          );
+          throw new ForbiddenException('Manager can only update employee');
+        }
+        // 3. ตรวจสอบ Email ซ้ำ (กรณีมีการเปลี่ยนเมล)
+        if (updateUserDto.email && updateUserDto.email !== existingUser.email) {
+          const emailInUse = await userRepo.findOne({
+            where: { email: updateUserDto.email, id: Not(id) },
+          });
+          if (emailInUse) {
+            await this.log(
+              currentUser,
+              'UPDATE_USER_FAILED',
+              `Email already in use by another user: ${updateUserDto.email}`,
+              manager,
+            );
+            throw new BadRequestException(
+              'Email already in use by another user',
+            );
+          }
+        }
 
-      // 4. อัปเดตข้อมูล
-      await userRepo.update(id, updateUserDto);
+        // 4. อัปเดตข้อมูล
+        await userRepo.update(id, updateUserDto);
 
-      // 5. บันทึก Log
-      await this.log(
-        currentUser,
-        'UPDATE_USER_SUCCESS',
-        `Updated user ID: ${id}`,
-        manager,
-      );
+        // 5. บันทึก Log
+        await this.log(
+          currentUser,
+          'UPDATE_USER_SUCCESS',
+          `Updated user ID: ${id}`,
+          manager,
+        );
 
-      // 6. ดึงข้อมูลใหม่ส่งกลับไป
-      return await userRepo.findOne({
-        where: { id },
-        select: ['id', 'email', 'username', 'role', 'phoneNumber', 'isActive'],
+        // 6. ดึงข้อมูลใหม่ส่งกลับไป
+        return await userRepo.findOne({
+          where: { id },
+          select: [
+            'id',
+            'email',
+            'username',
+            'role',
+            'phoneNumber',
+            'isActive',
+          ],
+        });
       });
-    });
+    } catch (error) {
+      handleError(error, 'UsersService.update');
+    }
   }
 
   // +++++++++++++++++++++++++++ ลบผู้ใช้ (Soft Delete + Transaction) ++++++++++++++++++++++++++++
   async remove(currentUser: any, id: string) {
-    return await this.dataSource.transaction(async (manager) => {
-      const userRepo = manager.getRepository(User);
-      const boothRepo = manager.getRepository(Booth); // ดึงผ่าน manager
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const userRepo = manager.getRepository(User);
+        const boothRepo = manager.getRepository(Booth); // ดึงผ่าน manager
 
-      // 1. เช็คว่าพนักงานยังคุมบูธอยู่ไหม
-      const activeBooths = await boothRepo.find({
-        where: { currentShiftId: id },
-        withDeleted: true,
+        // 1. เช็คว่าพนักงานยังคุมบูธอยู่ไหม
+        const activeBooths = await boothRepo.find({
+          where: { currentShiftId: id },
+          withDeleted: true,
+        });
+        if (activeBooths.length > 0) {
+          await this.log(
+            currentUser,
+            'DELETE_USER_FAILED',
+            `Cannot delete user: active shift at booth ${activeBooths[0].name}`,
+            manager,
+          );
+          throw new ForbiddenException(
+            `Cannot delete user: active shift at booth ${activeBooths[0].name}`,
+          );
+        }
+
+        const user = await userRepo.findOne({ where: { id } });
+        if (!user) {
+          await this.log(
+            currentUser,
+            'DELETE_USER_FAILED',
+            `User not found: ${id}`,
+            manager,
+          );
+          throw new NotFoundException('User not found');
+        }
+        if (currentUser.id === id) {
+          await this.log(
+            currentUser,
+            'DELETE_USER_FAILED',
+            `Cannot delete yourself: ${id}`,
+            manager,
+          );
+          throw new ForbiddenException('Cannot delete yourself');
+        }
+
+        // 2. มิวเทชันอีเมล
+        const mutatedEmail = `${user.email}_deleted_${Date.now()}`;
+        await userRepo.update(id, { email: mutatedEmail });
+
+        // 3. Soft Delete
+        const res = await userRepo.softDelete(id);
+        if (res.affected === 0) {
+          await this.log(
+            currentUser,
+            'DELETE_USER_FAILED',
+            `Delete failed for user ID: ${id}`,
+            manager,
+          );
+          throw new BadRequestException('Delete failed');
+        }
+
+        await this.log(
+          currentUser,
+          'DELETE_USER_SUCCESS',
+          `Soft deleted: ${user.email}`,
+          manager,
+        );
+        return { message: `User removed successfully` };
       });
-      if (activeBooths.length > 0) {
-        await this.log(
-          currentUser,
-          'DELETE_USER_FAILED',
-          `Cannot delete user: active shift at booth ${activeBooths[0].name}`,
-          manager,
-        );
-        throw new ForbiddenException(
-          `Cannot delete user: active shift at booth ${activeBooths[0].name}`,
-        );
-      }
-
-      const user = await userRepo.findOne({ where: { id } });
-      if (!user) {
-        await this.log(
-          currentUser,
-          'DELETE_USER_FAILED',
-          `User not found: ${id}`,
-          manager,
-        );
-        throw new NotFoundException('User not found');
-      }
-      if (currentUser.id === id) {
-        await this.log(
-          currentUser,
-          'DELETE_USER_FAILED',
-          `Cannot delete yourself: ${id}`,
-          manager,
-        );
-        throw new ForbiddenException('Cannot delete yourself');
-      }
-
-      // 2. มิวเทชันอีเมล
-      const mutatedEmail = `${user.email}_deleted_${Date.now()}`;
-      await userRepo.update(id, { email: mutatedEmail });
-
-      // 3. Soft Delete
-      const res = await userRepo.softDelete(id);
-      if (res.affected === 0) {
-        await this.log(
-          currentUser,
-          'DELETE_USER_FAILED',
-          `Delete failed for user ID: ${id}`,
-          manager,
-        );
-        throw new BadRequestException('Delete failed');
-      }
-
-      await this.log(
-        currentUser,
-        'DELETE_USER_SUCCESS',
-        `Soft deleted: ${user.email}`,
-        manager,
-      );
-      return { message: `User removed successfully` };
-    });
+    } catch (error) {
+      handleError(error, 'UsersService.remove');
+    }
   }
 
   // +++++++++++++++++++++++++++ จัดการสถานะบัญชี (Transaction) ++++++++++++++++++++++++++++
   async deactivate(currentUser: any, id: string) {
-    return await this.dataSource.transaction(async (manager) => {
-      const userRepo = manager.getRepository(User);
-      const boothRepo = manager.getRepository(Booth);
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const userRepo = manager.getRepository(User);
+        const boothRepo = manager.getRepository(Booth);
 
-      // 1. เช็คว่าพนักงานยังคุมบูธอยู่ไหม
-      const activeBooths = await boothRepo.find({
-        where: { currentShiftId: id },
-        withDeleted: true,
+        // 1. เช็คว่าพนักงานยังคุมบูธอยู่ไหม
+        const activeBooths = await boothRepo.find({
+          where: { currentShiftId: id },
+          withDeleted: true,
+        });
+        if (activeBooths.length > 0) {
+          await this.log(
+            currentUser,
+            'DEACTIVATE_USER_FAILED',
+            `Cannot deactivate user: still assigned to booth ${activeBooths[0].name}`,
+            manager,
+          );
+          throw new ForbiddenException(
+            `Cannot deactivate user: still assigned to booth ${activeBooths[0].name}`,
+          );
+        }
+
+        const user = await userRepo.findOne({ where: { id } });
+        if (!user) {
+          await this.log(
+            currentUser,
+            'DEACTIVATE_USER_FAILED',
+            `User not found: ${id}`,
+            manager,
+          );
+          throw new NotFoundException('User not found');
+        }
+        if (user.role === 'ADMIN') {
+          await this.log(
+            currentUser,
+            'DEACTIVATE_USER_FAILED',
+            `Cannot deactivate admin: ${id}`,
+            manager,
+          );
+          throw new ForbiddenException('Cannot deactivate admin');
+        }
+
+        // 2. อัปเดตสถานะ
+        await userRepo.update(id, { isActive: false });
+
+        await this.log(
+          currentUser,
+          'DEACTIVATE_USER_SUCCESS',
+          `Deactivated: ${id}`,
+          manager,
+        );
+        return { message: 'User deactivated successfully' };
       });
-      if (activeBooths.length > 0) {
-        await this.log(
-          currentUser,
-          'DEACTIVATE_USER_FAILED',
-          `Cannot deactivate user: still assigned to booth ${activeBooths[0].name}`,
-          manager,
-        );
-        throw new ForbiddenException(
-          `Cannot deactivate user: still assigned to booth ${activeBooths[0].name}`,
-        );
-      }
-
-      const user = await userRepo.findOne({ where: { id } });
-      if (!user) {
-        await this.log(
-          currentUser,
-          'DEACTIVATE_USER_FAILED',
-          `User not found: ${id}`,
-          manager,
-        );
-        throw new NotFoundException('User not found');
-      }
-      if (user.role === 'ADMIN') {
-        await this.log(
-          currentUser,
-          'DEACTIVATE_USER_FAILED',
-          `Cannot deactivate admin: ${id}`,
-          manager,
-        );
-        throw new ForbiddenException('Cannot deactivate admin');
-      }
-
-      // 2. อัปเดตสถานะ
-      await userRepo.update(id, { isActive: false });
-
-      await this.log(
-        currentUser,
-        'DEACTIVATE_USER_SUCCESS',
-        `Deactivated: ${id}`,
-        manager,
-      );
-      return { message: 'User deactivated successfully' };
-    });
+    } catch (error) {
+      handleError(error, 'UsersService.deactivate');
+    }
   }
 
   async reactivate(currentUser: any, id: string) {
-    return await this.dataSource.transaction(async (manager) => {
-      const userRepo = manager.getRepository(User);
-      const user = await userRepo.findOne({ where: { id } });
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const userRepo = manager.getRepository(User);
+        const user = await userRepo.findOne({ where: { id } });
 
-      if (!user) {
+        if (!user) {
+          await this.log(
+            currentUser,
+            'REACTIVATE_USER_FAILED',
+            `User not found: ${id}`,
+            manager,
+          );
+          throw new NotFoundException('User not found');
+        }
+
+        await userRepo.update(id, { isActive: true });
         await this.log(
           currentUser,
-          'REACTIVATE_USER_FAILED',
-          `User not found: ${id}`,
+          'REACTIVATE_USER_SUCCESS',
+          `Reactivated: ${id}`,
           manager,
         );
-        throw new NotFoundException('User not found');
-      }
-
-      await userRepo.update(id, { isActive: true });
-      await this.log(
-        currentUser,
-        'REACTIVATE_USER_SUCCESS',
-        `Reactivated: ${id}`,
-        manager,
-      );
-      return { message: 'User reactivated successfully' };
-    });
+        return { message: 'User reactivated successfully' };
+      });
+    } catch (error) {
+      handleError(error, 'UsersService.reactivate');
+    }
   }
 
   // +++++++++++++++++++++++++++ เปลี่ยนรหัสผ่าน (Transaction) ++++++++++++++++++++++++++++
@@ -343,34 +379,38 @@ export class UsersService {
     newPassword: string,
     oldPassword: string,
   ) {
-    return await this.dataSource.transaction(async (manager) => {
-      const userRepo = manager.getRepository(User);
-      const user = await userRepo.findOne({ where: { id: currentUser.id } });
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const userRepo = manager.getRepository(User);
+        const user = await userRepo.findOne({ where: { id: currentUser.id } });
 
-      if (!user) throw new NotFoundException('User profile not found');
+        if (!user) throw new NotFoundException('User profile not found');
 
-      const isMatch = await bcrypt.compare(oldPassword, user.passwordHash);
-      if (!isMatch) {
+        const isMatch = await bcrypt.compare(oldPassword, user.passwordHash);
+        if (!isMatch) {
+          await this.log(
+            currentUser,
+            'CHANGE_PASSWORD_FAILED',
+            'Invalid old password',
+            manager,
+          );
+          throw new ForbiddenException('Old password incorrect');
+        }
+
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+        await userRepo.update(currentUser.id, { passwordHash });
+
         await this.log(
           currentUser,
-          'CHANGE_PASSWORD_FAILED',
-          'Invalid old password',
+          'CHANGE_PASSWORD_SUCCESS',
+          `User ${user.email} changed password`,
           manager,
         );
-        throw new ForbiddenException('Old password incorrect');
-      }
-
-      const passwordHash = await bcrypt.hash(newPassword, 10);
-      await userRepo.update(currentUser.id, { passwordHash });
-
-      await this.log(
-        currentUser,
-        'CHANGE_PASSWORD_SUCCESS',
-        `User ${user.email} changed password`,
-        manager,
-      );
-      return { message: 'Password updated successfully' };
-    });
+        return { message: 'Password updated successfully' };
+      });
+    } catch (error) {
+      handleError(error, 'UsersService.changePassword');
+    }
   }
 
   // +++++++++++++++++++++++++++ ฟังก์ชันขอรีเซ็ตรหัสผ่าน (Request Reset) ++++++++++++++++++++++++++++
@@ -428,33 +468,37 @@ export class UsersService {
     }
 
     // 2. ใช้ Transaction เพื่อเปลี่ยนรหัสผ่านและ Log พร้อมกัน
-    return await this.dataSource.transaction(async (manager) => {
-      const userRepo = manager.getRepository(User);
-      const user = await userRepo.findOne({ where: { id: userId, email } });
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const userRepo = manager.getRepository(User);
+        const user = await userRepo.findOne({ where: { id: userId, email } });
 
-      if (!user) {
-        throw new ForbiddenException('Invalid email or token');
-      }
+        if (!user) {
+          throw new ForbiddenException('Invalid email or token');
+        }
 
-      // แฮชรหัสผ่านใหม่
-      const passwordHash = await bcrypt.hash(newPassword, 10);
+        // แฮชรหัสผ่านใหม่
+        const passwordHash = await bcrypt.hash(newPassword, 10);
 
-      // อัปเดตข้อมูล
-      await userRepo.update(userId, { passwordHash });
+        // อัปเดตข้อมูล
+        await userRepo.update(userId, { passwordHash });
 
-      // ลบ Token ทิ้งทันทีหลังใช้เสร็จ
-      await this.redisClient.del(`reset:${token}`);
+        // ลบ Token ทิ้งทันทีหลังใช้เสร็จ
+        await this.redisClient.del(`reset:${token}`);
 
-      // บันทึก Log
-      await this.log(
-        null,
-        'RESET_PASSWORD_SUCCESS',
-        `Password reset successful for user: ${email}`,
-        manager,
-      );
+        // บันทึก Log
+        await this.log(
+          null,
+          'RESET_PASSWORD_SUCCESS',
+          `Password reset successful for user: ${email}`,
+          manager,
+        );
 
-      return { message: 'Password reset successful' };
-    });
+        return { message: 'Password reset successful' };
+      });
+    } catch (error) {
+      handleError(error, 'UsersService.resetPassword');
+    }
   }
 
   // +++++++++++++++++++++++++++ ฟังก์ชันค้นหา (ไม่ต้อง Transaction) ++++++++++++++++++++++++++++

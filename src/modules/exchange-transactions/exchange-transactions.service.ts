@@ -23,12 +23,12 @@ import { SystemLogsService } from './../../modules/system-logs/system-logs.servi
 import { CustomersService } from './../../modules/customers/customers.service';
 import { CashCountsService } from './../../modules/cash-counts/cash-counts.service';
 import { StocksService } from './../../modules/stocks/stocks.service';
-import { CreateCashCountDto } from './../../modules/cash-counts/dto/cash-count.dto';
 import { CreateTransactionDto } from './../../modules/transactions/dto/transaction.dto';
 import { InputValidator } from './helper/input-validator';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, IsNull } from 'typeorm';
 import { ExchangeTransaction } from './entities/exchange-transaction.entity';
+import { handleError } from '../../common/error/error';
 
 @Injectable()
 export class ExchangeTransactionsService {
@@ -270,8 +270,8 @@ export class ExchangeTransactionsService {
       });
       return { message: 'Exchange transaction created successfully' };
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error);
-      throw error;
+      handleError(error, 'ExchangeTransactionsService.createExchangeTransaction');
+
     }
   }
 
@@ -653,13 +653,7 @@ export class ExchangeTransactionsService {
         message: `Exchange transaction with ID: ${param.id} has been set to pending status`,
       };
     } catch (error) {
-      const messagge = error instanceof Error ? error.message : String(error);
-      await this.log(
-        currentUser,
-        'SET_EXCHANGE_TRANSACTION_PENDING_FAILED',
-        `Failed to set exchange transaction with ID: ${param.id} to pending status. Error: ${messagge}`,
-      );
-      throw new InternalServerErrorException('Internal server error.');
+      handleError(error, 'ExchangeTransactionsService.setStatusByEmployee');
     }
   }
 
@@ -728,13 +722,7 @@ export class ExchangeTransactionsService {
         message: `Exchange transaction with ID: ${param.id} has been set to ${body.status} status`,
       };
     } catch (error) {
-      const messagge = error instanceof Error ? error.message : String(error);
-      await this.log(
-        currentUser,
-        'SET_EXCHANGE_TRANSACTION_APPROVE_FAILED',
-        `Failed to set exchange transaction with ID: ${param.id} to ${body.status} status. Error: ${messagge}`,
-      );
-      throw new InternalServerErrorException('Internal server error.');
+      handleError(error, 'ExchangeTransactionsService.setStatusByNonEmployee');
     }
   }
 }
