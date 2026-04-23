@@ -14,6 +14,7 @@ import { User } from '../users/entities/user.entity';
 import { Shift } from '../shifts/entities/shift.entity';
 import { Transaction } from '../transactions/entities/transaction.entity';
 import { ShiftsModule } from '../shifts/shifts.module';
+import { StocksModule } from '../stocks/stocks.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ShiftsModule } from '../shifts/shifts.module';
     SystemLogsModule,
     TransactionsModule,
     ShiftsModule,
+    StocksModule,
   ],
   controllers: [TransferTransactionsController],
   providers: [TransferTransactionsService],

@@ -472,7 +472,7 @@ ${JSON.stringify(r.updated)}`).join(', ')}
       where: { id :  id  },
       relations: ['currency'],
     });
-    return rates;
+    return rates as ExchangeRate;
   }
 
   async isSellRateAllowed(currentUser : any, exchangeRateId: string, proposedRate : number) {

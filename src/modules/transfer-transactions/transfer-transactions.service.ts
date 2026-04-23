@@ -14,6 +14,8 @@ import {
   IsNull,
   MoreThanOrEqual,
   In,
+  LessThanOrEqual,
+  Between,
 } from 'typeorm';
 import { TransferTransaction } from './entities/transfer-transaction.entity';
 import {
@@ -21,7 +23,6 @@ import {
   TransferBoothToBoothDto,
   TransferCenterToBoothDto,
   UpdateTransferTransactionDto,
-  CreateCashCountTransferDto,
 } from './dto/transfer-transaction.dto';
 import { BoothsService } from '../booths/booths.service';
 import { CurrenciesService } from '../currencies/currencies.service';
@@ -35,36 +36,25 @@ import { Shift } from '../shifts/entities/shift.entity';
 import { CashCount } from '../cash-counts/entities/cash-count.entity';
 import { Transaction } from '../transactions/entities/transaction.entity';
 import { TranType } from 'index';
-import { i, number, re, sum, to } from 'mathjs';
+import { e, i, number, re, string, sum, to } from 'mathjs';
 import { ShiftsService } from '../shifts/shifts.service';
 import { CreateCashCountDto } from '../cash-counts/dto/cash-count.dto';
-
+import { ExchangeRate } from '../exchange-rates/entities/exchange-rate.entity';
+import { StocksService } from '../stocks/stocks.service';
+import { send } from 'process';
+import { UpdateStockByTransferTransactionForCancel } from '../stocks/dto/stocks.dto';
 @Injectable()
 export class TransferTransactionsService {
   private readonly logger = new Logger(TransferTransactionsService.name);
 
   constructor(
-    @InjectRepository(TransferTransaction)
-    private readonly transferTransactionRepository: Repository<TransferTransaction>,
-    @InjectRepository(Booth)
-    private readonly boothRepository: Repository<Booth>,
     private readonly dataSource: DataSource,
-    @Inject(ShiftsService)
-    private readonly shiftsService: ShiftsService,
-    @Inject(BoothsService)
-    private readonly boothsService: BoothsService,
-    @Inject(CurrenciesService)
-    private readonly currenciesService: CurrenciesService,
-    @Inject(CashCountsService)
-    private readonly cashCountsService: CashCountsService,
     @Inject(SystemLogsService)
     private readonly systemLogsService: SystemLogsService,
     @Inject(TransactionsService)
     private readonly transactionsService: TransactionsService,
-    @InjectRepository(Shift)
-    private readonly shiftRepository: Repository<Shift>,
-    @InjectRepository(Transaction)
-    private readonly transactionsRepository: Repository<Transaction>,
+    @Inject(StocksService)
+    private readonly stocksService: StocksService,
   ) {}
 
   /**
@@ -93,15 +83,22 @@ export class TransferTransactionsService {
     }
   }
 
+  async createTransaction_ID_Transfer(user: any, manager: EntityManager) {
+    return await this.transactionsService.create(manager, {
+      type: 'TRANSFER',
+      shiftId: null, // กำหนด shiftId เป็น null สำหรับ movement
+    });
+  }
+
   private async createMovement(
     user: any,
     createDto: CreateTransferTransactionDto,
     manager: EntityManager,
+    transaction?: Transaction,
   ) {
-    const transaction = await this.transactionsService.create(manager, {
-      type: 'TRANSFER',
-      shiftId: null, // กำหนด shiftId เป็น null สำหรับ movement
-    });
+    if (!transaction) {
+      transaction = await this.createTransaction_ID_Transfer(user, manager);
+    }
 
     const transferTransaction = manager
       .getRepository(TransferTransaction)
@@ -112,7 +109,9 @@ export class TransferTransactionsService {
         shiftId: createDto.shiftId,
         refBoothId: createDto.refBoothId,
         refShiftId: createDto.refShiftId,
-        currencyCode: createDto.currencyCode,
+        exchangeRateId: createDto.exchangeRateId,
+        exchangeRateName: createDto.exchangeRateName,
+        internalTransactionId: createDto.internalTransactionId,
         amount: createDto.amount,
         type: createDto.type,
         description: createDto.description,
@@ -121,11 +120,12 @@ export class TransferTransactionsService {
     try {
       await manager
         ?.getRepository(TransferTransaction)
+
         .save(transferTransaction);
       await this.log(
         user,
         'CREATE_MOVEMENT',
-        `Created movement of ${createDto.amount} ${createDto.currencyCode} for booth ${createDto.boothId}`,
+        `Created movement of ${createDto.amount} for booth ${createDto.boothId} with exchange rate ID ${createDto.exchangeRateId}`,
         manager,
       );
       return transferTransaction;
@@ -134,7 +134,7 @@ export class TransferTransactionsService {
         await this.log(
           user,
           'CREATE_MOVEMENT_FAILED',
-          `Failed to create movement of ${createDto.amount} ${createDto.currencyCode} for booth ${createDto.boothId}`,
+          `Failed to create movement of ${createDto.amount} for booth ${createDto.boothId} with exchange rate ID ${createDto.exchangeRateId}`,
           manager,
         );
       } catch (logError) {
@@ -149,165 +149,35 @@ export class TransferTransactionsService {
     }
   }
 
-  // โอนระหว่างบูธที่มีสกุลเงินเป็น THB โดยตรวจสอบยอดแลกเงินและยอดโอนในกะนั้นๆ เพื่อป้องกันการโอนเกินยอดที่มีอยู่ในกะนั้น
-  async transferBoothToBoothWithCurrencyTHB(
-    user: any,
-    transferDto: TransferBoothToBoothDto,
-    sourceActiveShift: Shift,
-    targetActiveShift: Shift,
-    manager: EntityManager,
-  ) {
-    // ตรวจสอบยอดเงินในกะของบูธต้นทาง
-    const balanceCheck = sourceActiveShift.balance || 0;
-    if (balanceCheck < transferDto.amount) {
-      await this.log(
-        user,
-        'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-        `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Insufficient balance`,
-        manager,
-      );
-      throw new BadRequestException(
-        `Insufficient balance in source booth. Available: ${balanceCheck}, Required: ${transferDto.amount}`,
-      );
-    }
-
-    let denominations = transferDto.cashCountData.map((item) => ({
-      denomination: item.denomination,
-    }));
-    let amounts = transferDto.cashCountData.map((item) => ({
-      amount: item.amount,
-    }));
-    const sumCashCount = transferDto.cashCountData.reduce((acc, item) => {
-      return acc + Number(item.amount) * Number(item.denomination);
-    }, 0);
-
-    if (sumCashCount !== transferDto.amount) {
-      await this.log(
-        user,
-        'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-        `Total cash count amount (${sumCashCount}) does not match transfer amount (${transferDto.amount})`,
-      );
-      throw new BadRequestException(
-        `Total cash count amount (${sumCashCount}) does not match transfer amount (${transferDto.amount})`,
-      );
-    }
-
-    const cashCountCheckBycheck = await this.cashCountsService.getcashCountfromShiftByCurrency(sourceActiveShift.id, (await this.currenciesService.getCurrencyByCode(transferDto.currencyCode)).id as unknown as string);
-    for (const item of transferDto.cashCountData) {
-      if (!cashCountCheckBycheck.cashCountDetails[item.denomination] || cashCountCheckBycheck.cashCountDetails[item.denomination] < item.amount) {
+  async transferBoothToBooth(user: any, transferDto: TransferBoothToBoothDto) {
+    return await this.dataSource.transaction(async (manager) => {
+      // Validate exchange rate
+      const exchangeRate = await manager.getRepository(ExchangeRate).findOne({
+        where: { id: transferDto.exchangeRateId },
+        relations: ['currency'],
+      });
+      if (!exchangeRate) {
         await this.log(
           user,
           'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-          `Insufficient cash count for denomination ${item.denomination}`,
+          `Failed to transfer ${transferDto.amount} ${transferDto.exchangeRateId} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Currency not found`,
           manager,
         );
-        throw new BadRequestException(`Insufficient cash count for denomination ${item.denomination}`);
+        throw new NotFoundException(
+          `Currency with ID ${transferDto.exchangeRateId} not found`,
+        );
       }
-    }
 
-    const transferTransactionFormainBooth = await this.createMovement(
-      user,
-      {
-        userId: user.id,
-        boothId: transferDto.boothId,
-        shiftId: sourceActiveShift.id,
-        refBoothId: transferDto.refBoothId,
-        refShiftId: targetActiveShift.id,
-        currencyCode: transferDto.currencyCode,
-        amount: transferDto.amount,
-        type: 'TRANSFER_OUT',
-        description: transferDto.description,
-        status: 'COMPLETED',
-      },
-      manager,
-    );
-
-
-    const transferTransactionForTargetBooth = await this.createMovement(
-      user,
-      {
-        userId: user.id,
-        boothId: transferDto.refBoothId,
-        shiftId: targetActiveShift.id,
-        refBoothId: transferDto.boothId,
-        refShiftId: sourceActiveShift.id,
-        currencyCode: transferDto.currencyCode,
-        amount: transferDto.amount,
-        type: 'TRANSFER_IN',
-        description: transferDto.description,
-        status: 'COMPLETED',
-      },
-      manager,
-    );
-
-    let currencyId =
-      (await this.currenciesService.getTHBCurrency()) as unknown as string;
-    const cashCountData_mainBooth: CreateCashCountDto = {
-      transactionId: transferTransactionFormainBooth.id,
-      currencyId,
-      denominations,
-      amounts,
-    };
-
-    const cashCountData_targetBooth: CreateCashCountDto = {
-      transactionId: transferTransactionForTargetBooth.id,
-      currencyId,
-      denominations,
-      amounts,
-    };
-
-    await this.cashCountsService.create(user, cashCountData_mainBooth, manager);
-    await this.cashCountsService.create(
-      user,
-      cashCountData_targetBooth,
-      manager,
-    );
-
-    await this.shiftsService.setTotalExchange(
-      transferDto.boothId,
-      transferDto.amount,
-      manager,
-    );
-    await this.shiftsService.setTotalReceive(
-      transferDto.refBoothId,
-      transferDto.amount,
-      manager,
-    );
-
-    await this.log(
-      user,
-      'TRANSFER_BOOTH_TO_BOOTH_SUCCESS',
-      `Transferred ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}`,
-      manager,
-    );
-    return {
-      message: `Successfully transferred`,
-      transactionId: transferTransactionFormainBooth.id,
-      fromBooth: transferDto.boothId,
-      transactionIdForTargetBooth: transferTransactionForTargetBooth.id,
-      toBooth: transferDto.refBoothId,
-      amount: transferDto.amount,
-      currency: transferDto.currencyCode,
-      balanceAfterTransfer: balanceCheck - transferDto.amount,
-      cashCounts: cashCountData_mainBooth.amounts.map((item, index) => ({
-        denomination: cashCountData_mainBooth.denominations[index].denomination,
-        amount: item.amount,
-      })),
-    };
-  }
-
-  async transferBoothToBooth(user: any, transferDto: TransferBoothToBoothDto) {
-    if (transferDto.amount <= 0) {
+      if (transferDto.amount <= 0) {
         await this.log(
           user,
           'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-          `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Invalid transfer amount`,
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Invalid transfer amount`,
         );
-      throw new BadRequestException(
-        'Transfer amount must be greater than zero',
-      );
-    }
-    return await this.dataSource.transaction(async (manager) => {
+        throw new BadRequestException(
+          'Transfer amount must be greater than zero',
+        );
+      }
       // Validate booths
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
@@ -319,7 +189,7 @@ export class TransferTransactionsService {
         await this.log(
           user,
           'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-          `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Source booth not found or inactive`,
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Source booth not found or inactive`,
           manager,
         );
         throw new NotFoundException(
@@ -339,7 +209,7 @@ export class TransferTransactionsService {
         await this.log(
           user,
           'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-          `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Source booth does not have an active shift`,
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Source booth does not have an active shift`,
           manager,
         );
         throw new BadRequestException(
@@ -354,7 +224,7 @@ export class TransferTransactionsService {
         await this.log(
           user,
           'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-          `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Target booth not found or inactive`,
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Target booth not found or inactive`,
           manager,
         );
         throw new BadRequestException(
@@ -369,7 +239,7 @@ export class TransferTransactionsService {
         await this.log(
           user,
           'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-          `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Target booth does not have an active shift`,
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Target booth does not have an active shift`,
           manager,
         );
         throw new BadRequestException(
@@ -382,7 +252,7 @@ export class TransferTransactionsService {
         await this.log(
           user,
           'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-          `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Source and target booths cannot be the same`,
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Source and target booths cannot be the same`,
           manager,
         );
         throw new BadRequestException(
@@ -390,115 +260,43 @@ export class TransferTransactionsService {
         );
       }
 
-      // Validate currency
-      const currency = await manager
-        .getRepository(Currency)
-        .findOne({ where: { code: transferDto.currencyCode } });
-      if (!currency) {
-        await this.log(
-          user,
-          'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Currency not found`,
-          manager,
-        );
-        throw new NotFoundException(
-          `Currency with code ${transferDto.currencyCode} not found`,
-        );
-      }
-
-      // ถ้าเป็นการโอนระหว่างบูธที่มีสกุลเงินเป็น THB จะต้องใช้วิธีการโอนแบบเฉพาะที่ตรวจสอบยอดแลกเงินและยอดโอนในกะนั้นๆ เพื่อป้องกันการโอนเกินยอดที่มีอยู่ในกะนั้น
-      if (transferDto.currencyCode == 'THB') {
-        return this.transferBoothToBoothWithCurrencyTHB(
-          user,
-          transferDto,
-          activeShift,
-          targetActiveShift,
-          manager,
-        );
-      }
-
       // ตรวจสอบว่ามีการทำรายการแลกเงินที่เกี่ยวข้องกับสกุลเงินนี้ในกะนั้นหรือไม่ ถ้ามีจะไม่อนุญาตให้ทำการโอนระหว่างบูธ==============================
-      const checkCashCount = await manager.getRepository(Transaction).find({
-        relations: [
-          'exchangetransaction',
-          'exchangetransaction.exchangeRateFK.currency',
-        ],
-        where: {
-          shiftId: activeShift.id,
-          type: 'EXCHANGE',
-          exchangetransaction: {
-            status: In(['COMPLETED', 'PENDING']),
-            exchangeRateFK: { currency: { code: transferDto.currencyCode } },
-          },
-        },
-        select: {
-          id: true,
-          shiftId: true,
-          type: true,
-          exchangetransaction: {
-            id: true,
-            foreignCurrencyAmount: true,
-            type: true,
-            exchangeRateFK: {
-              currency: {
-                code: true,
-              },
-            },
-          },
-        },
-      });
-
-      const totalExchangedAmount = checkCashCount.reduce(
-        (total, transaction) => {
-          total +=
-            transaction.exchangetransaction.type === 'BUY'
-              ? Number(transaction.exchangetransaction.foreignCurrencyAmount) ||
-                0
-              : -Number(
-                  transaction.exchangetransaction.foreignCurrencyAmount,
-                ) || 0;
-          return total;
-        },
-        0,
+      const checkstockExchanges = await this.stocksService.getStock(
+        activeShift.id,
+        exchangeRate.id,
+        manager,
       );
-      //============================================================================================================================
-
-      //รวมค่าเลฃงินจา terfer-transaction ที่มีสถานะเป็น PENDING หรือ COMPLETED ในกะนั้นที่เกี่ยวข้องกับสกุลเงินนี้ ถ้าผลรวมมากกว่าจำนวนเงินที่ต้องการโอน จะไม่อนุญาตให้ทำการโอนระหว่างบูธ
-      const transferTransactions = await manager
-        .getRepository(TransferTransaction)
-        .find({
-          where: {
-            shiftId: activeShift.id,
-            currencyCode: transferDto.currencyCode,
-            status: In(['PENDING', 'COMPLETED']),
-          },
-        });
-      const totalTransferredAmount = transferTransactions.reduce(
-        (total, tran) => {
-          if (tran.type === 'TRANSFER_OUT') {
-            total -= number(tran.amount || 0);
-          } else if (tran.type === 'TRANSFER_IN') {
-            total += number(tran.amount || 0);
-          }
-          return total;
-        },
-        0,
-      );
-
-      let countSummary = totalExchangedAmount + totalTransferredAmount;
-
-      // ตรวจสอบว่าจำนวนเงินที่ต้องการโอนมากกว่าจำนวนเงินที่แลกในกะนั้นหรือไม่ ถ้ามากกว่าจะไม่อนุญาตให้ทำการโอนระหว่างบูธ
-      if (countSummary < transferDto.amount) {
+      if (!checkstockExchanges) {
         await this.log(
           user,
           'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-          `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Insufficient exchanged amount in active shift`,
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: No exchange transactions found for the specified currency in the active shift`,
           manager,
         );
         throw new BadRequestException(
-          `Cannot transfer ${transferDto.amount} ${transferDto.currencyCode} because total exchanged amount in active shift is only ${countSummary} ${transferDto.currencyCode}`,
+          `Cannot transfer ${transferDto.amount} ${exchangeRate.name} because no exchange transactions found for the specified currency in the active shift`,
         );
       }
+
+      // ตรวจสอบว่าจำนวนเงินที่ต้องการโอนมากกว่าจำนวนเงินที่แลกในกะนั้นหรือไม่ ถ้ามากกว่าจะไม่อนุญาตให้ทำการโอนระหว่างบูธ
+      if (checkstockExchanges.total_balance < transferDto.amount) {
+        await this.log(
+          user,
+          'TRANSFER_BOOTH_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Insufficient exchanged amount in active shift`,
+          manager,
+        );
+        throw new BadRequestException(
+          `Cannot transfer ${transferDto.amount} ${exchangeRate.name} because total exchanged amount in active shift is only ${checkstockExchanges.total_balance} ${exchangeRate.name}`,
+        );
+      }
+
+      const trinsactionForMainBooth = await this.createTransaction_ID_Transfer(
+        user,
+        manager,
+      );
+      const trinsactionForTargetBooth =
+        await this.createTransaction_ID_Transfer(user, manager);
 
       const transferTransactionFormainBooth = await this.createMovement(
         user,
@@ -508,21 +306,17 @@ export class TransferTransactionsService {
           refBoothId: transferDto.refBoothId,
           refShiftId: targetActiveShift.id,
           amount: transferDto.amount,
-          currencyCode: transferDto.currencyCode,
+          exchangeRateId: transferDto.exchangeRateId,
+          exchangeRateName: exchangeRate.name,
+          internalTransactionId: trinsactionForTargetBooth.id, // เก็บ ID ของ Transaction แม่ในฟิลด์ internalTransactionId
           type: 'TRANSFER_OUT',
           description: transferDto.description,
           userId: user?.id || null,
           status: 'COMPLETED',
         },
         manager,
+        trinsactionForMainBooth,
       );
-
-      const cashCountData_mainBooth: CreateCashCountDto = {
-        transactionId: transferTransactionFormainBooth.id,
-        currencyId: currency.id,
-        denominations: [{ denomination: '1' }],
-        amounts: [{ amount: transferDto.amount }],
-      };
 
       const transferTransactionForTargetBooth = await this.createMovement(
         user,
@@ -532,44 +326,47 @@ export class TransferTransactionsService {
           refBoothId: transferDto.boothId,
           refShiftId: activeShift.id,
           amount: transferDto.amount,
-          currencyCode: transferDto.currencyCode,
+          exchangeRateId: transferDto.exchangeRateId,
+          exchangeRateName: exchangeRate.name,
+          internalTransactionId: trinsactionForMainBooth.id, // เก็บ ID ของ Transaction แม่ในฟิลด์ internalTransactionId เพื่อเชื่อมโยงกับ Transaction แม่
           type: 'TRANSFER_IN',
           description: transferDto.description,
           userId: user.id,
           status: 'COMPLETED',
         },
         manager,
+        trinsactionForTargetBooth,
       );
 
-      const cashCountData_targetBooth: CreateCashCountDto = {
-        transactionId: transferTransactionForTargetBooth.id,
-        currencyId: currency.id,
-        denominations: [{ denomination: '1' }],
-        amounts: [{ amount: transferDto.amount }],
+      const updateStockDto = {
+        sender: transferDto.boothId,
+        receiver: transferDto.refBoothId,
+        exchangeRateId: transferDto.exchangeRateId,
+        transferAmount: transferDto.amount,
       };
 
-      await this.cashCountsService.create(user, cashCountData_mainBooth, manager);
-      await this.cashCountsService.create(
+      await this.stocksService.updateStockByTransferTransaction(
         user,
-        cashCountData_targetBooth,
+        updateStockDto,
         manager,
       );
 
       await this.log(
         user,
         'TRANSFER_BOOTH_TO_BOOTH_SUCCESS',
-        `Transferred ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}`,
+        `Transferred ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}`,
         manager,
-      );  
+      );
       return {
         message: 'Successfully transferred',
-        transactionId: transferTransactionFormainBooth.id,
+        transactionId: trinsactionForMainBooth.id,
         fromBooth: transferDto.boothId,
         transactionIdForTargetBooth: transferTransactionForTargetBooth.id,
         toBooth: transferDto.refBoothId,
         amount: transferDto.amount,
-        currency: transferDto.currencyCode,
-        balanceAfterTransfer: countSummary - transferDto.amount, // บอกยอดคงเหลือในกะหลังโอน
+        currency: exchangeRate.name,
+        balanceAfterTransfer:
+          checkstockExchanges.total_balance - transferDto.amount, // บอกยอดคงเหลือในกะหลังโอน
       };
     });
   }
@@ -579,13 +376,30 @@ export class TransferTransactionsService {
     transferDto: TransferCenterToBoothDto,
   ) {
     return await this.dataSource.transaction(async (manager) => {
+      // Validate exchange rate
+      const exchangeRate = await manager.getRepository(ExchangeRate).findOne({
+        where: { id: transferDto.exchangeRateId },
+        relations: ['currency'],
+      });
+      if (!exchangeRate) {
+        await this.log(
+          user,
+          'TRANSFER_CENTER_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${transferDto.exchangeRateId} from center to booth ${transferDto.boothId}: Currency not found`,
+          manager,
+        );
+        throw new NotFoundException(
+          `Currency with ID ${transferDto.exchangeRateId} not found`,
+        );
+      }
+
       if (transferDto.amount <= 0) {
-          await this.log(
-            user,
-            'TRANSFER_CENTER_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from center to booth ${transferDto.boothId}: Invalid transfer amount`,
-            manager,
-          );
+        await this.log(
+          user,
+          'TRANSFER_CENTER_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Invalid transfer amount`,
+          manager,
+        );
         throw new BadRequestException(
           'Transfer amount must be greater than zero',
         );
@@ -595,12 +409,12 @@ export class TransferTransactionsService {
         .getRepository(Booth)
         .findOne({ where: { id: transferDto.boothId, isActive: true } });
       if (!targetBooth) {
-          await this.log(
-            user,
-            'TRANSFER_CENTER_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from center to booth ${transferDto.boothId}: Target booth not found or inactive`,
-            manager,
-          );
+        await this.log(
+          user,
+          'TRANSFER_CENTER_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Target booth not found or inactive`,
+          manager,
+        );
         throw new NotFoundException(
           `Target booth with ID ${transferDto.boothId} not found or inactive`,
         );
@@ -610,63 +424,29 @@ export class TransferTransactionsService {
         where: { boothId: transferDto.boothId, endTime: IsNull() },
       });
       if (!targetActiveShift) {
-          await this.log(
-            user,
-            'TRANSFER_CENTER_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from center to booth ${transferDto.boothId}: Target booth does not have an active shift`,
-            manager,
-          );
+        await this.log(
+          user,
+          'TRANSFER_CENTER_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Target booth does not have an active shift`,
+          manager,
+        );
         throw new BadRequestException(
           `Target booth with ID ${transferDto.boothId} does not have an active shift`,
         );
       }
-      const currency = await manager
-        .getRepository(Currency)
-        .findOne({ where: { code: transferDto.currencyCode } });
-      if (!currency) {
-          await this.log(
-            user,
-            'TRANSFER_CENTER_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from center to booth ${transferDto.boothId}: Currency not found`,
-            manager,
-          );
-        throw new NotFoundException(
-          `Currency with code ${transferDto.currencyCode} not found`,
-        );
-      }
+      const checkstockExchanges = await this.stocksService.getStock(
+        targetActiveShift.id,
+        exchangeRate.id,
+        manager,
+      );
 
-      let denominations = transferDto.cashCountData.map((item) => ({
-        denomination: item.denomination,
-      }));
-      let amounts = transferDto.cashCountData.map((item) => ({
-        amount: item.amount,
-      }));
-
-
-      const sumCashCount = transferDto.cashCountData.reduce((acc, item) => {
-        return acc + Number(item.amount) * Number(item.denomination);
-      }, 0);
-
-      if (sumCashCount !== transferDto.amount) {
-          await this.log(
-            user,
-            'TRANSFER_CENTER_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from center to booth ${transferDto.boothId}: Total cash count amount (${sumCashCount}) does not match transfer amount (${transferDto.amount})`,
-            manager,
-          );
-        throw new BadRequestException(
-          `Total cash count amount (${sumCashCount}) does not match transfer amount (${transferDto.amount})`,
-        );
-      }
-      
       if (transferDto.type === 'CASH_IN') {
         return await this.tnfCtoB_CashIn(
           user,
           transferDto,
           targetActiveShift,
-          currency,
-          amounts,
-          denominations,
+          exchangeRate,
+          checkstockExchanges,
           manager,
         );
       } else if (transferDto.type === 'CASH_OUT') {
@@ -674,10 +454,9 @@ export class TransferTransactionsService {
           user,
           transferDto,
           targetActiveShift,
-          currency,
-          amounts,
-          denominations,
+          exchangeRate,
           manager,
+          checkstockExchanges,
         );
       }
     });
@@ -687,49 +466,44 @@ export class TransferTransactionsService {
     user: any,
     transferDto: TransferCenterToBoothDto,
     targetActiveShift: Shift,
-    currency: Currency,
-    amounts: { amount: number }[],
-    denominations: { denomination: string }[],
+    exchangeRate: ExchangeRate,
+    checkstockExchanges: any,
     manager: EntityManager,
   ) {
-
     const transferTransactionForTargetBooth = await this.createMovement(
       user,
       {
         boothId: transferDto.boothId,
         shiftId: targetActiveShift.id,
         amount: transferDto.amount,
-        currencyCode: transferDto.currencyCode,
+        exchangeRateId: exchangeRate.id,
+        exchangeRateName: exchangeRate.name,
         type: 'CASH_IN',
         description: transferDto.description,
+        internalTransactionId: null, // กำหนดเป็น null เพราะไม่มี Transaction แม่สำหรับการโอนจากศูนย์ไปบูธ
         userId: user.id,
         status: 'COMPLETED',
       },
       manager,
     );
 
-    const cashCountData_targetBooth: CreateCashCountDto = {
-      transactionId: transferTransactionForTargetBooth.id,
-      currencyId: currency.id,
-      denominations,
-      amounts,
+    const stockUpdateDto = {
+      sender: null, // เนื่องจากเป็นการโอนจากศูนย์ไปบูธ จึงไม่มี sender booth
+      receiver: transferDto.boothId,
+      exchangeRateId: exchangeRate.id,
+      transferAmount: transferDto.amount,
     };
-    await this.cashCountsService.create(
-      user,
-      cashCountData_targetBooth,
-      manager,
-    );
 
-    await this.shiftsService.setTotalReceive(
-      transferDto.boothId,
-      transferDto.amount,
+    await this.stocksService.updateStockByTransferTransaction(
+      user,
+      stockUpdateDto,
       manager,
     );
 
     await this.log(
       user,
       'TRANSFER_CENTER_TO_BOOTH_SUCCESS',
-      `Transferred ${transferDto.amount} ${transferDto.currencyCode} from center to booth ${transferDto.boothId}`,
+      `Transferred ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}`,
       manager,
     );
 
@@ -738,12 +512,10 @@ export class TransferTransactionsService {
       transactionId: transferTransactionForTargetBooth.id,
       toBooth: transferDto.boothId,
       amount: transferDto.amount,
-      currency: transferDto.currencyCode,
-      cashCounts: cashCountData_targetBooth.amounts.map((item, index) => ({
-        denomination:
-          cashCountData_targetBooth.denominations[index].denomination,
-        amount: item.amount,
-      })),
+      exchangeRateName: exchangeRate.name,
+      balanceAfterTransfer: checkstockExchanges
+        ? Number(checkstockExchanges.total_balance) + Number(transferDto.amount)
+        : Number(transferDto.amount), // บอกยอดคงเหลือในกะหลังโอน
     };
   }
 
@@ -751,59 +523,66 @@ export class TransferTransactionsService {
     user: any,
     transferDto: TransferCenterToBoothDto,
     targetActiveShift: Shift,
-    currency: Currency,
-    amounts: { amount: number }[],
-    denominations: { denomination: string }[],
+    exchangeRate: ExchangeRate,
     manager: EntityManager,
+    checkstockExchanges: any,
   ) {
-    const cashCountCheckBycheck = await this.cashCountsService.getcashCountfromShiftByCurrency(targetActiveShift.id, (await this.currenciesService.getCurrencyByCode(transferDto.currencyCode)).id as unknown as string);
-    for (const item of transferDto.cashCountData) {
-      if (!cashCountCheckBycheck.cashCountDetails[item.denomination] || cashCountCheckBycheck.cashCountDetails[item.denomination] < item.amount) {
-        await this.log(
-          user,
-          'TRANSFER_BOOTH_TO_CENTER_FAILED',
-          `Failed to transfer ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth center: Insufficient cash count for denomination ${item.denomination}`,
-          manager,
-        );
-        throw new BadRequestException(`Insufficient cash count for denomination ${item.denomination}`);
-      }
+    if (!checkstockExchanges) {
+      await this.log(
+        user,
+        'TRANSFER_CENTER_TO_BOOTH_FAILED',
+        `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to center: No exchange transactions found for the specified currency in the active shift`,
+        manager,
+      );
+      throw new BadRequestException(
+        `Cannot transfer ${transferDto.amount} ${exchangeRate.name} because no exchange transactions found for the specified currency in the active shift`,
+      );
     }
+
+    if (checkstockExchanges.total_balance < transferDto.amount) {
+      await this.log(
+        user,
+        'TRANSFER_CENTER_TO_BOOTH_FAILED',
+        `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to center: Insufficient exchanged amount in active shift`,
+        manager,
+      );
+      throw new BadRequestException(
+        `Cannot transfer ${transferDto.amount} ${exchangeRate.name} because total exchanged amount in active shift is only ${checkstockExchanges.total_balance} ${exchangeRate.name}`,
+      );
+    }
+
     const transferTransactionForTargetBooth = await this.createMovement(
       user,
       {
         boothId: transferDto.boothId,
         shiftId: targetActiveShift.id,
         amount: transferDto.amount,
-        currencyCode: transferDto.currencyCode,
+        exchangeRateId: exchangeRate.id,
+        exchangeRateName: exchangeRate.name,
         type: 'CASH_OUT',
         description: transferDto.description,
+        internalTransactionId: null, // กำหนดเป็น null เพราะไม่มี Transaction แม่สำหรับการโอนจากศูนย์ไปบูธ
         userId: user.id,
         status: 'COMPLETED',
       },
       manager,
     );
 
-    const cashCountData_targetBooth: CreateCashCountDto = {
-      transactionId: transferTransactionForTargetBooth.id,
-      currencyId: currency.id,
-      denominations,
-      amounts,
+    const stockUpdateDto = {
+      sender: transferDto.boothId,
+      receiver: null, // เนื่องจากเป็นการโอนจากบูธไปศูนย์ จึงไม่มี receiver booth
+      exchangeRateId: exchangeRate.id,
+      transferAmount: transferDto.amount,
     };
-    await this.cashCountsService.create(
+    await this.stocksService.updateStockByTransferTransaction(
       user,
-      cashCountData_targetBooth,
-      manager,
-    );
-
-    await this.shiftsService.setTotalExchange(
-      transferDto.boothId,
-      transferDto.amount,
+      stockUpdateDto,
       manager,
     );
     await this.log(
       user,
-      'TRANSFER_BOOTH_TO_CENTER_SUCCESS',
-      `Transferred ${transferDto.amount} ${transferDto.currencyCode} from booth ${transferDto.boothId} to booth center`,
+      'TRANSFER_CENTER_TO_BOOTH_SUCCESS',
+      `Transferred ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to center`,
       manager,
     );
 
@@ -812,15 +591,202 @@ export class TransferTransactionsService {
       transactionId: transferTransactionForTargetBooth.id,
       fromBooth: transferDto.boothId,
       amount: transferDto.amount,
-      currency: transferDto.currencyCode,
-      cashCounts: cashCountData_targetBooth.amounts.map((item, index) => ({
-        denomination:
-          cashCountData_targetBooth.denominations[index].denomination,
-        amount: item.amount,
-      })),
+      exchangeRateName: exchangeRate.name,
+      balanceAfterTransfer:
+        checkstockExchanges.total_balance - transferDto.amount, // บอกยอดคงเหลือในกะหลังโอน
     };
   }
 
-  
+  async cancelTransferTransaction(user: any, transactionId: string) {
+    return await this.dataSource.transaction(async (manager) => {
+      const transferTransaction = await manager
+        .getRepository(TransferTransaction)
+        .findOne({ where: { id: transactionId } });
+
+      if (!transferTransaction) {
+        await this.log(
+          user,
+          'CANCEL_TRANSFER_TRANSACTION_FAILED',
+          `Failed to cancel transfer transaction ${transactionId}: Transaction not found`,
+        );
+        throw new NotFoundException(
+          `Transfer transaction with ID ${transactionId} not found`,
+        );
+      }
+
+      if (transferTransaction.status === 'CANCELED') {
+        await this.log(
+          user,
+          'CANCEL_TRANSFER_TRANSACTION_FAILED',
+          `Failed to cancel transfer transaction ${transactionId}: Transaction is already canceled`,
+        );
+        throw new BadRequestException(
+          `Transfer transaction with ID ${transactionId} is already canceled`,
+        );
+      }
+
+      if (transferTransaction.type === 'TRANSFER_OUT') {
+        const updateStockDto: UpdateStockByTransferTransactionForCancel = {
+          sender_shift: transferTransaction.refShiftId as string,
+          receiver_shift: transferTransaction.shiftId as string,
+          exchangeRateId: transferTransaction.exchangeRateId as string,
+          transferAmount: transferTransaction.amount,
+        };
+        await this.stocksService.updateStockByTransferTransactionForCancel(
+          user,
+          updateStockDto,
+          manager,
+        );
+
+        await manager
+          .getRepository(TransferTransaction)
+          .update({ id: transactionId }, { status: 'CANCELED' });
+        await manager
+          .getRepository(TransferTransaction)
+          .update(
+            { id: transferTransaction.internalTransactionId as string },
+            { status: 'CANCELED' },
+          );
+        this.log(
+          user,
+          'CANCEL_TRANSFER_TRANSACTION_SUCCESS',
+          `Canceled transfer transaction ${transactionId} and internal transaction ${transferTransaction.internalTransactionId} and updated stock accordingly`,
+          manager,
+        );
+        return {
+          message: `Successfully canceled transfer transaction with ID ${transactionId}`,
+        };
+      }
+
+      if (transferTransaction.type === 'TRANSFER_IN') {
+        const updateStockDto: UpdateStockByTransferTransactionForCancel = {
+          sender_shift: transferTransaction.shiftId as string,
+          receiver_shift: transferTransaction.refShiftId as string,
+          exchangeRateId: transferTransaction.exchangeRateId as string,
+          transferAmount: transferTransaction.amount,
+        };
+        await this.stocksService.updateStockByTransferTransactionForCancel(
+          user,
+          updateStockDto,
+          manager,
+        );
+        await manager
+          .getRepository(TransferTransaction)
+          .update({ id: transactionId }, { status: 'CANCELED' });
+        await manager
+          .getRepository(TransferTransaction)
+          .update(
+            { id: transferTransaction.internalTransactionId as string },
+            { status: 'CANCELED' },
+          );
+        this.log(
+          user,
+          'CANCEL_TRANSFER_TRANSACTION_SUCCESS',
+          `Canceled transfer transaction ${transactionId} and internal transaction ${transferTransaction.internalTransactionId} and updated stock accordingly`,
+          manager,
+        );
+        return {
+          message: `Successfully canceled transfer transaction with ID ${transactionId}`,
+        };
+      }
+
+      if (transferTransaction.type === 'CASH_IN') {
+        const updateStockDto: UpdateStockByTransferTransactionForCancel = {
+          sender_shift: transferTransaction.shiftId as string,
+          receiver_shift: null, // เนื่องจากเป็นการโอนจากศูนย์ไปบูธ จึงไม่มี receiver shift,
+          exchangeRateId: transferTransaction.exchangeRateId as string,
+          transferAmount: transferTransaction.amount,
+        };
+        await this.stocksService.updateStockByTransferTransactionForCancel(
+          user,
+          updateStockDto,
+          manager,
+        );
+        await manager
+          .getRepository(TransferTransaction)
+          .update({ id: transactionId }, { status: 'CANCELED' });
+        this.log(
+          user,
+          'CANCEL_TRANSFER_TRANSACTION_SUCCESS',
+          `Canceled cash in transfer transaction ${transactionId} and updated stock accordingly`,
+          manager,
+        );
+        return {
+          message: `Successfully canceled cash in transfer transaction with ID ${transactionId}`,
+        };
+      }
+
+      if (transferTransaction.type === 'CASH_OUT') {
+        const updateStockDto: UpdateStockByTransferTransactionForCancel = {
+          sender_shift: null, // เนื่องจากเป็นการโอนจากบูธไปศูนย์ จึงไม่มี sender shift,
+          receiver_shift: transferTransaction.shiftId as string,
+          exchangeRateId: transferTransaction.exchangeRateId as string,
+          transferAmount: transferTransaction.amount,
+        };
+        await this.stocksService.updateStockByTransferTransactionForCancel(
+          user,
+          updateStockDto,
+          manager,
+        );
+        await manager
+          .getRepository(TransferTransaction)
+          .update({ id: transactionId }, { status: 'CANCELED' });
+        this.log(
+          user,
+          'CANCEL_TRANSFER_TRANSACTION_SUCCESS',
+          `Canceled cash out transfer transaction ${transactionId} and updated stock accordingly`,
+          manager,
+        );
+        return {
+          message: `Successfully canceled cash out transfer transaction with ID ${transactionId}`,
+        };
+      }
+      await this.log(
+        user,
+        'CANCEL_TRANSFER_TRANSACTION_FAILED',
+        `Failed to cancel transfer transaction ${transactionId}: Unsupported transaction type ${transferTransaction.type}`,
+        manager,
+      );
+      throw new BadRequestException(
+        `Unsupported transaction type ${transferTransaction.type}`,
+      );
+    });
+  }
+
+  async getTransferTransactionById(transactionId: string) {
+    const transferTransaction = await this.dataSource
+      .getRepository(TransferTransaction)
+      .findOne({ where: { id: transactionId } });
+    return transferTransaction;
+  }
+
+  async getAllTransferTransactions() {
+    const transferTransactions = await this.dataSource
+      .getRepository(TransferTransaction)
+      .find();
+    return transferTransactions;
+  }
+
+  async getTransferTransactionsByBoothId(boothId: string) {
+    const transferTransactions = await this.dataSource
+      .getRepository(TransferTransaction)
+      .find({ where: [{ boothId }] });
+    return transferTransactions;
+  }
+
+  async getTransferTransactionsByShiftId(shiftId: string) {
+    const transferTransactions = await this.dataSource
+      .getRepository(TransferTransaction)
+      .find({ where: [{ shiftId }] });
+    return transferTransactions;
+  }
+
+  async getTransferTransactionsByDateRange(startDate: Date, endDate: Date) {
+    return await this.dataSource.getRepository(TransferTransaction).find({
+      where: {
+        createdAt: Between(startDate, endDate),
+      },
+    });
+  }
 
 }

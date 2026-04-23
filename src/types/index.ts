@@ -72,7 +72,7 @@ export interface TransactionData {
 
 export interface TransferTransactionData {
      readonly id: string;     // PK, FK (Primary Key & Foreign Key)
-    readonly currencyCode: string;   // FK
+    readonly exchangeRateId: string;   // FK
     boothId: string;           // FK
     ShiftId?: string | null; // shiftId อาจเป็น null ได้สำหรับบางประเภทของ transaction เช่น transfer ระหว่างบูธ
      amount: number;            // จำนวนเงิน

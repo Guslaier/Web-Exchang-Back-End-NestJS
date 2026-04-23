@@ -84,9 +84,6 @@ export class ExchangeTransaction {
   @JoinColumn({ name: 'approvedBy' })
   approver: User;
 
-  @OneToMany(() => CashCount, (cashCount) => cashCount.transaction)
-  cashCounts: CashCount[];
-
   @Column()
   status: string;
 

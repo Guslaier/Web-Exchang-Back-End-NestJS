@@ -20,7 +20,6 @@ import {
   TransferBoothToBoothDto,
   TransferCenterToBoothDto,
   UpdateTransferTransactionDto,
-  CreateCashCountTransferDto,
 } from './dto/transfer-transaction.dto';
 import { get } from 'http';
 import { CurrenciesService } from '../currencies/currencies.service';
@@ -64,8 +63,68 @@ export class TransferTransactionsController {
   
   }
 
-  @Get('/sum')
-  async getTransferTransactionById(@Body() body: {id: string,currencyCode: string}) {
-    return this.cashCountsService.getcashCountfromShiftByCurrency(body.id,(await this.currenciesService.getCurrencyByCode(body.currencyCode)).id as unknown as string);
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Post('cancel/:transactionId')
+  async cancelTransferTransaction(
+    @Param('transactionId') transactionId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.transferTransactionsService.cancelTransferTransaction(
+      user,
+      transactionId,
+    );
   }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Get(':transactionId')
+  async getTransferTransactionById(
+    @Param('transactionId') transactionId: string,
+  ) {
+    return this.transferTransactionsService.getTransferTransactionById(
+      transactionId,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Get()
+  async getAllTransferTransactions() {
+    return this.transferTransactionsService.getAllTransferTransactions();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Get('booth/:boothId')
+  async getTransferTransactionsByBoothId(@Param('boothId') boothId: string) {
+    return this.transferTransactionsService.getTransferTransactionsByBoothId(
+      boothId,
+    );
+  }
+
+  
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Get('date-range')
+  async getTransferTransactionsByDateRange(
+    @Body('startDate') startDate: Date,
+    @Body('endDate') endDate: Date,
+  ) {
+    return this.transferTransactionsService.getTransferTransactionsByDateRange(
+      startDate,
+      endDate,
+    );
+    
+  }
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Get('shift/:shiftId')
+  async getTransferTransactionsByShiftId(@Param('shiftId') shiftId: string) {
+    return this.transferTransactionsService.getTransferTransactionsByShiftId(
+      shiftId,
+    );
+  }
+
+  
 }

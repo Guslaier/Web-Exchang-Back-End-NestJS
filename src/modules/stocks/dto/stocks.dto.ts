@@ -30,8 +30,25 @@ export class UpdateStockByTransferTransactionDto {
     sender: string | null ;
 
     @IsUUID()
+    @IsOptional()
+    receiver: string | null;
+
+    @IsUUID()
     @IsNotEmpty()
-    receiver: string ;
+    exchangeRateId: string;
+
+    @IsNumber()
+    @IsNotEmpty()
+    transferAmount: number;
+}
+export class UpdateStockByTransferTransactionForCancel {
+    @IsUUID()
+    @IsOptional()
+    sender_shift: string | null ;
+
+    @IsUUID()
+    @IsOptional()
+    receiver_shift: string | null;
 
     @IsUUID()
     @IsNotEmpty()

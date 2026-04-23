@@ -9,6 +9,7 @@ import {
   IsDecimal,
   IsNumberString,
   Matches,
+  IsInt,
   
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -18,8 +19,13 @@ import { CreateCashCountDto } from '../../cash-counts/dto/cash-count.dto';
 
 
 export class CreateTransferTransactionDto implements Omit<TransferTransactionData,'refBoothId'| 'createdAt' | 'updatedAt' | 'id'> {
+  @IsUUID()
+  @IsNotEmpty()
+  exchangeRateId: string;   // ID ของอัตราแลกเปลี่ยน
+
   @IsString()
-  currencyCode: string;   // ชื่อสกุลเงิน
+  @IsNotEmpty()
+  exchangeRateName: string; // ชื่อของอัตราแลกเปลี่ยน
 
   @IsUUID()
   @IsOptional()
@@ -49,6 +55,10 @@ export class CreateTransferTransactionDto implements Omit<TransferTransactionDat
   @IsOptional()
   description?: string;      // รายละเอียด (ใส่ ? เพราะปกติมักจะเป็น optional)
 
+  @IsOptional()
+  @IsString()
+  internalTransactionId: string | null; // เพิ่มฟิลด์สำหรับเก็บ internalTransactionId
+
   @IsUUID()
   @IsNotEmpty()
   userId: string;            // ผู้ทำรายการ
@@ -72,17 +82,13 @@ export class TransferBoothToBoothDto implements Omit<TransferTransactionData, 'u
 
   @IsNumber()
   @IsNotEmpty()
+  @IsInt()
   amount: number;
 
 
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
-  currencyCode: string;
-
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => CreateCashCountTransferDto)
-  cashCountData: CreateCashCountTransferDto[];
+  exchangeRateId: string;
 
   @IsString()
   @IsOptional()
@@ -102,19 +108,16 @@ export class TransferCenterToBoothDto implements Omit<TransferTransactionData,'u
 
   @IsNumber()
   @IsNotEmpty()
+  @IsInt()
   amount: number;
 
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
-  currencyCode: string;
+  exchangeRateId: string;
 
   @IsString()
   type: TransferTransactionType; // กำหนดเป็น optional และใช้ TransferTransactionType แทน TranSectionType เพราะเราต้องการระบุประเภทการโอนที่ชัดเจน เช่น 'TRANSFER_IN' หรือ 'TRANSFER_OUT'
 
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => CreateCashCountTransferDto)
-  cashCountData: CreateCashCountTransferDto[];
 
   @IsString()
   @IsOptional()
@@ -126,16 +129,6 @@ export class TransferCenterToBoothDto implements Omit<TransferTransactionData,'u
 
 }
 
-export class CreateCashCountTransferDto implements Pick<CashCountData, 'denomination' | 'amount'> {
-  @IsNumber()
-  amount: number;
-
-  @IsNotEmpty()
-  @Matches(/^[0-9]+$/, {
-    message: 'Denomination must contain only digits',
-  })
-  denomination: string;
-}
 
 export class UpdateTransferTransactionDto {
   @IsString()

@@ -9,28 +9,38 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { ExchangeRatesService } from './exchange-rates.service';
 import { ExchangeRate } from './entities/exchange-rate.entity';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
 
 @Controller('exchange-rates')
 export class ExchangeRatesController {
   constructor(private readonly exchangeRatesService: ExchangeRatesService) {}
 
   // 1. ดึงข้อมูลเรททั้งหมด (เรียงตามชื่อสกุลเงินและช่วงเงิน)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'ADMIN')
   @Get()
   async findAll() {
     return await this.exchangeRatesService.findAll();
   }
 
   // 2. สร้างเรทใหม่ (เช่น เพิ่ม Tier แลกเยอะเรทถูก)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'ADMIN')
   @Post()
   async create(@CurrentUser() user: any, @Body() data: Partial<ExchangeRate>) {
     return await this.exchangeRatesService.create(user, data);
   }
 
   // 3. อัพเดตเรททีละตัว (เช่น แก้สูตรคำนวณหรือแก้เรทเฉพาะตัว)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'ADMIN')
   @Post('bulk-update')
   async mutiUpdate(
     @CurrentUser() user: any,
@@ -41,6 +51,8 @@ export class ExchangeRatesController {
   }
 
   // 4. บังคับอัพเดตเรททั้งหมด (เช่น เมื่อมีการเปลี่ยนแปลงสูตรคำนวณหลักหรือมีการอัพเดตเรทหลัก)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'ADMIN')
   @Patch('sync/force-all')
   async syncAll(
     @CurrentUser() user: any,
@@ -50,6 +62,8 @@ export class ExchangeRatesController {
   }
 
   // 5. ลบเรท (เช่น ลบ Tier ที่ไม่ต้องการแล้ว)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'ADMIN')
   @Delete(':id')
   async remove(
     @CurrentUser() user: any,
@@ -59,6 +73,8 @@ export class ExchangeRatesController {
   }
 
   // 6. อัพเดตเรททีละตัว (เช่น แก้สูตรคำนวณหรือแก้เรทเฉพาะตัว)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'ADMIN')
   @Patch(':id')
   async update(
     @CurrentUser() user: any,

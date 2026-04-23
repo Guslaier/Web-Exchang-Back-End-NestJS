@@ -588,4 +588,20 @@ export class ShiftsService {
       );
     }
   }
+
+  async getShiftById(shiftId: string | undefined) {
+    if (!shiftId || !isUUID(shiftId)) {
+      throw new BadRequestException('Shift ID is not in correct format.');
+    }
+
+    const shift = await this.shiftRepository.findOne({
+      where: { id: shiftId },
+    });
+
+    if (!shift) {
+      throw new NotFoundException('Shift not found.');
+    }
+
+    return shift;
+  }
 }
