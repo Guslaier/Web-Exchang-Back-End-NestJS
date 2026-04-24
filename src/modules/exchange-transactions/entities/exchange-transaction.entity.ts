@@ -14,7 +14,7 @@ import {
 import { Customer } from '../../customers/entities/customer.entity';
 import { User } from '../../users/entities/user.entity';
 import { Transaction } from '../../transactions/entities/transaction.entity';
-import { CashCount } from '../../cash-counts/entities/cash-count.entity';
+import { ExchangeRate } from '../../exchange-rates/entities/exchange-rate.entity';
 
 @Entity('exchange_transactions')
 export class ExchangeTransaction {
@@ -35,12 +35,12 @@ export class ExchangeTransaction {
   @JoinColumn({ name: 'customerId' })
   customer: Customer;
 
-  // @Column()
-  // exchangeRateId: string;
+  @Column()
+  exchangeRateId: string;
 
-  // @ManyToOne(() => ExchangeRate, (exchangeRate) => exchangeRate.id)
-  // @JoinColumn({ name: 'exchangeRateId' })
-  // exchangeRateFK: ExchangeRate;
+  @ManyToOne(() => ExchangeRate, (exchangeRate) => exchangeRate.id)
+  @JoinColumn({ name: 'exchangeRateId' })
+  exchangeRateFK: ExchangeRate;
 
   // @Column() 
   // exclusiveExchangeRateId : string;
