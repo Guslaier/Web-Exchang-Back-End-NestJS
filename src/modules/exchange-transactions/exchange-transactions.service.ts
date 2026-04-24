@@ -108,10 +108,10 @@ export class ExchangeTransactionsService {
       await this.log(
         currentUser,
         'CREATE_EXCHANGE_TRANSACTION_FAILED',
-        `Failed to create exchange transaction due to mismatch in calculated exchange rate: ${exchangeRate} and provided exchange rate: ${body.exchangeRate}`,
+        `Failed to create exchange transaction due to mismatch in calculated exchange rate: ${exchangeRate} and provided exchange rate: ${body.exchangeRate} for proposed rate thai baht amount shouled be ${body.foreignAmount * body.exchangeRate}`,
       );
       throw new BadRequestException(
-        `Mismatch in calculated exchange rate: ${exchangeRate} and provided exchange rate: ${body.exchangeRate}`,
+        `Mismatch in calculated exchange rate: ${exchangeRate} and provided exchange rate: ${body.exchangeRate} for proposed rate thai baht amount shouled be ${body.foreignAmount * body.exchangeRate}`,
       );
     }
 
