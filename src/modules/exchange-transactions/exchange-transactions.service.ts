@@ -220,6 +220,7 @@ export class ExchangeTransactionsService {
           const createdExchangeTran = exchangeTransRepo.create({
             id: transaction.id,
             customerId: customer ? customer.id : null,
+            exchangeRateId: body.exchangeRatesId,
             exchangeRateName: exchangeRateId.name,
             foreignCurrencyAmount: body.foreignAmount,
             totalthaiBahtAmount: Math.trunc(body.thaiBahtAmount),
