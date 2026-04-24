@@ -450,6 +450,16 @@ export class TransferTransactionsService {
             manager,
             checkstockExchanges,
           );
+        } else {
+          await this.log(
+            user,
+            'TRANSFER_CENTER_TO_BOOTH_FAILED',
+            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Invalid transfer type ${transferDto.type}`,
+            manager,
+          );
+          throw new BadRequestException(
+            `Invalid transfer type ${transferDto.type}`,
+          ); 
         }
       });
     } catch (error) {
