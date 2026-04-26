@@ -24,6 +24,7 @@ import { CustomersService } from './../../modules/customers/customers.service';
 import { CashCountsService } from './../../modules/cash-counts/cash-counts.service';
 import { StocksService } from './../../modules/stocks/stocks.service';
 import { CreateTransactionDto } from './../../modules/transactions/dto/transaction.dto';
+import { UpdateStockByExchangeTransactionForCancel} from './../../modules/stocks/dto/stocks.dto'
 import { InputValidator } from './helper/input-validator';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, IsNull } from 'typeorm';
@@ -424,6 +425,7 @@ export class ExchangeTransactionsService {
           foreignCurrencyAmount: true,
           totalthaiBahtAmount: true,
           exchangeRate: true,
+          exchangeRateId: true,
           isNegotiateRate: true,
           note: true,
           voidReason: true,
@@ -492,6 +494,7 @@ export class ExchangeTransactionsService {
     const exchangeTransactionDetail = {
       ...restExchangeTransaction,
       createdAt,
+      shiftId: shift.id,
       employee: user.username,
       booth: booth.name,
       voidedBy: employee ? employee.username : null,
@@ -683,7 +686,7 @@ export class ExchangeTransactionsService {
     }
 
     try {
-      this.dataSource.transaction(async (manager) => {
+      await this.dataSource.transaction(async (manager) => {
         const exchangeTransRepo = manager.getRepository(ExchangeTransaction);
         const deletedAtValue = body.status === 'VOIDED' ? new Date() : null;
 
@@ -717,8 +720,22 @@ export class ExchangeTransactionsService {
             'Pending exchange transaction not found or already processed.',
           );
         }
-      });
 
+        if (body.status === 'VOIDED') {
+        const exchangeTransaction = await this.getTransactionDetail(currentUser, { id: param.id });
+        const updateStockForCancel: UpdateStockByExchangeTransactionForCancel = {
+          id: param.id,
+          type: exchangeTransaction.type,
+          shiftId : exchangeTransaction.shiftId,
+          exchangeRateId : exchangeTransaction.exchangeRateId,
+          foreignCurrencyAmount : exchangeTransaction.foreignCurrencyAmount,
+          totalthaiBahtAmount: exchangeTransaction.totalthaiBahtAmount,
+        } 
+        console.log('exchangeTransaction for cancel: ', exchangeTransaction);
+        console.log('updateStockForCancel: ', updateStockForCancel);
+        await this.stocksService.updateStockByExchangeTransactionForCancel(currentUser , updateStockForCancel  , manager) ; 
+      }
+      });
       return {
         message: `Exchange transaction with ID: ${param.id} has been set to ${body.status} status`,
       };
