@@ -24,6 +24,32 @@ export class UpdateStockByExchangeTransactionDto {
 
 }
 
+export class UpdateStockByExchangeTransactionForCancel {
+    @IsUUID()
+    @IsNotEmpty()
+    id : string ; 
+
+    @IsIn(['BUY', 'SELL'])
+    @IsNotEmpty()
+    type : string ; 
+
+    @IsUUID()
+    @IsNotEmpty()
+    shiftId: string;
+
+    @IsUUID()
+    @IsNotEmpty()
+    exchangeRateId : string;
+
+    @IsNumber()
+    @IsNotEmpty()
+    foreignCurrencyAmount: number;
+
+    @IsNumber()
+    @IsNotEmpty()
+    totalthaiBahtAmount: number;
+}
+
 export class UpdateStockByTransferTransactionDto {
     @IsUUID()
     @IsOptional()
