@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable , InternalServerErrorException} from "@nestjs/common";
-import {UpdateStockByExchangeTransactionDto , UpdateStockByTransferTransactionDto, UpdateStockByTransferTransactionForCancel} from './dto/stocks.dto';
+import { BadRequestException, Injectable , InternalServerErrorException, NotFoundException} from "@nestjs/common";
+import {UpdateStockByExchangeTransactionDto , UpdateStockByExchangeTransactionForCancel, UpdateStockByTransferTransactionDto, UpdateStockByTransferTransactionForCancel} from './dto/stocks.dto';
 import { Stock } from './entities/stocks.entitiy' ;
 import {ShiftsService} from './../shifts/shifts.service';
 import {ExchangeRatesService} from './../exchange-rates/exchange-rates.service' ;
@@ -7,7 +7,7 @@ import {SystemLogsService} from './../system-logs/system-logs.service' ;
 import {EntityManager, Repository} from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
 
-
+    
 @Injectable()
 export class StocksService {
     constructor(
@@ -105,6 +105,57 @@ export class StocksService {
         }
     }   
 
+    async updateStockByExchangeTransactionForCancel( user: any ,  exchangeTransaction: UpdateStockByExchangeTransactionForCancel , manager: EntityManager ) {
+        const thaiExchangeRate = await this.exchangeRatesService.findByTHBCurency() ;
+
+        if(!thaiExchangeRate){
+            this.log(user, 'CANCEL_EXCHANGE_TRANSACTION_FAILED', `Failed cause cannot find Thai exchange rate to update stock for cancelling exchange transaction with id ${exchangeTransaction.id}.`, manager);
+            throw new NotFoundException(`Failed cause cannot find Thai exchange rate to update stock for cancelling exchange transaction with id ${exchangeTransaction.id}.`);
+        }
+
+        console.log('thaiExchangeRate: ', thaiExchangeRate);
+        console.log('exchangeTransaction: ', exchangeTransaction);
+
+        const updateRecieveRateId  = exchangeTransaction.type === 'BUY' ? thaiExchangeRate?.id :  exchangeTransaction.exchangeRateId  ; 
+        const updateExchangeRateId = exchangeTransaction.type === 'BUY' ? exchangeTransaction.exchangeRateId : thaiExchangeRate?.id  ;
+        const updateRecieveAmount = exchangeTransaction.type === 'BUY' ? exchangeTransaction.totalthaiBahtAmount :  exchangeTransaction.foreignCurrencyAmount  ;
+        const updateExchangeAmount = exchangeTransaction.type === 'BUY' ? exchangeTransaction.foreignCurrencyAmount :  exchangeTransaction.totalthaiBahtAmount  ;
+
+        console.log('updateRecieveRateId: ', updateRecieveRateId);
+        console.log('updateExchangeRateId: ', updateExchangeRateId);
+
+        const shiftId = exchangeTransaction.shiftId ;
+
+        const promiseGetReceivedStock =  this.getStock(shiftId  , updateRecieveRateId, manager) ; 
+        const promiseGetExchangedStock = this.getStock(shiftId  , updateExchangeRateId, manager) ;
+
+        const [receivedStock, exchangedStock] = await Promise.all([promiseGetReceivedStock, promiseGetExchangedStock]);
+
+        if(!receivedStock || !exchangedStock) {
+            this.log(user, 'CANCEL_EXCHANGE_TRANSACTION_FAILED', `Failed cause cannot find stock to update for cancelling exchange transaction with id ${exchangeTransaction.id}.`, manager);
+            throw new NotFoundException(`Failed cause cannot find stock to update for cancelling exchange transaction with id ${exchangeTransaction.id}.`);
+        }
+
+        const isExchangeOverBalance = !this.checkBalance(exchangedStock , updateExchangeAmount) ;
+        if(isExchangeOverBalance) {
+            this.log(user, 'CANCEL_EXCHANGE_TRANSACTION_FAILED', `Failed cause the exchange amount ${updateExchangeAmount} exceeds the available balance ${exchangedStock?.total_balance} for shift ${shiftId} and exchange rate ${updateExchangeRateId}.`, manager);
+            throw new BadRequestException(`Failed cause the exchange amount ${updateExchangeAmount} exceeds the available balance ${exchangedStock?.total_balance} for shift ${shiftId} and exchange rate ${(await this.exchangeRatesService.findById(updateExchangeRateId as string)).name}.`);
+     }
+
+        const updateReceiveQuery = await this.updateTotalReceiveForCancel(shiftId , updateRecieveRateId , updateRecieveAmount , manager) ;
+        if(updateReceiveQuery.affected === 0) {
+            this.log(user, 'CANCEL_EXCHANGE_TRANSACTION_FAILED', `Failed cause cannot find shift ${shiftId} and exchangerateId  ${updateRecieveRateId} to update in stock.`, manager);
+            throw new BadRequestException(`Failed cause cannot find shift ${shiftId} and exchangerateId  ${updateRecieveRateId} to update in stock.`);
+        }
+
+        const updateExchangeQuery = await this.updateTotalExchangedForCancel(shiftId , updateExchangeRateId , updateExchangeAmount , manager) ;
+        if(updateExchangeQuery.affected === 0) {
+            this.log(user, 'CANCEL_EXCHANGE_TRANSACTION_FAILED', `Failed cause cannot find shift ${shiftId} and exchangerateId  ${updateExchangeRateId} to update in stock.`, manager);
+            throw new BadRequestException(`Failed cause cannot find shift ${shiftId} and exchangerateId  ${updateExchangeRateId} to update in stock.`);
+        }
+
+    }
+
     async updateStockByTransferTransaction( user: any , updateStockDto: UpdateStockByTransferTransactionDto , manager: EntityManager ) {
         const isSenderExist = updateStockDto.sender ? true : false ;
         const isReceiverExist = updateStockDto.receiver ? true : false ;
@@ -171,9 +222,23 @@ export class StocksService {
         return updateQuery;
     }
 
+     async updateTotalReceiveForCancel(shiftId : string | undefined , updateRecieveRateId : string | undefined , updateRecieveAmount : number , manager: EntityManager) {
+        const stockRepo = manager.getRepository(Stock) ;
+        const updateQuery =  await stockRepo.update({ shiftId: shiftId , exchangeRateId : updateRecieveRateId } , { total_exchanged : () => `total_exchanged - ${updateRecieveAmount}` , total_balance : () => `total_balance + ${updateRecieveAmount}` }) ;
+        return updateQuery;
+    }
+
+
     async updateTotalExchanged(shiftId : string | undefined , updateExchangeRateId : string | undefined , updateExchangeAmount : number , manager: EntityManager) {
         const stockRepo = manager.getRepository(Stock) ;
         const updateQuery =  await stockRepo.update({ shiftId: shiftId , exchangeRateId : updateExchangeRateId } , { total_exchanged : () => `total_exchanged + ${updateExchangeAmount}` , total_balance : () => `total_balance - ${updateExchangeAmount}` }) ;
+        return updateQuery;
+    }
+
+    
+    async updateTotalExchangedForCancel(shiftId : string | undefined , updateExchangeRateId : string | undefined , updateExchangeAmount : number , manager: EntityManager) {
+        const stockRepo = manager.getRepository(Stock) ;
+        const updateQuery =  await stockRepo.update({ shiftId: shiftId , exchangeRateId : updateExchangeRateId } , { total_received : () => `total_received - ${updateExchangeAmount}` , total_balance : () => `total_balance - ${updateExchangeAmount}` }) ;
         return updateQuery;
     }
 
