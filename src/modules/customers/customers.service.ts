@@ -33,10 +33,11 @@ export class CustomersService {
         );
     }
 
-    async create(manager : EntityManager , passportNo: string , fullName: string  , nationality : string , phoneNumber : string , hotelName : string , roomNumber : string , customer_img_filename : string ) {
+    async create(manager : EntityManager , exchangeTransactionId : string , passportNo: string , fullName: string  , nationality : string , phoneNumber : string , hotelName : string , roomNumber : string , customer_img_filename : string ) {
         try {
             const customerRepo = manager.getRepository(Customer);
             const newCustomer = customerRepo.create({
+                transactionId : exchangeTransactionId , 
                 passportNo : passportNo ,
                 passportImg : customer_img_filename ,
                 fullName : fullName ,
@@ -60,7 +61,7 @@ export class CustomersService {
         const isEmployee = currentUser.role === 'EMPLOYEE' ? true : false ;
 
         if (isEmployee) {
-            const activeShift = await this.shiftsService.getActiveShiftByUserId(currentUser.id);
+            const activeShift = await this.shiftsService.getLastShiftByUserId(currentUser.id);
 
             if (!activeShift) {
                 throw new NotFoundException('Your active shift is not found.');
@@ -68,16 +69,12 @@ export class CustomersService {
 
             const shift = await this.customerRepository.findOne({
                 relations: {
-                    exchangeTransaction : {
-                        transaction : true ,
-                    }
+                    transaction: true , 
                 } , 
                 where : {
                     passportImg : getImgDto.passportImg ,
-                    exchangeTransaction : {
-                        transaction : {
-                            shiftId : activeShift.id ,
-                        }
+                    transaction : {
+                        shiftId : activeShift.id ,
                     }
                 }
             }) ;   
