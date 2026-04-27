@@ -205,6 +205,7 @@ export class ExchangeTransactionsService {
         const customer = insertCustomer
           ? await this.customerService.create(
               manager,
+              transaction.id,
               passportNo,
               fullName,
               nationality,
