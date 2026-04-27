@@ -85,10 +85,25 @@ export class SystemLogsService {
   }
 
   async getAllByDate(currentUser: any, query: QueryDateDto) {
+    query.startDate.setHours(0, 0, 0, 0);
+    query.endDate.setHours(23, 59, 59, 999);
     const logs = await this.systemLogRepo.find({
+      relations : {
+        user : true
+      } , 
       where: {
         createdAt: Between(query.startDate, query.endDate),
       },
+      select : {
+        user : {
+          username : true ,
+        },
+        userId : true ,
+        id : true ,
+        action : true ,
+        details : true ,
+        createdAt : true ,
+      } , 
       order: {
         createdAt: 'ASC',
       },
