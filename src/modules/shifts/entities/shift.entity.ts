@@ -1,3 +1,4 @@
+import { TimestampTransformer } from '../../../common/helper/timestamp';
 import { Booth } from '../../../modules/booths/entities/booth.entity';
 import { User } from '../../../modules/users/entities/user.entity';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, ManyToOne, JoinColumn } from 'typeorm';
@@ -45,12 +46,12 @@ export class Shift {
   @Column({ default: 'OPEN' })
   status: string;
 
-  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" , transformer: TimestampTransformer })
   createdAt: Date;
 
-  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" , transformer: TimestampTransformer })
   updatedAt: Date;
 
-  @DeleteDateColumn()
+  @DeleteDateColumn({transformer: TimestampTransformer})
   deletedAt?: Date;
 }

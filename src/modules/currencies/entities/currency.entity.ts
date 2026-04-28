@@ -4,6 +4,7 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateCol
 import { UpdateMode } from '../dto/currency.dto';
 import { CurrencyIF } from  'index'
 import { ExchangeRate } from '../../exchange-rates/entities/exchange-rate.entity';
+import { TimestampTransformer } from '../../../common/helper/timestamp';
 
 @Entity('currencies')
 export class Currency implements CurrencyIF {
@@ -34,13 +35,13 @@ export class Currency implements CurrencyIF {
   @Column({ default: false })
   hasInitialBotData: boolean; // บ่งบอกว่าเคยได้รับข้อมูลจาก BOT หรือไม่
 
-  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" , transformer: TimestampTransformer })
   createdAt: Date;
 
-  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP", transformer: TimestampTransformer })
   updatedAt: Date;
 
-  @DeleteDateColumn()
+  @DeleteDateColumn({transformer: TimestampTransformer})
   deletedAt: Date;
 
   @OneToMany(() => ExchangeRate, (exchangeRate: ExchangeRate) => exchangeRate.currency)

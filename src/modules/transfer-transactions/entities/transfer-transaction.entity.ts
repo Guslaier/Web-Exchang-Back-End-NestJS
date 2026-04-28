@@ -25,6 +25,7 @@ import { IsString } from 'class-validator';
 import { Shift } from '../../shifts/entities/shift.entity';
 import {CashCount} from '../../cash-counts/entities/cash-count.entity'
 import { ExchangeRate } from '../../exchange-rates/entities/exchange-rate.entity';
+import { TimestampTransformer } from '../../../common/helper/timestamp';
 
 @Entity('transfer_transactions')
 export class TransferTransaction implements Omit<
@@ -100,12 +101,12 @@ export class TransferTransaction implements Omit<
   @Column({ nullable: true })
   description: string;
 
-  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP", transformer: TimestampTransformer })
   createdAt: Date;
 
-  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP", transformer: TimestampTransformer })
   updatedAt: Date;
 
-  @DeleteDateColumn()
+  @DeleteDateColumn({transformer: TimestampTransformer})
   deletedAt?: Date;
 }

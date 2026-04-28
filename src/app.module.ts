@@ -15,13 +15,13 @@ import { CashCountsModule } from './modules/cash-counts/cash-counts.module';
 import { CurrenciesModule } from './modules/currencies/currencies.module';
 import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.module';
 import { ExclusiveExchangeRatesModule } from './modules/exclusive-exchange-rates/exclusive-exchange-rates.module';
-import { ShiftStocksReportModule } from './modules/shift-stocks-report/shift-stocks-report.module';
-import { ShiftThaiCashReportModule } from './modules/shift-thai-cash-report/shift-thai-cash-report.module';
 import { SystemLogsModule } from './modules/system-logs/system-logs.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { SseModule } from './modules/sse/sse.module';
 import { StocksModule } from './modules/stocks/stocks.module';
+import * as pg from 'pg';
 
+pg.types.setTypeParser(1114, (value) => value);
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -37,12 +37,11 @@ import { StocksModule } from './modules/stocks/stocks.module';
         username: configService.get<string>('db.user'),
         password: configService.get<string>('db.pass'),
         database: configService.get<string>('db.name'),
-        timezone: 'Z',
-        extra: { 
-          dateStrings: true,
-          options: '-c timezone=Asia/Bangkok',
-        },
         entities: [__dirname + '/modules/**/entities/*.entity{.ts,.js}'],
+        extra: {
+          options: '-c timezone=Asia/Bangkok',
+        
+        },
         autoLoadEntities: true,
         synchronize: true, // ควรเป็น false บน Production
       }),
@@ -61,8 +60,6 @@ import { StocksModule } from './modules/stocks/stocks.module';
     CurrenciesModule,
     ExchangeRatesModule,
     ExclusiveExchangeRatesModule,
-    ShiftStocksReportModule,
-    ShiftThaiCashReportModule,
     SystemLogsModule,
     RedisModule,
     SseModule,

@@ -514,7 +514,6 @@ export class UsersService {
         'createdAt',
       ],
     });
-    console.log('Fetched users:', users);
     return  users;
   }
 

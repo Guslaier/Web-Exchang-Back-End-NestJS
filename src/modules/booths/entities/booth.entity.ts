@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { UUID } from 'crypto';
+import { TimestampTransformer } from '../../../common/helper/timestamp';
 
 @Entity('booths')
 export class Booth {
@@ -33,12 +34,12 @@ export class Booth {
   @JoinColumn({ name: 'currentShiftId' })
   currentShift: User | null;
 
-  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" , transformer: TimestampTransformer })
   createdAt: Date;
 
-  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" , transformer: TimestampTransformer })
   updatedAt: Date;
 
-  @DeleteDateColumn()
+  @DeleteDateColumn({transformer: TimestampTransformer})
   deletedAt?: Date;
 }

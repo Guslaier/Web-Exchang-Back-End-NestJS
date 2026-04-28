@@ -2,6 +2,7 @@ import { TranSectionType } from 'index';
 import { Shift } from './../../../modules/shifts/entities/shift.entity';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn , PrimaryColumn, ManyToOne, JoinColumn, OneToOne } from 'typeorm';
 import { ExchangeTransaction } from '../../exchange-transactions/entities/exchange-transaction.entity';
+import { TimestampTransformer } from '../../../common/helper/timestamp';
 
 @Entity('transactions')
 export class Transaction {
@@ -18,7 +19,7 @@ export class Transaction {
   @JoinColumn({ name: 'shiftId' })
   shift: Shift;
 
-  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" , transformer: TimestampTransformer })
   createdAt: Date;
 
   @OneToOne(() => ExchangeTransaction ,(ExchangeTransaction) => ExchangeTransaction.transaction)

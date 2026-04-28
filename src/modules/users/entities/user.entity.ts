@@ -1,5 +1,8 @@
+import { TimestampTransformer } from '../../../common/helper/timestamp';
 import { UserRole } from 'index';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+
+
 
 @Entity('users')
 export class User {
@@ -24,10 +27,10 @@ export class User {
   @Column({ default: true })
   isActive: boolean;
 
-  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP", transformer: TimestampTransformer })
   createdAt: Date;
 
-  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP", transformer: TimestampTransformer })
   updatedAt: Date;
 
   @DeleteDateColumn()

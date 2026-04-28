@@ -12,6 +12,7 @@ import {
 } from 'typeorm';
 import { Currency } from '../../currencies/entities/currency.entity';
 import { ExclusiveExchangeRate } from '../../exclusive-exchange-rates/entities/exclusive-exchange-rate.entity';
+import { TimestampTransformer } from '../../../common/helper/timestamp';
 
 @Entity('exchange_rates')
 export class ExchangeRate {
@@ -61,13 +62,13 @@ export class ExchangeRate {
     },})
   sell_rate: number;
 
-  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP", transformer: TimestampTransformer })
   createdAt: Date;
 
-  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" , transformer: TimestampTransformer })
   updatedAt: Date;
 
-  @DeleteDateColumn()
+  @DeleteDateColumn({transformer: TimestampTransformer})
   deletedAt: Date | null;
 
   @OneToMany(() => ExclusiveExchangeRate, (exclusiveRate:ExclusiveExchangeRate) => exclusiveRate.exchangeRate)

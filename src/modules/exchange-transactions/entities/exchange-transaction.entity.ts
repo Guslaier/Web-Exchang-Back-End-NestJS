@@ -15,6 +15,7 @@ import { Customer } from '../../customers/entities/customer.entity';
 import { User } from '../../users/entities/user.entity';
 import { Transaction } from '../../transactions/entities/transaction.entity';
 import { ExchangeRate } from '../../exchange-rates/entities/exchange-rate.entity';
+import { TimestampTransformer } from '../../../common/helper/timestamp';
 
 @Entity('exchange_transactions')
 export class ExchangeTransaction {
@@ -87,9 +88,9 @@ export class ExchangeTransaction {
   @Column()
   status: string;
 
-  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" , transformer: TimestampTransformer })
   updatedAt: Date;
 
-  @DeleteDateColumn()
+  @DeleteDateColumn({transformer: TimestampTransformer})
   deletedAt?: Date | null;
 }

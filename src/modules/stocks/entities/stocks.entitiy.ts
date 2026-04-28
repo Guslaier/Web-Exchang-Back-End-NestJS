@@ -3,6 +3,7 @@ import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGenerat
 import { ExchangeRate } from '../../exchange-rates/entities/exchange-rate.entity';
 import { Shift } from '../../shifts/entities/shift.entity';
 import { StockData } from '../../../types/index';
+import { TimestampTransformer } from "../../../common/helper/timestamp";
 
 @Entity('stocks')
 export class Stock implements StockData {
@@ -32,10 +33,10 @@ export class Stock implements StockData {
     @Column('decimal', { precision: 12, scale: 2  , default : 0 })
     total_balance: number ;
 
-    @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+    @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" , transformer: TimestampTransformer })
     createdAt: Date;
 
-    @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+    @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" , transformer: TimestampTransformer })
     updatedAt: Date;
 
 }

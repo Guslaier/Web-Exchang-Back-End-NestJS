@@ -11,6 +11,8 @@ import {
 import { ExchangeRate } from '../../exchange-rates/entities/exchange-rate.entity';
 import { Booth } from '../../booths/entities/booth.entity';
 import { Delete } from '@nestjs/common';
+import { time } from 'console';
+import { TimestampTransformer } from '../../../common/helper/timestamp';
 
 @Entity('exclusive_exchange_rates')
 export class ExclusiveExchangeRate {
@@ -62,9 +64,9 @@ export class ExclusiveExchangeRate {
   @Column({ nullable: true })
   system_remark: string;
 
-  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" ,transformer:TimestampTransformer })
   updated_at: Date;
 
-  @DeleteDateColumn()
+  @DeleteDateColumn({transformer:TimestampTransformer})
   deleted_at: Date;
 }

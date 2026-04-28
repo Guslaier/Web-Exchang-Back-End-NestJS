@@ -1,3 +1,4 @@
+import { TimestampTransformer } from '../../../common/helper/timestamp';
 import { ExchangeTransaction } from './../../../modules/exchange-transactions/entities/exchange-transaction.entity';
 import { Transaction} from './../../transactions/entities/transaction.entity' ;
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, OneToOne, JoinColumn } from 'typeorm';
@@ -35,6 +36,6 @@ export class Customer {
   @Column()
   roomNumber: string;
 
-  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" , transformer: TimestampTransformer })
   createdAt: Date;
 }
