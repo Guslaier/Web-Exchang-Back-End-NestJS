@@ -65,6 +65,6 @@ export class ExclusiveExchangeRate {
   @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   updated_at: Date;
 
-  @DeleteDateColumn({ nullable: true, type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @DeleteDateColumn()
   deleted_at: Date;
 }

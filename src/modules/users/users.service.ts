@@ -503,7 +503,7 @@ export class UsersService {
 
   // +++++++++++++++++++++++++++ ฟังก์ชันค้นหา (ไม่ต้อง Transaction) ++++++++++++++++++++++++++++
   async findAll() {
-    return await this.userRepository.find({
+    const users =await this.userRepository.find({
       select: [
         'id',
         'email',
@@ -514,6 +514,8 @@ export class UsersService {
         'createdAt',
       ],
     });
+    console.log('Fetched users:', users);
+    return  users;
   }
 
   async findOne(id: string) {

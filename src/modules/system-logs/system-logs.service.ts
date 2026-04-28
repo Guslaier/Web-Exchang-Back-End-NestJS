@@ -35,7 +35,7 @@ export class SystemLogsService {
       cyan: '\x1b[36m',
     };
 
-    const timestamp = new Date().toISOString();
+    const timestamp = new Date().toLocaleString('sv-SE');
     const isError =
       log.action.includes('FAILED') || log.action.includes('ERROR');
     const isSuccess = log.action.includes('SUCCESS');

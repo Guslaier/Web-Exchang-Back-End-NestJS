@@ -40,7 +40,7 @@ export class Currency implements CurrencyIF {
   @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   updatedAt: Date;
 
-  @DeleteDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @DeleteDateColumn()
   deletedAt: Date;
 
   @OneToMany(() => ExchangeRate, (exchangeRate: ExchangeRate) => exchangeRate.currency)

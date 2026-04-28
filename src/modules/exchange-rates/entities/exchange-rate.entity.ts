@@ -67,7 +67,7 @@ export class ExchangeRate {
   @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   updatedAt: Date;
 
-  @DeleteDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @DeleteDateColumn()
   deletedAt: Date | null;
 
   @OneToMany(() => ExclusiveExchangeRate, (exclusiveRate:ExclusiveExchangeRate) => exclusiveRate.exchangeRate)

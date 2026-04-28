@@ -106,6 +106,6 @@ export class TransferTransaction implements Omit<
   @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   updatedAt: Date;
 
-  @DeleteDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @DeleteDateColumn()
   deletedAt?: Date;
 }

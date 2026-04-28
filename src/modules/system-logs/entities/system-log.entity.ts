@@ -23,6 +23,6 @@ export class SystemLog {
   @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   createdAt: Date;
 
-  @DeleteDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
+  @DeleteDateColumn()
   deletedAt?: Date;
 }

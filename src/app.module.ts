@@ -37,15 +37,18 @@ import { StocksModule } from './modules/stocks/stocks.module';
         username: configService.get<string>('db.user'),
         password: configService.get<string>('db.pass'),
         database: configService.get<string>('db.name'),
+        timezone: 'Z',
+        extra: { 
+          dateStrings: true,
+          options: '-c timezone=Asia/Bangkok',
+        },
         entities: [__dirname + '/modules/**/entities/*.entity{.ts,.js}'],
         autoLoadEntities: true,
         synchronize: true, // ควรเป็น false บน Production
-        extra : { options: "-c timezone=Asia/Bangkok"} ,
-
       }),
       inject: [ConfigService],
     }),
-    
+
     AuthModule,
     UsersModule,
     BoothsModule,
@@ -63,7 +66,7 @@ import { StocksModule } from './modules/stocks/stocks.module';
     SystemLogsModule,
     RedisModule,
     SseModule,
-    StocksModule
+    StocksModule,
   ],
 })
 export class AppModule {}
