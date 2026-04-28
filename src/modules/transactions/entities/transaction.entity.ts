@@ -18,7 +18,7 @@ export class Transaction {
   @JoinColumn({ name: 'shiftId' })
   shift: Shift;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   createdAt: Date;
 
   @OneToOne(() => ExchangeTransaction ,(ExchangeTransaction) => ExchangeTransaction.transaction)

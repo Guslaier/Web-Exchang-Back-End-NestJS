@@ -20,9 +20,9 @@ export class SystemLog {
   @Column({ type: 'text', nullable: true })
   details: string;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   createdAt: Date;
 
-  @DeleteDateColumn()
+  @DeleteDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   deletedAt?: Date;
 }

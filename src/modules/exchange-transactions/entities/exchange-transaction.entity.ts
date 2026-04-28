@@ -87,9 +87,9 @@ export class ExchangeTransaction {
   @Column()
   status: string;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   updatedAt: Date;
 
-  @DeleteDateColumn()
+  @DeleteDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   deletedAt?: Date | null;
 }

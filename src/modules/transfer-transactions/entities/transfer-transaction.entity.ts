@@ -100,12 +100,12 @@ export class TransferTransaction implements Omit<
   @Column({ nullable: true })
   description: string;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   updatedAt: Date;
 
-  @DeleteDateColumn()
+  @DeleteDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   deletedAt?: Date;
 }

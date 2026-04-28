@@ -11,9 +11,9 @@ export class ShiftStocksReport {
   @Column({ type: 'jsonb', nullable: true })
   stockDetails: any;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   createdAt: Date;
 
-  @DeleteDateColumn()
+  @DeleteDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   deletedAt?: Date;
 }

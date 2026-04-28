@@ -28,6 +28,6 @@ export class CashCount {
   @Column('decimal', { precision: 12, scale: 2 })
   amount: number;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   createdAt: Date;
 }

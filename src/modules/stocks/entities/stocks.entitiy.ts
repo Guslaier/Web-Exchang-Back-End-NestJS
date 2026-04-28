@@ -32,10 +32,10 @@ export class Stock implements StockData {
     @Column('decimal', { precision: 12, scale: 2  , default : 0 })
     total_balance: number ;
 
-    @CreateDateColumn()
+    @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
     createdAt: Date;
 
-    @UpdateDateColumn()
+    @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
     updatedAt: Date;
 
 }

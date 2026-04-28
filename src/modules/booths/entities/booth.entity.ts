@@ -33,12 +33,12 @@ export class Booth {
   @JoinColumn({ name: 'currentShiftId' })
   currentShift: User | null;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   updatedAt: Date;
 
-  @DeleteDateColumn()
+  @DeleteDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   deletedAt?: Date;
 }

@@ -40,6 +40,8 @@ import { StocksModule } from './modules/stocks/stocks.module';
         entities: [__dirname + '/modules/**/entities/*.entity{.ts,.js}'],
         autoLoadEntities: true,
         synchronize: true, // ควรเป็น false บน Production
+        extra : { options: "-c timezone=Asia/Bangkok"} ,
+
       }),
       inject: [ConfigService],
     }),

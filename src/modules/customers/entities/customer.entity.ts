@@ -35,6 +35,6 @@ export class Customer {
   @Column()
   roomNumber: string;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   createdAt: Date;
 }
