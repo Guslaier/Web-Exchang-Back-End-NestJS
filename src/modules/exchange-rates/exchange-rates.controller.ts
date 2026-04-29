@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  Header,
 } from '@nestjs/common';
 import { ExchangeRatesService } from './exchange-rates.service';
 import { ExchangeRate } from './entities/exchange-rate.entity';
@@ -26,6 +27,7 @@ export class ExchangeRatesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('MANAGER', 'ADMIN')
   @Get()
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   async findAll() {
     return await this.exchangeRatesService.findAll();
   }

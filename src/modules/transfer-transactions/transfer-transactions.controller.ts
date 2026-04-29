@@ -8,7 +8,9 @@ import {
   Patch,
   Delete,
   UseFilters,
+  Headers,
   Inject,
+  Header,
 } from '@nestjs/common';
 import { TransferTransactionsService } from './transfer-transactions.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -26,6 +28,7 @@ import { get } from 'http';
 import { CurrenciesService } from '../currencies/currencies.service';
 import { In } from 'typeorm';
 import { CashCountsService } from '../cash-counts/cash-counts.service';
+
 
 @Controller('transfer-transactions')
 export class TransferTransactionsController {
@@ -79,6 +82,7 @@ export class TransferTransactionsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER')
   @Get()
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   async getAllTransferTransactions() {
     return this.transferTransactionsService.getAllTransferTransactions();
   }
@@ -86,6 +90,7 @@ export class TransferTransactionsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER')
   @Get('booth/:boothId')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   async getTransferTransactionsByBoothId(@Param('boothId') boothId: string) {
     return this.transferTransactionsService.getTransferTransactionsByBoothId(
       boothId,

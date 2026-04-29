@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Header } from '@nestjs/common';
 import { BoothsService } from './booths.service';
 import { CreateBoothDto, UpdateBoothDto } from './dto/booth.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -21,12 +21,14 @@ export class BoothsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER')
   @Get('find-all')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   findAll() {
     return this.boothsService.findAll();
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('find-one/:id')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   findOne(@Param('id') id: string) {
     return this.boothsService.findOne(id);
   }
@@ -69,6 +71,7 @@ export class BoothsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Get('find-by-shift/:shiftId')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   findBoothByShiftId(@CurrentUser() user: any, @Param('shiftId') shiftId: string) { 
     return this.boothsService.findBoothByShiftId(shiftId);
   } 

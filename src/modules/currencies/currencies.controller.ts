@@ -7,6 +7,7 @@ import {
   Param,
   ParseUUIDPipe,
   UseGuards,
+  Header,
 } from '@nestjs/common';
 import { CurrenciesService } from './currencies.service';
 import { UpdateMode } from './dto/currency.dto';
@@ -23,6 +24,7 @@ export class CurrenciesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('MANAGER', 'ADMIN')
   @Get()
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   findAll() {
     return this.currenciesService.findAll();
   }
@@ -68,12 +70,14 @@ export class CurrenciesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('MANAGER', 'ADMIN')
   @Get('id/:id')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.currenciesService.findOne(id);
   }
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('MANAGER', 'ADMIN')
   @Get('code/:id')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   findOneByCode(@Param('id') id: string) {
     return this.currenciesService.findOneByCode(id);
   }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Patch, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, BadRequestException, Header } from '@nestjs/common';
 import { ExclusiveExchangeRatesService } from './exclusive-exchange-rates.service';
 import { CreateExclusiveExchangeRateDto } from './dto/exclusive-exchange-rate.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -22,26 +22,31 @@ export class ExclusiveExchangeRatesController {
   }
 
   @Get('booth/:boothId')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   async getByBooth(@Param('boothId') boothId: string) {
     return await this.exclusiveExchangeRatesService.findByBooth(boothId);
   }
 
   @Get('exchange-rate/:exchangeRateId')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   async getByExchangeRate(@Param('exchangeRateId') exchangeRateId: string) {
     return await this.exclusiveExchangeRatesService.findByExchangeRate(exchangeRateId);
   }
 
   @Get('currency/:currencyCode')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   async getByCurrency(@Param('currencyCode') currencyCode: string) {
     return await this.exclusiveExchangeRatesService.findByCurrency(currencyCode);
   }
 
   @Get()
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   async getAll() {
     return await this.exclusiveExchangeRatesService.findAll();
   }
 
   @Get('pending-reviews')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   async getPendingReviews() {
     return await this.exclusiveExchangeRatesService.findPendingReviews();
   }
@@ -63,6 +68,7 @@ export class ExclusiveExchangeRatesController {
   
 
   @Get(':id')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   async getById(@Param('id') id: string) {
     return await this.exclusiveExchangeRatesService.findById(id);
   }
