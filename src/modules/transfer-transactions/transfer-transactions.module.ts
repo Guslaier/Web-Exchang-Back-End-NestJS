@@ -16,6 +16,7 @@ import { Transaction } from '../transactions/entities/transaction.entity';
 import { ShiftsModule } from '../shifts/shifts.module';
 import { StocksModule } from '../stocks/stocks.module';
 import { SseModule } from '../sse/sse.module';
+import { ExchangeRatesModule } from '../exchange-rates/exchange-rates.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { SseModule } from '../sse/sse.module';
     ShiftsModule,
     StocksModule,
     SseModule,
+    ExchangeRatesModule,
   ],
   controllers: [TransferTransactionsController],
   providers: [TransferTransactionsService],

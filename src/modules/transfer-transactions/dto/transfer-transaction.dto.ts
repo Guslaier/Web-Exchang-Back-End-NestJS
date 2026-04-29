@@ -10,11 +10,13 @@ import {
   IsNumberString,
   Matches,
   IsInt,
+  ArrayNotEmpty,
+  Min,
   
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import type { TransferTransactionData,TranSectionType,TranStatus, TransferTransactionType,CashCountData } from './../../../types';
-import { CreateCashCountDto } from '../../cash-counts/dto/cash-count.dto';
+import { CashCountItemDto } from '../../cash-counts/dto/cash-count.dto';
 
 
 
@@ -157,3 +159,17 @@ export class GetTotalReceiveDto {
   @IsNotEmpty()
   shift_id: string;
 }
+
+// // 3. DTO หลักสำหรับรับ Request
+export class FirstShiftCashCountDto {
+  @ValidateNested()
+  @Type(() => TransferCenterToBoothDto)
+  transferDto: TransferCenterToBoothDto;
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @ValidateNested({ each: true })
+  @Type(() => CashCountItemDto)
+  cashCountDto: CashCountItemDto[];
+}
+

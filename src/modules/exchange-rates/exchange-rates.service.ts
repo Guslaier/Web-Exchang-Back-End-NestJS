@@ -12,7 +12,7 @@ import { EntityManager, In, Repository } from 'typeorm';
 import { ExchangeRate } from './entities/exchange-rate.entity';
 import { Currency } from '../currencies/entities/currency.entity';
 import { SystemLogsService } from '../system-logs/system-logs.service';
-import { evaluate} from 'mathjs';
+import { e, evaluate, re } from 'mathjs';
 import { DataSource } from 'typeorm';
 import { ExclusiveExchangeRatesService } from '../exclusive-exchange-rates/exclusive-exchange-rates.service';
 import { handleError } from '../../common/error/error';
@@ -60,7 +60,11 @@ export class ExchangeRatesService {
     if (!formula || formula.toUpperCase() === 'BASE') return baseValue;
 
     if (formula.length > 100) {
-      await this.log(null, 'FAILED_FORMULA_TOO_LONG', `Too long: ${formula.substring(0, 20)}`);
+      await this.log(
+        null,
+        'FAILED_FORMULA_TOO_LONG',
+        `Too long: ${formula.substring(0, 20)}`,
+      );
       return baseValue;
     }
 
@@ -78,18 +82,25 @@ export class ExchangeRatesService {
       // เลขหน้าทศนิยมสูงสุดคือ 11 หลัก (99,999,999,999)
       const MAX_DB_VALUE = 99999999999.9999;
       if (Math.abs(finalValue) > MAX_DB_VALUE) {
-        throw new Error(`Calculated value is too large for database (Max: ${MAX_DB_VALUE.toLocaleString()})`);
+        throw new Error(
+          `Calculated value is too large for database (Max: ${MAX_DB_VALUE.toLocaleString()})`,
+        );
       }
 
       // 3. ปรับทศนิยมให้เหมาะสม (ใช้ 4 หรือ 6 ตามความต้องการของธุรกิจ)
       return parseFloat(finalValue.toFixed(6));
-
     } catch (err: any) {
       // ทำ Log สั้นลงเพื่อประหยัดพื้นที่ DB
-      await this.log(null, 'FAILED_FORMULA_EVAL', `Formula: ${formula}, Error: ${err.message}`);
+      await this.log(
+        null,
+        'FAILED_FORMULA_EVAL',
+        `Formula: ${formula}, Error: ${err.message}`,
+      );
 
       if (throwOnError)
-        throw new BadRequestException(`สูตรผิดพลาดหรือค่าเกินกำหนด: ${err.message}`);
+        throw new BadRequestException(
+          `สูตรผิดพลาดหรือค่าเกินกำหนด: ${err.message}`,
+        );
       return baseValue;
     }
   }
@@ -115,7 +126,10 @@ export class ExchangeRatesService {
     await repo.save(defaultSubRate);
 
     // สร้าง Exclusive Exchange Rate สำหรับบูธทั้งหมด
-    await this.exclusiveRateService.createForNewExchangeRate(manager, defaultSubRate);
+    await this.exclusiveRateService.createForNewExchangeRate(
+      manager,
+      defaultSubRate,
+    );
 
     await this.log(
       null,
@@ -131,8 +145,10 @@ export class ExchangeRatesService {
   ): Promise<void> {
     const repo = manager.getRepository(ExchangeRate);
     const subRates = await repo.find({ where: { currencyId: currency.id } });
-    if(currency.code === 'USD')
-      console.log(`Found ${subRates.length} sub-rates for currency ${currency.code} buy_rate: ${currency.buyRate} sell_rate: ${currency.sellRate}`);
+    if (currency.code === 'USD')
+      console.log(
+        `Found ${subRates.length} sub-rates for currency ${currency.code} buy_rate: ${currency.buyRate} sell_rate: ${currency.sellRate}`,
+      );
     for (const subRate of subRates) {
       subRate.buy_rate = await this.MathjsFormula(
         subRate.formula_buy,
@@ -144,7 +160,9 @@ export class ExchangeRatesService {
       );
       const updated = await repo.save(subRate);
       if (updated.name === 'USD')
-        console.log(`Updated sub-rate ${updated.name} for currency ${currency.code}: buy_rate=${updated.buy_rate}, sell_rate=${updated.sell_rate}`);
+        console.log(
+          `Updated sub-rate ${updated.name} for currency ${currency.code}: buy_rate=${updated.buy_rate}, sell_rate=${updated.sell_rate}`,
+        );
       await this.exclusiveRateService.updateByExchangeRate(manager, updated); // อัปเดตเรทลูกใน Exclusive ด้วย
       await this.log(
         null,
@@ -156,8 +174,10 @@ export class ExchangeRatesService {
   }
 
   // อัปเดตเรททั้งหมดในระบบ (Bulk Sync)
-  async updateRateAll(user?: any , manager?: EntityManager): Promise<void> {
-    const currencies = manager ? await manager.find(Currency) : await this.exchangeRateRepo.manager.find(Currency);
+  async updateRateAll(user?: any, manager?: EntityManager): Promise<void> {
+    const currencies = manager
+      ? await manager.find(Currency)
+      : await this.exchangeRateRepo.manager.find(Currency);
     await this.exchangeRateRepo.manager.transaction(async (manager) => {
       await Promise.all(
         currencies.map((c) => this.updateRatesForCurrency(manager, c)),
@@ -176,51 +196,63 @@ export class ExchangeRatesService {
   ): Promise<{ success: boolean; message: string; details?: any }> {
     console.log('Processing bulk update request:', updates);
     try {
-    return this.dataSource.transaction(async (manager) => {
-      const results = [];
+      return this.dataSource.transaction(async (manager) => {
+        const results = [];
 
-      for (const item of updates) {
-        // แยก id ออกจากฟิลด์อื่นๆ (เช่น name, formula_buy)
-        const { id, ...data } = item;
+        for (const item of updates) {
+          // แยก id ออกจากฟิลด์อื่นๆ (เช่น name, formula_buy)
+          const { id, ...data } = item;
 
-        try {
-          // ตรวจสอบว่ามี ID ไหม
-          if (!id) throw new Error('Missing ID for update');
+          try {
+            // ตรวจสอบว่ามี ID ไหม
+            if (!id) throw new Error('Missing ID for update');
 
-          // เรียกฟังก์ชัน update ตัวเดิมที่มีอยู่ (ส่ง id แยกกับ data)
-          const updated = await this.update(user, id, data); 
-          
-          results.push({ id, success: true, updated:{
-            id: updated.id,
-            name: updated.name,
-            range_start: updated.range_start,
-            range_stop: updated.range_stop,
-            formula_buy: updated.formula_buy,
-            formula_sell: updated.formula_sell,
-            buy_rate: updated.buy_rate,
-            sell_rate: updated.sell_rate,
-          } });
-        } catch (e: any) {
-          results.push({ id, success: false, error: e.message });
+            // เรียกฟังก์ชัน update ตัวเดิมที่มีอยู่ (ส่ง id แยกกับ data)
+            const updated = await this.update(user, id, data);
+
+            results.push({
+              id,
+              success: true,
+              updated: {
+                id: updated.id,
+                name: updated.name,
+                range_start: updated.range_start,
+                range_stop: updated.range_stop,
+                formula_buy: updated.formula_buy,
+                formula_sell: updated.formula_sell,
+                buy_rate: updated.buy_rate,
+                sell_rate: updated.sell_rate,
+              },
+            });
+          } catch (e: any) {
+            results.push({ id, success: false, error: e.message });
+          }
         }
-      }
 
-      // บันทึก Log
-      await this.log(
-        user,
-        'BULK_UPDATE_RATES_SUCCESS',
-`Success detail: ${results.filter((r) => r.success).map((r) => `
-${JSON.stringify(r.updated)}`).join(', ')}
-, Fail: ${results.filter((r) => !r.success).map((r) => `(${JSON.stringify(r.error)})`).join(', ')}`,
-        manager,
-      );
+        // บันทึก Log
+        await this.log(
+          user,
+          'BULK_UPDATE_RATES_SUCCESS',
+          `Success detail: ${results
+            .filter((r) => r.success)
+            .map(
+              (r) => `
+${JSON.stringify(r.updated)}`,
+            )
+            .join(', ')}
+, Fail: ${results
+            .filter((r) => !r.success)
+            .map((r) => `(${JSON.stringify(r.error)})`)
+            .join(', ')}`,
+          manager,
+        );
 
-      return {
-        success: results.every((r) => r.success),
-        message: `Processed ${updates.length} items`,
-        details: results,
-      };
-    });
+        return {
+          success: results.every((r) => r.success),
+          message: `Processed ${updates.length} items`,
+          details: results,
+        };
+      });
     } catch (error) {
       handleError(error, 'ExchangeRatesService.Mutiupdate');
     }
@@ -263,7 +295,10 @@ ${JSON.stringify(r.updated)}`).join(', ')}
     });
 
     const saved = await this.exchangeRateRepo.save(newRate);
-    await this.exclusiveRateService.createForNewExchangeRate(this.exchangeRateRepo.manager, saved);
+    await this.exclusiveRateService.createForNewExchangeRate(
+      this.exchangeRateRepo.manager,
+      saved,
+    );
     await this.log(
       user,
       'CREATE_RATE_SUCCESS',
@@ -274,7 +309,11 @@ ${JSON.stringify(r.updated)}`).join(', ')}
   }
 
   // แก้ไขเรท (เช็คขอบเขตใหม่และคำนวณเรทใหม่)
-  async update(user: any, id: string, data: Partial<ExchangeRate>): Promise<any> {
+  async update(
+    user: any,
+    id: string,
+    data: Partial<ExchangeRate>,
+  ): Promise<any> {
     const target = await this.exchangeRateRepo.findOne({
       where: { id },
       relations: ['currency'],
@@ -308,13 +347,18 @@ ${JSON.stringify(r.updated)}`).join(', ')}
     target.sell_rate = formulaVal.sell_rate;
 
     if (target.buy_rate > target.sell_rate) {
-      throw new BadRequestException('Buy rate cannot be greater than Sell rate');
+      throw new BadRequestException(
+        'Buy rate cannot be greater than Sell rate',
+      );
     }
 
     if (data.name) target.name = data.name;
 
     const updated = await this.exchangeRateRepo.save(target);
-    await this.exclusiveRateService.updateByExchangeRate(this.exchangeRateRepo.manager, updated); // อัปเดตเรทลูกใน Exclusive ด้วย
+    await this.exclusiveRateService.updateByExchangeRate(
+      this.exchangeRateRepo.manager,
+      updated,
+    ); // อัปเดตเรทลูกใน Exclusive ด้วย
     await this.log(
       user,
       'UPDATE_RATE_SUCCESS',
@@ -338,7 +382,6 @@ ${JSON.stringify(r.updated)}`).join(', ')}
       },
     };
   }
-  
 
   // // ตรวจสอบความถูกต้องของสูตร
   async validateFormulas(currencyId: string, fBuy: string, fSell: string) {
@@ -353,7 +396,11 @@ ${JSON.stringify(r.updated)}`).join(', ')}
     try {
       // // บังคับ throw error ถ้าสูตรผิดเพื่อให้รู้ทันที
       const buy_rate = await this.MathjsFormula(fBuy, currency.buyRate, true);
-      const sell_rate = await this.MathjsFormula(fSell, currency.sellRate, true);
+      const sell_rate = await this.MathjsFormula(
+        fSell,
+        currency.sellRate,
+        true,
+      );
       return { buy_rate, sell_rate, isValid: true };
     } catch (e: any) {
       throw new BadRequestException(
@@ -381,7 +428,6 @@ ${JSON.stringify(r.updated)}`).join(', ')}
       }
     }
   }
-
 
   // // ตรวจสอบความถูกต้องของช่วงจำนวนเงิน (Range)
   private async validateRange(
@@ -454,51 +500,63 @@ ${JSON.stringify(r.updated)}`).join(', ')}
   }
 
   async delete(user: any, id: string): Promise<void> {
-      try {
-    return this.dataSource.transaction(async (manager) => {
-      const repo = manager.getRepository(ExchangeRate);
-      const target = await repo.findOne({ where: { id } });
-      if (!target) throw new NotFoundException('ไม่พบรายการ');
-      const count = await repo.count({
-        where: { currencyId: target.currencyId },
-      });
-      if (count <= 1) {
+    try {
+      return this.dataSource.transaction(async (manager) => {
+        const repo = manager.getRepository(ExchangeRate);
+        const target = await repo.findOne({ where: { id } });
+        if (!target) throw new NotFoundException('ไม่พบรายการ');
+        const count = await repo.count({
+          where: { currencyId: target.currencyId },
+        });
+        if (count <= 1) {
+          await this.log(
+            user,
+            'FAILED_DELETE_RATE',
+            `Attempted to delete last rate for currency ID: ${target.currencyId}`,
+          );
+          throw new BadRequestException(
+            'Cannot delete the last rate for a currency',
+          );
+        }
+        await repo.save({ ...target, name: `${target.name} (deleted)` }); // อัปเดต timestamp ของเรทที่ถูกลบ (soft delete)
+        await repo.softDelete(id);
+        await this.exclusiveRateService.deleteByExchangeRateId(manager, id); // ลบเรทลูกที่เกี่ยวข้องด้วย
         await this.log(
           user,
-          'FAILED_DELETE_RATE',
-          `Attempted to delete last rate for currency ID: ${target.currencyId}`,
+          'DELETE_RATE_SUCCESS',
+          `Deleted rate: ${target.name} id: ${id}`,
+          manager,
         );
-        throw new BadRequestException(
-          'Cannot delete the last rate for a currency',
-        );
-      }
-      await repo.save({ ...target, name: `${target.name} (deleted)` }); // อัปเดต timestamp ของเรทที่ถูกลบ (soft delete)
-      await repo.softDelete(id);
-      await this.exclusiveRateService.deleteByExchangeRateId(manager, id); // ลบเรทลูกที่เกี่ยวข้องด้วย
-      await this.log(user, 'DELETE_RATE_SUCCESS', `Deleted rate: ${target.name} id: ${id}`, manager);
-    });
-  } catch (error) {
+      });
+    } catch (error) {
       handleError(error, 'ExchangeRatesService.delete');
     }
   }
 
-  async findById(id: string) { 
+  async findById(id: string) {
     const rates = await this.exchangeRateRepo.findOne({
-      where: { id :  id  },
+      where: { id: id },
       relations: ['currency'],
     });
     return rates as ExchangeRate;
   }
 
-  async isSellRateAllowed(currentUser : any, exchangeRateId: string, proposedRate : number) {
+  async isSellRateAllowed(
+    currentUser: any,
+    exchangeRateId: string,
+    proposedRate: number,
+  ) {
     const exchangeRate = await this.findById(exchangeRateId);
     if (!exchangeRate) {
-      await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Exchange ID ${exchangeRateId} not found`);
+      await this.log(
+        currentUser,
+        'CREATE_EXCHANGE_TRANSACTION_FAILED',
+        `Exchange ID ${exchangeRateId} not found`,
+      );
       throw new NotFoundException('Exchange rate not found');
     }
 
     return !(proposedRate < exchangeRate.sell_rate);
-
   }
 
   async findByCurrency(currencyCode: string) {
@@ -509,13 +567,20 @@ ${JSON.stringify(r.updated)}`).join(', ')}
     return rates;
   }
 
-  async findByTHBCurency() {
-    const exchangeRates = await this.findByCurrency('THB');
-    for (const rate of exchangeRates) {
-      if (rate.currency.code === 'THB') {
-        return rate;
+  async findByTHBCurency(manager?: EntityManager) {
+    if (manager) {
+      const exchangeRates = await manager.findOne(ExchangeRate, {
+        where: { currency: { code: 'THB' } },
+        relations: ['currency'],
+      });
+      return exchangeRates;
+    } else {
+      const exchangeRates = await this.findByCurrency('THB');
+      for (const rate of exchangeRates) {
+        if (rate.currency.code === 'THB') {
+          return rate;
+        }
       }
     }
   }
 }
-

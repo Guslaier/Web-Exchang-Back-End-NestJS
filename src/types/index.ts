@@ -1,6 +1,6 @@
 export type UserRole = "ADMIN" | "MANAGER" | "EMPLOYEE" ; // อิงตาม Database
 export type TranStatus = "COMPLETED" |"COMPLETE_CONFIC"| "PENDING" | "VOIDED" | "CANCELED"; // อิงตาม Database
-export type TranSectionType =  "EXCHANGE" | "TRANSFER"; // อิงตาม Database
+export type TranSectionType =  "EXCHANGE" | "TRANSFER" | "FISERST_SHIFT_CASH_COUNT" | "CLOSE_SHIFT_CASH_COUNT"; // อิงตาม Database
 export type TransferTransactionType =  "CASH_IN" | "CASH_OUT" | 'TRANSFER_IN' | 'TRANSFER_OUT'; // สำหรับการโอนเงินระหว่างสาขา
 export type TranType = "BUY" | "SELL" ; // อิงตาม Database
 

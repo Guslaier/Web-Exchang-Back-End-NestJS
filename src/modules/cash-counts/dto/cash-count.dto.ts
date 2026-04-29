@@ -1,16 +1,20 @@
-import { IsString, IsNotEmpty, IsNumber, IsUUID, IsArray, ArrayNotEmpty, Validate, ValidateNested, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsUUID, IsArray, ArrayNotEmpty, Validate, ValidateNested, IsOptional, Matches, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import {CashCountData} from './../../../types/index'; ;
 
 class DenominationDto implements Pick<CashCountData, 'denomination'> {
    @IsString()
    @IsNotEmpty()
+   @Matches(/^[0-9]+$/, {
+    message: 'denomination must be an integer string (e.g., "1000", "500")',
+  })
    denomination: string; 
 }
 
 class AmountDto implements Pick<CashCountData, 'amount'>  {
     @IsNumber()
     @IsNotEmpty()
+    @Min(0)
     amount: number; 
 }
 
@@ -40,4 +44,17 @@ export class GetCashCountDto {
     @IsString()
     @IsNotEmpty()
     transactionId : string ;
+}
+
+export class CashCountItemDto {
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^[0-9]+$/, {
+    message: 'denominations must be an integer string (e.g., "100", "500")',
+  })
+  denominations: string; // // ใช้ชื่อ denominations ตาม JSON ของคุณ
+
+  @IsNumber()
+  @Min(0)
+  amounts: number; // // ใช้ชื่อ amounts ตาม JSON ของคุณ
 }

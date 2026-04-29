@@ -3,6 +3,7 @@ import { Shift } from './../../../modules/shifts/entities/shift.entity';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn , PrimaryColumn, ManyToOne, JoinColumn, OneToOne } from 'typeorm';
 import { ExchangeTransaction } from '../../exchange-transactions/entities/exchange-transaction.entity';
 import { TimestampTransformer } from '../../../common/helper/timestamp';
+import { TransferTransaction } from '../../transfer-transactions/entities/transfer-transaction.entity';
 
 @Entity('transactions')
 export class Transaction {
@@ -23,8 +24,10 @@ export class Transaction {
   createdAt: Date;
 
   @OneToOne(() => ExchangeTransaction ,(ExchangeTransaction) => ExchangeTransaction.transaction)
-  exchangetransaction: any;
+  exchangetransaction: ExchangeTransaction;
 
+  @OneToOne(() => TransferTransaction, (transferTransaction) => transferTransaction.transaction)
+  transferTransaction: TransferTransaction;
   
 
 }

@@ -17,6 +17,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import {
   CreateTransferTransactionDto,
+  FirstShiftCashCountDto,
   TransferBoothToBoothDto,
   TransferCenterToBoothDto,
   UpdateTransferTransactionDto,
@@ -60,7 +61,6 @@ export class TransferTransactionsController {
       user,
       transferCenterToBoothDto,
     );
-  
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -76,7 +76,6 @@ export class TransferTransactionsController {
     );
   }
 
-  
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER')
   @Get()
@@ -92,8 +91,7 @@ export class TransferTransactionsController {
       boothId,
     );
   }
-  
-  
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER')
   @Get('date-range')
@@ -105,7 +103,6 @@ export class TransferTransactionsController {
       startDate,
       endDate,
     );
-    
   }
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER')
@@ -115,8 +112,7 @@ export class TransferTransactionsController {
       shiftId,
     );
   }
-  
-  
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER')
   @Get(':transactionId')
@@ -126,5 +122,20 @@ export class TransferTransactionsController {
     return this.transferTransactionsService.getTransferTransactionById(
       transactionId,
     );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Post('test-first-shift-cash-count')
+  async testFirstShiftCashCount(
+    @Body() firstShiftCashCountDto: FirstShiftCashCountDto,
+    @CurrentUser() user: any,
+  ) {
+    const result =
+      await this.transferTransactionsService.runCreateFirstShiftCashCount(
+        user,
+        firstShiftCashCountDto,
+      );
+    return result;
   }
 }

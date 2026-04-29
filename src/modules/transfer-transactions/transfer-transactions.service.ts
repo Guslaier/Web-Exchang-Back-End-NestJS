@@ -11,6 +11,8 @@ import {
   EntityManager,
   IsNull,
   Between,
+  Repository,
+  Not,
 } from 'typeorm';
 import { TransferTransaction } from './entities/transfer-transaction.entity';
 import {
@@ -28,6 +30,15 @@ import { StocksService } from '../stocks/stocks.service';
 import { UpdateStockByTransferTransactionForCancel } from '../stocks/dto/stocks.dto';
 import { handleError } from '../../common/error/error';
 import { SseService } from '../sse/sse.service';
+import { CreateCashCountDto } from '../cash-counts/dto/cash-count.dto';
+import { TranSectionType } from 'index';
+import { CashCountsService } from '../cash-counts/cash-counts.service';
+import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
+import { i, number, sum } from 'mathjs';
+import { InjectRepository } from '@nestjs/typeorm';
+import { User } from '../users/entities/user.entity';
+import { stat } from 'fs';
+import { FirstShiftCashCountDto } from './dto/transfer-transaction.dto';
 
 @Injectable()
 export class TransferTransactionsService {
@@ -43,6 +54,10 @@ export class TransferTransactionsService {
     private readonly stocksService: StocksService,
     @Inject(SseService)
     private readonly sseService: SseService,
+    @Inject(CashCountsService)
+    private readonly cashCountsService: CashCountsService,
+    @Inject(ExchangeRatesService)
+    private readonly exchangeRatesService: ExchangeRatesService,
   ) {}
 
   /**
@@ -71,6 +86,160 @@ export class TransferTransactionsService {
     }
   }
 
+  //=========================การโอนจากศูนย์ไปบูธ===============================
+  async runCreateFirstShiftCashCount(
+    user: any,
+    firstShiftCashCountDto: FirstShiftCashCountDto,
+  ) {
+    try {
+      return await this.dataSource.transaction(async (transactionManager) => {
+        return await this.createFirstShiftCash_count(
+          user,
+          firstShiftCashCountDto,
+          transactionManager,
+        );
+      });
+    } catch (error) {
+      handleError(error, 'FIRST_SHIFT_CASH_COUNT_FAILED');
+    }
+  }
+
+  async createFirstShiftCash_count(
+    user: any,
+    firstShiftCashCountDto: FirstShiftCashCountDto,
+    manager: EntityManager,
+  ) {
+    try {
+      // // 1. Validate User
+      const checkUser = await manager.getRepository(User).findOne({ where: { id: user.id } });
+      if (!checkUser) {
+        await this.log(user, 'FIRST_SHIFT_CASH_COUNT_FAILED', `User ID ${user.id} not found`, manager);
+        throw new NotFoundException(`User with ID ${user.id} not found`);
+      }
+
+      // // 2. Get Exchange Rate (Passing manager ensures fresh data)
+      const exchangeRate = await this.exchangeRatesService.findByTHBCurency(manager);
+      if (!exchangeRate) {
+        await this.log(user, 'FIRST_SHIFT_CASH_COUNT_FAILED', 'THB Exchange rate missing', manager);
+        throw new Error('THB exchange rate not found');
+      }
+
+      // // 3. Validate Target Booth & Active Shift
+      const targetBooth = await manager.getRepository(Booth).findOne({
+        where: { id: firstShiftCashCountDto.transferDto.boothId, isActive: true },
+      });
+      
+      if (!targetBooth) {
+        await this.log(user, 'FIRST_SHIFT_CASH_COUNT_FAILED', `Booth ${firstShiftCashCountDto.transferDto.boothId} inactive or not found`, manager);
+        throw new Error(`Target booth with ID ${firstShiftCashCountDto.transferDto.boothId} not found or inactive`);
+      }
+
+      const targetActiveShift = await manager.getRepository(Shift).findOne({
+        where: { boothId: firstShiftCashCountDto.transferDto.boothId, status: Not("COMPLETED") },
+      });
+
+      if (!targetActiveShift) {
+        await this.log(user, 'FIRST_SHIFT_CASH_COUNT_FAILED', `Booth ${firstShiftCashCountDto.transferDto.boothId} does not have an active shift`, manager);
+        throw new Error(`Target booth with ID ${firstShiftCashCountDto.transferDto.boothId} does not have an active shift`);
+      }
+
+      const beforeFirstShiftStock = await manager.getRepository(Transaction).findOne({
+        relations:['transferTransaction'],
+        where: { 
+          shiftId: targetActiveShift.id, 
+          type: 'FIRST_SHIFT_CASH_COUNT' as TranSectionType , 
+          transferTransaction:{
+            status: 'COMPLETED',
+          }
+         },
+      });
+
+      console.log('beforeFirstShiftStock', beforeFirstShiftStock);
+      if (beforeFirstShiftStock) {
+        await this.log(user, 'FIRST_SHIFT_CASH_COUNT_FAILED', `An existing FIRST_SHIFT_CASH_COUNT transaction already exists for booth ${firstShiftCashCountDto.transferDto.boothId} in the active shift`, manager);
+        throw new Error(`A FIRST_SHIFT_CASH_COUNT transaction already exists for booth ${firstShiftCashCountDto.transferDto.boothId} in the active shift`);
+      }
+
+      // // 4. Calculate Total and Validate match
+      const totalAmount = firstShiftCashCountDto.cashCountDto.reduce(
+        (sum, item) => Number(item.denominations) * Number(item.amounts) + sum,
+        0,
+      );
+
+      if (totalAmount !== firstShiftCashCountDto.transferDto.amount) {
+        await this.log(user, 'FIRST_SHIFT_CASH_COUNT_FAILED', `Amount mismatch: Counted ${totalAmount} vs Expected ${firstShiftCashCountDto.transferDto.amount}`, manager);
+        throw new BadRequestException(`Total cash count amount ${totalAmount} does not match the transfer amount ${firstShiftCashCountDto.transferDto.amount}`);
+      }
+
+      // // 5. Process Transaction & Movement
+      const TID = await this.transactionsService.create(manager, {
+        type: 'FIRST_SHIFT_CASH_COUNT' as any, // FIXED TYPO: FISERST -> FIRST
+        shiftId: targetActiveShift.id,
+      });
+
+      if (!TID) {
+        await this.log(user, 'FIRST_SHIFT_CASH_COUNT_FAILED', 'Failed to create transaction record', manager);
+        throw new InternalServerErrorException('Failed to create transaction record');
+      }
+
+      await this.createMovement(user, {
+        boothId: firstShiftCashCountDto.transferDto.boothId,
+        shiftId: targetActiveShift.id,
+        amount: firstShiftCashCountDto.transferDto.amount,
+        exchangeRateId: exchangeRate.id,
+        exchangeRateName: exchangeRate.name,
+        type: 'CASH_IN',
+        description: firstShiftCashCountDto.transferDto.description || 'Initial cash count for shift',
+        internalTransactionId: null,
+        userId: user.id,
+        status: 'COMPLETED',
+      }, manager, TID);
+
+      // // 6. Update Stocks (Pass manager to stay in transaction)
+      await this.stocksService.updateStockByTransferTransaction(user, {
+        sender: null,
+        receiver: firstShiftCashCountDto.transferDto.boothId,
+        exchangeRateId: exchangeRate.id,
+        transferAmount: firstShiftCashCountDto.transferDto.amount,
+      }, manager);
+
+      // // 7. Create Cash Count Record
+      const cashCountData: CreateCashCountDto = {
+        transactionId: TID.id,
+        currencyId: exchangeRate.currency.id,
+        denominations: firstShiftCashCountDto.cashCountDto.map(item => ({ denomination: item.denominations.toString() })),
+        amounts: firstShiftCashCountDto.cashCountDto.map(item => ({ amount: Number(item.amounts) })),
+      };
+
+      await this.cashCountsService.create(user, cashCountData, manager);
+
+      await this.stocksService.updateStockByTransferTransaction(user, {
+        sender: null,
+        receiver: firstShiftCashCountDto.transferDto.boothId,
+        exchangeRateId: exchangeRate.id,
+        transferAmount: firstShiftCashCountDto.transferDto.amount,
+      }, manager);
+      // // 8. Finalize Logs & Response
+      await this.log(user, 'FIRST_SHIFT_CASH_COUNT_SUCCESS', `Successfully counted ${firstShiftCashCountDto.transferDto.amount} THB for booth ${firstShiftCashCountDto.transferDto.boothId}`, manager);
+      
+      this.sseService.triggerRefreshSignal();
+      
+      return {
+        message: 'First shift cash count completed successfully',
+        transactionId: TID.id,
+        amount: firstShiftCashCountDto.transferDto.amount,
+        currency: exchangeRate.currency.code,
+        cashCountDetails: firstShiftCashCountDto.cashCountDto,
+      };
+
+    } catch (error) {
+      await this.log(user, 'FIRST_SHIFT_CASH_COUNT_ERROR', ` ${error instanceof Error ? error.message : String(error)}`, manager);
+      throw error;
+    }
+  }
+
+  //=========================การโอนระหว่างบูธ===============================
+
   async createTransaction_ID_Transfer(user: any, manager: EntityManager) {
     return await this.transactionsService.create(manager, {
       type: 'TRANSFER',
@@ -78,7 +247,7 @@ export class TransferTransactionsService {
     });
   }
 
-  private async createMovement(
+  async createMovement(
     user: any,
     createDto: CreateTransferTransactionDto,
     manager: EntityManager,
@@ -459,7 +628,7 @@ export class TransferTransactionsService {
           );
           throw new BadRequestException(
             `Invalid transfer type ${transferDto.type}`,
-          ); 
+          );
         }
       });
     } catch (error) {
@@ -631,6 +800,109 @@ export class TransferTransactionsService {
             `Transfer transaction with ID ${transactionId} is already canceled`,
           );
         }
+        const checkshift = await manager.getRepository(Shift).findOne({
+          where: { id: transferTransaction.shiftId as string },
+        });
+        if (!checkshift) {
+          await this.log(
+            user,
+            'CANCEL_TRANSFER_TRANSACTION_FAILED',
+            `Failed to cancel transfer transaction ${transactionId}: Shift not found`,
+          );
+          throw new NotFoundException(
+            `Shift with ID ${transferTransaction.shiftId} not found`,
+          );
+        }
+        if (checkshift.status === 'COMPLETED') {
+          await this.log(
+            user,
+            'CANCEL_TRANSFER_TRANSACTION_FAILED',
+            `Failed to cancel transfer transaction ${transactionId}: Cannot cancel transaction for a completed shift`,
+          );
+          throw new BadRequestException(
+            `Cannot cancel transfer transaction for a completed shift`,
+          );
+        }
+
+        if (transferTransaction.type === 'CASH_IN') {
+          const updateStockDto: UpdateStockByTransferTransactionForCancel = {
+            sender_shift: transferTransaction.shiftId as string,
+            receiver_shift: null, // เนื่องจากเป็นการโอนจากศูนย์ไปบูธ จึงไม่มี receiver shift,
+            exchangeRateId: transferTransaction.exchangeRateId as string,
+            transferAmount: transferTransaction.amount,
+          };
+          await this.stocksService.updateStockByTransferTransactionForCancel(
+            user,
+            updateStockDto,
+            manager,
+          );
+          await manager
+            .getRepository(TransferTransaction)
+            .update({ id: transactionId }, { status: 'CANCELED' });
+          this.log(
+            user,
+            'CANCEL_TRANSFER_TRANSACTION_SUCCESS',
+            `Canceled cash in transfer transaction ${transactionId} and updated stock accordingly`,
+            manager,
+          );
+          this.sseService.triggerRefreshSignal();
+          return {
+            message: `Successfully canceled cash in transfer transaction with ID ${transactionId}`,
+          };
+        }
+
+        if (transferTransaction.type === 'CASH_OUT') {
+          const updateStockDto: UpdateStockByTransferTransactionForCancel = {
+            sender_shift: null, // เนื่องจากเป็นการโอนจากบูธไปศูนย์ จึงไม่มี sender shift,
+            receiver_shift: transferTransaction.shiftId as string,
+            exchangeRateId: transferTransaction.exchangeRateId as string,
+            transferAmount: transferTransaction.amount,
+          };
+          await this.stocksService.updateStockByTransferTransactionForCancel(
+            user,
+            updateStockDto,
+            manager,
+          );
+          await manager
+            .getRepository(TransferTransaction)
+            .update({ id: transactionId }, { status: 'CANCELED' });
+          this.log(
+            user,
+            'CANCEL_TRANSFER_TRANSACTION_SUCCESS',
+            `Canceled cash out transfer transaction ${transactionId} and updated stock accordingly`,
+            manager,
+          );
+          this.sseService.triggerRefreshSignal();
+          return {
+            message: `Successfully canceled cash out transfer transaction with ID ${transactionId}`,
+          };
+        }
+
+        const checkRefShift = await manager.getRepository(Shift).findOne({
+          where: { id: transferTransaction.refShiftId as string },
+        });
+        if (!checkRefShift) {
+          await this.log(
+            user,
+            'CANCEL_TRANSFER_TRANSACTION_FAILED',
+            `Failed to cancel transfer transaction ${transactionId}: Reference shift not found`,
+            manager,
+          );
+          throw new BadRequestException(
+            `Cannot cancel transfer transaction: Reference shift not found`,
+          );
+        }
+        if (checkRefShift.status === 'COMPLETED') {
+          await this.log(
+            user,
+            'CANCEL_TRANSFER_TRANSACTION_FAILED',
+            `Failed to cancel transfer transaction ${transactionId}: Cannot cancel transaction because reference shift is completed`,
+            manager,
+          );
+          throw new BadRequestException(
+            `Cannot cancel transfer transaction because reference shift is completed`,
+          );
+        }
 
         if (transferTransaction.type === 'TRANSFER_OUT') {
           const updateStockDto: UpdateStockByTransferTransactionForCancel = {
@@ -699,59 +971,6 @@ export class TransferTransactionsService {
           };
         }
 
-        if (transferTransaction.type === 'CASH_IN') {
-          const updateStockDto: UpdateStockByTransferTransactionForCancel = {
-            sender_shift: transferTransaction.shiftId as string,
-            receiver_shift: null, // เนื่องจากเป็นการโอนจากศูนย์ไปบูธ จึงไม่มี receiver shift,
-            exchangeRateId: transferTransaction.exchangeRateId as string,
-            transferAmount: transferTransaction.amount,
-          };
-          await this.stocksService.updateStockByTransferTransactionForCancel(
-            user,
-            updateStockDto,
-            manager,
-          );
-          await manager
-            .getRepository(TransferTransaction)
-            .update({ id: transactionId }, { status: 'CANCELED' });
-          this.log(
-            user,
-            'CANCEL_TRANSFER_TRANSACTION_SUCCESS',
-            `Canceled cash in transfer transaction ${transactionId} and updated stock accordingly`,
-            manager,
-          );
-          this.sseService.triggerRefreshSignal();
-          return {
-            message: `Successfully canceled cash in transfer transaction with ID ${transactionId}`,
-          };
-        }
-
-        if (transferTransaction.type === 'CASH_OUT') {
-          const updateStockDto: UpdateStockByTransferTransactionForCancel = {
-            sender_shift: null, // เนื่องจากเป็นการโอนจากบูธไปศูนย์ จึงไม่มี sender shift,
-            receiver_shift: transferTransaction.shiftId as string,
-            exchangeRateId: transferTransaction.exchangeRateId as string,
-            transferAmount: transferTransaction.amount,
-          };
-          await this.stocksService.updateStockByTransferTransactionForCancel(
-            user,
-            updateStockDto,
-            manager,
-          );
-          await manager
-            .getRepository(TransferTransaction)
-            .update({ id: transactionId }, { status: 'CANCELED' });
-          this.log(
-            user,
-            'CANCEL_TRANSFER_TRANSACTION_SUCCESS',
-            `Canceled cash out transfer transaction ${transactionId} and updated stock accordingly`,
-            manager,
-          );
-          this.sseService.triggerRefreshSignal();
-          return {
-            message: `Successfully canceled cash out transfer transaction with ID ${transactionId}`,
-          };
-        }
         await this.log(
           user,
           'CANCEL_TRANSFER_TRANSACTION_FAILED',
@@ -782,6 +1001,7 @@ export class TransferTransactionsService {
             internalTransactionId: true,
             amount: true,
             type: true,
+            status: true,
             shiftId: true,
             booth: {
               id: true,
@@ -802,6 +1022,7 @@ export class TransferTransactionsService {
         internalTransactionId: transferTransaction?.internalTransactionId,
         amount: transferTransaction?.amount,
         type: transferTransaction?.type,
+        status: transferTransaction?.status,
         shiftId: transferTransaction?.shiftId,
         boothId: transferTransaction?.boothId,
         boothName: transferTransaction?.booth?.name,
@@ -830,6 +1051,7 @@ export class TransferTransactionsService {
             internalTransactionId: true,
             amount: true,
             type: true,
+            status: true,
             shiftId: true,
             booth: {
               id: true,
@@ -851,6 +1073,7 @@ export class TransferTransactionsService {
           internalTransactionId: transaction?.internalTransactionId,
           amount: transaction?.amount,
           type: transaction?.type,
+          status: transaction?.status,
           shiftId: transaction?.shiftId,
           boothId: transaction?.boothId,
           boothName: transaction?.booth?.name,
@@ -880,6 +1103,7 @@ export class TransferTransactionsService {
             internalTransactionId: true,
             amount: true,
             type: true,
+            status: true,
             shiftId: true,
             booth: {
               id: true,
@@ -901,6 +1125,7 @@ export class TransferTransactionsService {
           internalTransactionId: transaction?.internalTransactionId,
           amount: transaction?.amount,
           type: transaction?.type,
+          status: transaction?.status,
           shiftId: transaction?.shiftId,
           boothId: transaction?.boothId,
           boothName: transaction?.booth?.name,
@@ -932,6 +1157,7 @@ export class TransferTransactionsService {
             internalTransactionId: true,
             amount: true,
             type: true,
+            status: true,
             shiftId: true,
             booth: {
               id: true,
@@ -953,6 +1179,7 @@ export class TransferTransactionsService {
           internalTransactionId: transaction?.internalTransactionId,
           amount: transaction?.amount,
           type: transaction?.type,
+          status: transaction?.status,
           shiftId: transaction?.shiftId,
           boothId: transaction?.boothId,
           boothName: transaction?.booth?.name,
@@ -990,6 +1217,7 @@ export class TransferTransactionsService {
             internalTransactionId: true,
             amount: true,
             type: true,
+            status: true,
             shiftId: true,
             booth: {
               id: true,
@@ -1011,6 +1239,7 @@ export class TransferTransactionsService {
           internalTransactionId: transaction?.internalTransactionId,
           amount: transaction?.amount,
           type: transaction?.type,
+          status: transaction?.status,
           shiftId: transaction?.shiftId,
           boothId: transaction?.boothId,
           boothName: transaction?.booth?.name,
