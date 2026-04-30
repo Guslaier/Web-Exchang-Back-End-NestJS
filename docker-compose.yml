@@ -1,37 +1,37 @@
 version: '3.8'
 
 services:
-  # api:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.dev
-  #   container_name: web-exchank-api-dev
-  #   ports:
-  #     - "3001:3001"
-  #   volumes:
-  #     - .:/app
-  #     - /app/node_modules
-  #   environment:
-  #     NODE_ENV: development
-  #     PORT: 3002
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: web-exchank-api-dev
+    ports:
+      - "3001:3001"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      NODE_ENV: development
+      PORT: 3002
 
-  #     DB_HOST: db
-  #     DB_PORT: 5432
-  #     DB_USER: postgres
-  #     DB_PASS: postgres
-  #     DB_NAME: web_exchank
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASS: postgres
+      DB_NAME: web_exchank
 
-  #     JWT_SECRET: change_this_secret
-  #     JWT_EXPIRES_IN: 1d
+      JWT_SECRET: change_this_secret
+      JWT_EXPIRES_IN: 1d
 
-  #     # [เพิ่มตรงนี้] บอกให้ API รู้ว่าต้องไปต่อ Redis ที่ไหน
-  #     REDIS_HOST: redis # ใช้ชื่อ Service ด้านล่างแทน 127.0.0.1
-  #     REDIS_PORT: 6379
+      # [เพิ่มตรงนี้] บอกให้ API รู้ว่าต้องไปต่อ Redis ที่ไหน
+      REDIS_HOST: redis # ใช้ชื่อ Service ด้านล่างแทน 127.0.0.1
+      REDIS_PORT: 6379
 
-  #   depends_on:
-  #     - db
-  #     - redis # [เพิ่มตรงนี้] ให้รอ Redis รันเสร็จก่อน
-  #   restart: unless-stopped
+    depends_on:
+      - db
+      - redis # [เพิ่มตรงนี้] ให้รอ Redis รันเสร็จก่อน
+    restart: unless-stopped
 
   db:
     image: postgres:16-alpine

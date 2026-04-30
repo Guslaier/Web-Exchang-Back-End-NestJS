@@ -14,6 +14,11 @@ async function bootstrap() {
       enableImplicitConversion : true
     }
   }));
+  app.enableCors({
+    origin: 'http://localhost:5173', // ระบุ Origin ของ Frontend คุณ
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true, // อนุญาตให้ส่ง Cookie หรือ Header พิเศษได้
+  });
 
   await app.listen(PORT);
   console.log(`Application is running on: http://localhost:${PORT}`);

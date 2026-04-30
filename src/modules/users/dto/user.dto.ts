@@ -22,6 +22,22 @@ export class CreateUserDto implements Omit<UserData, 'isActive'|'id' | 'createdA
   @IsNotEmpty()
   role: 'MANAGER' | 'EMPLOYEE' | 'ADMIN';
 }
+export class CreateUserResponseDto implements Omit<UserData, 'passwordHash' | 'isActive'|'createdAt' | 'updatedAt'|'id'> {
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @IsString()
+  @IsNotEmpty()
+  username: string;
+  @IsString()
+  @IsNotEmpty()
+  phoneNumber: string;
+  @IsString()
+  @IsNotEmpty()
+  role: 'MANAGER' | 'EMPLOYEE' | 'ADMIN';
+}
+
 
 export class UserDto {
   @IsEmail()

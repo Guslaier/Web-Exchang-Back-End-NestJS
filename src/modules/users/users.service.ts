@@ -132,8 +132,8 @@ export class UsersService {
           throw new NotFoundException('User not found');
         }
 
-        // 2. ตรวจสอบสิทธิ์ (Business Logic)
         if (currentUser.id === id && updateUserDto.role) {
+          if (updateUserDto.role !== existingUser.role) {
           await this.log(
             currentUser,
             'UPDATE_USER_FAILED',
@@ -142,14 +142,19 @@ export class UsersService {
           );
           throw new ForbiddenException('Cannot change own role');
         }
+        }
+        // 2. ตรวจสอบสิทธิ์ (Business Logic)
         if (existingUser.role === 'ADMIN') {
-          await this.log(
-            currentUser,
-            'UPDATE_USER_FAILED',
-            `Cannot modify admin: ${id}`,
-            manager,
-          );
-          throw new ForbiddenException('Cannot modify admin');
+          const countAdmins = await userRepo.count({ where: { role: 'ADMIN' } });
+          if (existingUser.id === currentUser.id && updateUserDto.role && updateUserDto.role !== 'ADMIN' && countAdmins <= 1) {
+            await this.log(
+              currentUser,
+              'UPDATE_USER_FAILED',
+              `Cannot demote the only admin: ${id}`,
+              manager,
+            );
+            throw new ForbiddenException('Cannot demote the only admin');
+          }
         }
         if (
           currentUser.role === 'MANAGER' &&

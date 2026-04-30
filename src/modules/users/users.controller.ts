@@ -9,7 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import { CreateUserDto, CreateUserResponseDto, UpdateUserDto } from './dto/user.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -22,7 +22,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard) // ใช้ Guards ทั้ง JWT และ Roles เพื่อป้องกันการเข้าถึง Endpoint นี้
   @Roles('MANAGER', 'ADMIN') // จำกัดเฉพาะผู้ใช้ที่มี Role เป็น 'MANAGER' หรือ 'ADMIN' เท่านั้นที่สามารถเข้าถึง Endpoint นี้ได้
   @Post('register')
-  create(@Body() createUserDto: Omit<CreateUserDto, 'passwordHash'|'role'>) {
+  create(@Body() createUserDto: CreateUserResponseDto) {
     return this.usersService.create(createUserDto);
   }
 
