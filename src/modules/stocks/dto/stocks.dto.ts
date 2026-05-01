@@ -1,5 +1,11 @@
 import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
-import {} from './../../../types/index' ;
+import { ShiftData } from './../../../types/index' ;
+
+export class GetStockShiftQuery implements Pick<ShiftData , 'id'> {
+    @IsUUID()
+    @IsOptional()
+    id : string ; 
+}
 
 export class UpdateStockByExchangeTransactionDto {
     @IsUUID()
