@@ -28,14 +28,14 @@ export class Shift {
   @Column({ type: 'timestamp', nullable: true })
   endTime: Date | null ;
 
-  @Column({type : 'decimal' , scale : 2 , nullable : true , default : 0})
-  total_receive : number ; 
+  // @Column({type : 'decimal' , scale : 2 , nullable : true , default : 0})
+  // total_receive : number ; 
 
-  @Column({type : 'decimal' , scale : 2 , nullable : true , default : 0})
-  total_exchange : number ; 
+  // @Column({type : 'decimal' , scale : 2 , nullable : true , default : 0})
+  // total_exchange : number ; 
 
-  @Column({type : 'decimal' , scale : 2 , nullable : true , default : 0})
-  balance : number ; 
+  // @Column({type : 'decimal' , scale : 2 , nullable : true , default : 0})
+  // balance : number ; 
 
   @Column({type : 'decimal' , scale : 2 , nullable : true })
   balance_check : number ; 

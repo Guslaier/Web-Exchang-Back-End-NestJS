@@ -48,6 +48,8 @@ export class ExchangeTransactionsService {
     private readonly transactionsService: TransactionsService,
     private readonly dataSource: DataSource,
   ) {}
+   
+  // create 
 
   private async log(
     user: any,
@@ -258,18 +260,6 @@ export class ExchangeTransactionsService {
             `Failed to create exchange transaction due to database error. Error: ${error instanceof Error ? error.message : String(error)}`,
           );
         }
-
-        if (body.type === 'SELL') {
-          await this.shiftsService.setTotalReceive(
-            activeShift.boothId,
-            body.thaiBahtAmount,
-          );
-        } else {
-          await this.shiftsService.setTotalExchange(
-            activeShift.boothId,
-            body.thaiBahtAmount,
-          );
-        }
       });
       return { message: 'Exchange transaction created successfully' };
     } catch (error) {
@@ -277,6 +267,8 @@ export class ExchangeTransactionsService {
 
     }
   }
+
+  // read
 
   async getTransactionsFromShift(
     currentUser: any,
@@ -577,6 +569,8 @@ export class ExchangeTransactionsService {
 
     return exchangeTransactions;
   }
+
+  // update
 
   async setStatusByEmployee(
     currentUser: any,
