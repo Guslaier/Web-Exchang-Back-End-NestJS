@@ -34,6 +34,7 @@ import { CreateCashCountDto } from '../cash-counts/dto/cash-count.dto';
 import { TranSectionType } from 'index';
 import { CashCountsService } from '../cash-counts/cash-counts.service';
 import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
+import { ShiftsService } from '../shifts/shifts.service' ; 
 import { i, number, sum } from 'mathjs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../users/entities/user.entity';
@@ -58,6 +59,8 @@ export class TransferTransactionsService {
     private readonly cashCountsService: CashCountsService,
     @Inject(ExchangeRatesService)
     private readonly exchangeRatesService: ExchangeRatesService,
+    @Inject(ShiftsService)
+    private readonly shiftService : ShiftsService ,
   ) {}
 
   /**
@@ -134,14 +137,18 @@ export class TransferTransactionsService {
         throw new Error(`Target booth with ID ${firstShiftCashCountDto.transferDto.boothId} not found or inactive`);
       }
 
-      const targetActiveShift = await manager.getRepository(Shift).findOne({
-        where: { boothId: firstShiftCashCountDto.transferDto.boothId, status: Not("COMPLETED") },
-      });
-
-      if (!targetActiveShift) {
+      const targetActiveShift = await this.shiftService.getLastShiftByBoothId(firstShiftCashCountDto.transferDto.boothId) ; 
+    
+      if (!targetActiveShift ) {
         await this.log(user, 'FIRST_SHIFT_CASH_COUNT_FAILED', `Booth ${firstShiftCashCountDto.transferDto.boothId} does not have an active shift`, manager);
         throw new Error(`Target booth with ID ${firstShiftCashCountDto.transferDto.boothId} does not have an active shift`);
       }
+
+      if(targetActiveShift?.status === "COMPLETED") {
+        await this.log(user, 'FIRST_SHIFT_CASH_COUNT_FAILED', `Booth ${firstShiftCashCountDto.transferDto.boothId} does not have an active shift`, manager);
+        throw new Error(`Target booth with ID ${firstShiftCashCountDto.transferDto.boothId} does not have an active shift`);
+      }
+
 
       const beforeFirstShiftStock = await manager.getRepository(Transaction).findOne({
         relations:['transferTransaction'],
@@ -356,14 +363,9 @@ export class TransferTransactionsService {
         }
 
         // ถ้า boothId ไม่มีการเปิดกะอยู่ จะไม่อนุญาตให้ทำรายการโอนระหว่างบูธ
-        const activeShift = await manager.getRepository(Shift).findOne({
-          where: {
-            boothId: transferDto.boothId,
-            endTime: IsNull(),
-          },
-        });
-
-        if (!activeShift) {
+        const activeShift = await this.shiftService.getLastShiftByBoothId(transferDto.boothId) ; 
+    
+        if (!activeShift || (activeShift?.endTime != null)) {
           await this.log(
             user,
             'TRANSFER_BOOTH_TO_BOOTH_FAILED',
@@ -390,10 +392,9 @@ export class TransferTransactionsService {
           );
         }
         // ถ้า targetBoothId ไม่มีการเปิดกะอยู่ จะไม่อนุญาตให้ทำรายการโอนระหว่างบูธ
-        const targetActiveShift = await manager.getRepository(Shift).findOne({
-          where: { boothId: transferDto.refBoothId, endTime: IsNull() },
-        });
-        if (!targetActiveShift) {
+        const targetActiveShift = await this.shiftService.getLastShiftByBoothId(transferDto.refBoothId) ; 
+      
+        if (!targetActiveShift || (targetActiveShift?.endTime != null)) {
           await this.log(
             user,
             'TRANSFER_BOOTH_TO_BOOTH_FAILED',
@@ -581,10 +582,9 @@ export class TransferTransactionsService {
           );
         }
 
-        const targetActiveShift = await manager.getRepository(Shift).findOne({
-          where: { boothId: transferDto.boothId, endTime: IsNull() },
-        });
-        if (!targetActiveShift) {
+        const targetActiveShift = await this.shiftService.getLastShiftByBoothId(transferDto.boothId) ;  
+      
+        if (!targetActiveShift || targetActiveShift?.endTime != null) {
           await this.log(
             user,
             'TRANSFER_CENTER_TO_BOOTH_FAILED',
@@ -907,7 +907,7 @@ export class TransferTransactionsService {
         if (transferTransaction.type === 'TRANSFER_OUT') {
           const updateStockDto: UpdateStockByTransferTransactionForCancel = {
             sender_shift: transferTransaction.shiftId as string,
-            receiver_shift: null,
+            receiver_shift: transferTransaction.refShiftId as string,
             exchangeRateId: transferTransaction.exchangeRateId as string,
             transferAmount: transferTransaction.amount,
           };
@@ -940,7 +940,7 @@ export class TransferTransactionsService {
 
         if (transferTransaction.type === 'TRANSFER_IN') {
           const updateStockDto: UpdateStockByTransferTransactionForCancel = {
-            sender_shift: null,
+            sender_shift: transferTransaction.refShiftId as string,
             receiver_shift: transferTransaction.shiftId as string,
             exchangeRateId: transferTransaction.exchangeRateId as string,
             transferAmount: transferTransaction.amount,
