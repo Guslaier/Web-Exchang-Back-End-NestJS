@@ -41,6 +41,8 @@ export class ShiftsService {
     private readonly dataSource: DataSource,
   ) {}
 
+  // create
+
   private async log(
     user: any,
     action: string,
@@ -54,73 +56,30 @@ export class ShiftsService {
     });
   }
 
-  async getShifts(query: QueryDateDto) {
-    if (!query.startDate || !query.endDate) {
-      throw new BadRequestException('Specific range date required.');
-    }
-
-    const start = new Date(query.startDate);
-    const end = new Date(query.endDate);
-
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      throw new BadRequestException(
-        'StartDate or EndDate in not in Date from.',
-      );
-    }
-
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
+  async create(
+    currentUser: any,
+    userId: string,
+    boothId: string,
+    manager: EntityManager,
+  ) {
+    const shiftRepo = manager.getRepository(Shift);
+    const row = shiftRepo.create({
+      userId: userId,
+      boothId: boothId,
+    });
 
     try {
-      // const rows =  await this.shiftRepository.find({
-      //     where : { endTime : IsNull() , startTime : Between(start , end) } ,
-      // })  ;
 
-      return await this.shiftRepository.query(
-        `select id , "boothId" , "userId" , total_receive , total_exchange , balance , status , "startTime" 
-                from shifts   
-                where ("startTime" between  $1 and $2)
-                order by "startTime" asc`,
-        [start, end],
-      );
+      const savedShift = await shiftRepo.save(row);
+      const logQuery  = await this.log(currentUser,'OPEN_SHIFT_SUCCESS',`shift created  id : ${savedShift.id}`,manager,);
+      return { message: 'open shift success.' };
+
     } catch (err) {
-      console.log(err);
-      throw new InternalServerErrorException('Internal Server Error');
-    }
-  }
 
-  async getActiveShifts(query: QueryDateDto) {
-    if (!query.startDate || !query.endDate) {
-      throw new BadRequestException('Specific range date required.');
-    }
-
-    const start = new Date(query.startDate);
-    const end = new Date(query.endDate);
-
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      throw new BadRequestException(
-        'StartDate or EndDate in not in Date from.',
-      );
-    }
-
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
-
-    try {
-      // const rows =  await this.shiftRepository.find({
-      //     where : { endTime : IsNull() , startTime : Between(start , end) } ,
-      // })  ;
-
-      return await this.shiftRepository.query(
-        `select booths.id , booths.name 
-                from shifts join booths on booths.id = shifts."boothId"  
-                where ("endTime" is null) and ("startTime" between  $1 and $2)
-                order by booths.name asc`,
-        [start, end],
-      );
-    } catch (err) {
-      console.log(err);
-      throw new InternalServerErrorException('Internal Server Error');
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      await this.log(currentUser,'OPEN_SHIFT_FAILED',`internal server error: ${errorMessage}`,manager,);
+      throw new InternalServerErrorException('error in internal server. please contact admin.',);
+    
     }
   }
 
@@ -175,14 +134,12 @@ export class ShiftsService {
           { id: shift.id },
           { status: 'OPEN', endTime: null },
         );
-        const cache = this.getSummary(currentUser, { shiftId: shift.id });
-        const logQuery = this.log(
-          currentUser,
+        const logQuery = this.log(currentUser,
           'OPEN_SHIFT_SUCCESS',
           `updated shift id : ${shift.id}  to Open`,
           manager,
         );
-        await Promise.all([shiftQuery, cache, logQuery]);
+        await Promise.all([shiftQuery, logQuery]);
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -197,214 +154,141 @@ export class ShiftsService {
     return { message: 'Open shift success.' };
   }
 
-  async setStatusToCLose(currentUser: any, body: ShiftIdDto) {
-    const shiftId =
-      currentUser.role === 'EMPLOYEE'
-        ? (await this.getLastShiftByUserId(currentUser.id))?.id
-        : body.id;
-    if (!shiftId) {
-      await this.log(currentUser, 'CLOSE_SHIFT_FAILED', 'No shift found.');
-      throw new NotFoundException('No active shift found.');
+  // read
+
+  async getShifts(query: QueryDateDto) {
+    if (!query.startDate || !query.endDate) {
+      throw new BadRequestException('Specific range date required.');
     }
+
+    const start = new Date(query.startDate);
+    const end = new Date(query.endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException(
+        'StartDate or EndDate in not in Date from.',
+      );
+    }
+
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
 
     try {
-      await this.dataSource.transaction(async (manager) => {
-        const shiftRepo = manager.getRepository(Shift);
-        await shiftRepo.update(
-          { id: shiftId },
-          { status: 'CLOSE', endTime: new Date() },
-        );
-        const logQuery = this.log(
-          currentUser,
-          'CLOSE_SHIFT_SUCCESS',
-          `closed shift id : ${shiftId}`,
-          manager,
-        );
-        const cache = this.deleteCacheSummaryShift(shiftId, manager);
-        await Promise.all([cache, logQuery]);
-      });
-    } catch (err) {
-      const errMessage = err instanceof Error ? err.message : String(err);
-      await this.log(
-        currentUser,
-        'CLOSE_SHIFT_FAILED',
-        `close shift failed  err : ${errMessage}`,
+
+      return await this.shiftRepository.query(
+        `select id , "boothId" , "userId" , total_receive , total_exchange , balance , status , "startTime" 
+                from shifts   
+                where ("startTime" between  $1 and $2)
+                order by "startTime" asc`,
+        [start, end],
       );
-      handleError(err, 'ShiftsService.setStatusToCLose');
+    } catch (err) {
+      console.log(err);
+      throw new InternalServerErrorException('Internal Server Error');
     }
-    return { message: 'Close shift success.' };
   }
 
-  async getActiveShiftByUserId(userId: string) {
-    return await this.shiftRepository.findOne({
-      where: { userId: userId, endTime: IsNull() },
+  async getActiveShifts(query: QueryDateDto) {
+    if (!query.startDate || !query.endDate) {
+      throw new BadRequestException('Specific range date required.');
+    }
+
+    const start = new Date(query.startDate);
+    const end = new Date(query.endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException(
+        'StartDate or EndDate in not in Date from.',
+      );
+    }
+
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+
+    try {
+      return await this.shiftRepository.query(
+        `select booths.id , booths.name 
+                from shifts join booths on booths.id = shifts."boothId"  
+                where ("endTime" is null) and ("startTime" between  $1 and $2)
+                order by booths.name asc`,
+        [start, end],
+      );
+    } catch (err) {
+      console.log(err);
+      throw new InternalServerErrorException('Internal Server Error');
+    }
+  }
+  
+  // async getActiveShiftByBoothId(boothId: string) {
+  //   return await this.shiftRepository.findOne({
+  //     where: { boothId: boothId, endTime: IsNull() },
+  //   });
+  // }
+  
+
+  //  async getActiveShiftByUserId(userId: string) {
+  //   return await this.shiftRepository.findOne({
+  //     where: { userId: userId, endTime: IsNull() },
+  //   });
+  // }
+
+
+  
+  async getLastShiftByUserId(userId: string) {
+    const fromDate = new Date();
+    const toDate = new Date();
+    fromDate.setHours(0, 0, 0, 0);
+    toDate.setHours(23, 59, 59, 999);
+
+    const shiftQuery = this.shiftRepository.find({
+      where: { userId: userId, startTime: Between(fromDate, toDate) },
+      order: { createdAt: 'DESC' },
+      take: 1,
     });
+    const shifts = await shiftQuery;
+    return shifts.length > 0 ? shifts[0] : null;
   }
 
-  private async createCacheSummaryShift(
-    shiftId: string,
-    empId: string,
-    manager: EntityManager,
-  ) {
-    try {
-      await this.redisClient.hset(shiftId, {
-        total_receive: 0,
-        total_exchange: 0,
-        balance: 0,
-        emp: empId,
-      });
-      await this.redisClient.expire(shiftId, 60 * 60 * 12);
-      await this.log(null, 'CREATE_CACHE_SHIFT_SUCCESS', '', manager);
-    } catch (error) {
-      await this.log(null, 'CREATE_CACHE_SHIFT_FAILED', '', manager);
-    }
-  }
-
-  private async deleteCacheSummaryShift(
-    shiftId: string,
-    manager: EntityManager,
-  ) {
-    try {
-      await this.redisClient.del(shiftId);
-      await this.log(null, 'DELETE_CACHE_SHIFT_SUCCESS', '', manager);
-    } catch (error) {
-      await this.log(null, 'DELETE_CACHE_SHIFT_FAILED', '', manager);
-    }
-  }
-
-  async setTotalReceive(
-    boothId: string,
-    amount: number,
-    managerin?: EntityManager,
-  ) {
-    if (amount < 0) {
-      throw new BadRequestException(`amount of receive can't be under 0`);
+  async getLastShiftByBoothId(boothId: string | undefined) {
+    if (!boothId) {
+      return null;
     }
 
-    const shift = await this.getActiveShiftByBoothId(boothId);
-    if (!shift) {
-      throw new NotFoundException(
-        `active shift from Booth: ${boothId} not found.`,
-      );
-    }
+    const fromDate = new Date();
+    const toDate = new Date();
+    fromDate.setHours(0, 0, 0, 0);
+    toDate.setHours(23, 59, 59, 999);
 
-    const shiftId = shift.id;
-
-    // สร้าง reusable logic
-    const updateLogic = async (manager: EntityManager) => {
-      const shiftRepo = manager.getRepository(Shift);
-
-      // 1. Update Database
-      await shiftRepo.update(shiftId, {
-        total_receive: () => `total_receive + ${amount}`,
-        balance: () => `balance + ${amount}`,
-      });
-
-      // 2. Update Redis
-      const shiftExists = await this.redisClient.exists(shiftId);
-      if (shiftExists) {
-        await this.redisClient
-          .pipeline()
-          .hincrbyfloat(shiftId, 'total_receive', amount)
-          .hincrbyfloat(shiftId, 'balance', amount)
-          .exec();
-      }
-
-      await this.log(
-        null,
-        'UPDATE_TOTAL_RECEIVE_SUCCESS',
-        `Shift: ${shiftId}, Amount: ${amount}`,
-        manager,
-      );
-    };
-
-    try {
-      // หัวใจสำคัญ: ถ้ามี manager ส่งมา ให้ใช้ตัวนั้นรันเลย ห้ามสร้าง Transaction ซ้อน
-      if (managerin) {
-        return await updateLogic(managerin);
-      } else {
-        // ถ้าไม่มี (เช่น เรียกใช้จากฟังก์ชันอื่นเดี่ยวๆ) ให้สร้าง Transaction ใหม่
-        return await this.dataSource.transaction(updateLogic);
-      }
-    } catch (err) {
-      this.log(
-        null,
-        'UPDATE_TOTAL_RECEIVE_FAILED',
-        `Shift: ${shiftId}, Error: ${err}`,
-      );
-      throw new InternalServerErrorException(err || 'Internal Server Error');
-    }
-  }
-
-  async setTotalExchange(
-    boothId: string,
-    amount: number,
-    managerin?: EntityManager,
-  ) {
-    if (amount < 0) {
-      throw new BadRequestException(`amount of receive can't be under 0`);
-    }
-
-    const shift = await this.getActiveShiftByBoothId(boothId);
-    if (!shift) {
-      throw new NotFoundException(
-        `active shift from Booth: ${boothId} not found.`,
-      );
-    }
-
-    const shiftId = shift.id;
-
-    // --- ส่วนที่แก้ไข: เลือกว่าจะใช้ Manager ที่ส่งมา หรือสร้างใหม่เฉพาะกิจ ---
-    const executeLogic = async (manager: EntityManager) => {
-      const shiftRepo = manager.getRepository(Shift);
-
-      // 1. Update Database
-      await shiftRepo.update(shiftId, {
-        total_exchange: () => `total_exchange + ${amount}`,
-        balance: () => `balance - ${amount}`, // ใช้เครื่องหมายลบตรงๆ ก็ได้ครับ
-      });
-
-      // 2. Update Redis (ควรทำหลังจาก DB สำเร็จ)
-      const shiftExists = await this.redisClient.exists(shiftId);
-      if (shiftExists) {
-        await this.redisClient
-          .pipeline()
-          .hincrbyfloat(shiftId, 'total_exchange', amount)
-          .hincrbyfloat(shiftId, 'balance', -amount)
-          .exec();
-      }
-
-      await this.log(
-        null,
-        'UPDATE_TOTAL_EXCHANGE_SUCCESS',
-        `Shift: ${shiftId}, Amount: ${amount}`,
-        manager,
-      );
-    };
-
-    try {
-      if (managerin) {
-        // ถ้ามี manager ส่งมา (มาจาก Transaction ใหญ่) ให้รัน Logic เลย ไม่ต้องสร้าง transaction ซ้อน
-        return await executeLogic(managerin);
-      } else {
-        // ถ้าไม่มี ให้สร้าง Transaction ของตัวเอง
-        return await this.dataSource.transaction(executeLogic);
-      }
-    } catch (err) {
-      this.log(
-        null,
-        'UPDATE_TOTAL_EXCHANGE_FAILED',
-        `Shift: ${shiftId}, Error: ${err}`,
-      );
-      handleError(err, 'ShiftsService.setTotalExchange');
-    }
-  }
-
-  async getActiveShiftByBoothId(boothId: string) {
-    return await this.shiftRepository.findOne({
-      where: { boothId: boothId, endTime: IsNull() },
+    const shiftQuery = this.shiftRepository.find({
+      where: { boothId: boothId, startTime: Between(fromDate, toDate) },
+      order: { createdAt: 'DESC' },
+      take: 1,
     });
+    const shifts = await shiftQuery;
+    return shifts.length > 0 ? shifts[0] : null;
   }
+
+  
+
+  async getShiftById(shiftId: string | undefined) {
+    if (!shiftId || !isUUID(shiftId)) {
+      throw new BadRequestException('Shift ID is not in correct format.');
+    }
+
+    const shift = await this.shiftRepository.findOne({
+      where: { id: shiftId },
+    });
+
+    if (!shift) {
+      throw new NotFoundException('Shift not found.');
+    }
+
+    return shift;
+  }
+ 
+  
+  // update 
+
 
   async setCloseDaily(shiftId: string, data: SummaryData, currentUser: any) {
     if (!isUUID(shiftId)) {
@@ -474,125 +358,37 @@ export class ShiftsService {
     }
   }
 
-  async getSummary(currentUser: any, query: QueryShiftId) {
-    const shiftId = query?.shiftId ? query.shiftId : '';
-    console.log(shiftId);
-    if (!isUUID(shiftId)) {
-      throw new BadRequestException('No shift id or worng shift id format.');
+   async setStatusToCLose(currentUser: any, body: ShiftIdDto) {
+    const shiftId =
+      currentUser.role === 'EMPLOYEE'
+        ? (await this.getLastShiftByUserId(currentUser.id))?.id
+        : body.id;
+    if (!shiftId) {
+      await this.log(currentUser, 'CLOSE_SHIFT_FAILED', 'No shift found.');
+      throw new NotFoundException('No active shift found.');
     }
-
-    const exist = await this.redisClient.hexists(shiftId, 'emp');
-
-    if (!exist) {
-      const shift = await this.shiftRepository.findOne({
-        where: { id: shiftId },
-      });
-      if (!shift) {
-        throw new NotFoundException('Shift not found.');
-      }
-      await this.redisClient.hset(shiftId, {
-        total_receive: shift.total_receive,
-        total_exchange: shift.total_exchange,
-        balance: shift.balance,
-        emp: shift.userId,
-      });
-    }
-
-    const cache = await this.redisClient.hgetall(shiftId);
-    if (currentUser.role == 'EMPLOYEE' && currentUser.id != cache.emp) {
-      throw new ForbiddenException('This is not your shift.');
-    }
-    return cache;
-  }
-
-  async getLastShiftByUserId(userId: string) {
-    const fromDate = new Date();
-    const toDate = new Date();
-    fromDate.setHours(0, 0, 0, 0);
-    toDate.setHours(23, 59, 59, 999);
-
-    const shiftQuery = this.shiftRepository.find({
-      where: { userId: userId, startTime: Between(fromDate, toDate) },
-      order: { createdAt: 'DESC' },
-      take: 1,
-    });
-    const shifts = await shiftQuery;
-    return shifts.length > 0 ? shifts[0] : null;
-  }
-
-  async getLastShiftByBoothId(boothId: string | undefined) {
-    if (!boothId) {
-      return null;
-    }
-
-    const fromDate = new Date();
-    const toDate = new Date();
-    fromDate.setHours(0, 0, 0, 0);
-    toDate.setHours(23, 59, 59, 999);
-
-    const shiftQuery = this.shiftRepository.find({
-      where: { boothId: boothId, startTime: Between(fromDate, toDate) },
-      order: { createdAt: 'DESC' },
-      take: 1,
-    });
-    const shifts = await shiftQuery;
-    return shifts.length > 0 ? shifts[0] : null;
-  }
-
-  async create(
-    currentUser: any,
-    userId: string,
-    boothId: string,
-    manager: EntityManager,
-  ) {
-    const shiftRepo = manager.getRepository(Shift);
-    const row = shiftRepo.create({
-      userId: userId,
-      boothId: boothId,
-    });
 
     try {
-      const savedShift = await shiftRepo.save(row);
-      const cache = this.createCacheSummaryShift(
-        savedShift.id,
-        userId,
-        manager,
-      );
-      const logQuery = this.log(
-        currentUser,
-        'OPEN_SHIFT_SUCCESS',
-        `shift created  id : ${savedShift.id}`,
-        manager,
-      );
-      await Promise.all([cache, logQuery]);
-      return { message: 'open shift success.' };
+      await this.dataSource.transaction(async (manager) => {
+        const shiftRepo = manager.getRepository(Shift);
+        await shiftRepo.update(
+          { id: shiftId },
+          { status: 'CLOSE', endTime: new Date() },
+        );
+        const logQuery = await this.log(currentUser,'CLOSE_SHIFT_SUCCESS',`closed shift id : ${shiftId}` , manager) ; 
+      });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
+      const errMessage = err instanceof Error ? err.message : String(err);
       await this.log(
         currentUser,
-        'OPEN_SHIFT_FAILED',
-        `internal server error: ${errorMessage}`,
-        manager,
+        'CLOSE_SHIFT_FAILED',
+        `close shift failed  err : ${errMessage}`,
       );
-      throw new InternalServerErrorException(
-        'error in internal server. please contact admin.',
-      );
+      handleError(err, 'ShiftsService.setStatusToCLose');
     }
+    return { message: 'Close shift success.' };
   }
 
-  async getShiftById(shiftId: string | undefined) {
-    if (!shiftId || !isUUID(shiftId)) {
-      throw new BadRequestException('Shift ID is not in correct format.');
-    }
-
-    const shift = await this.shiftRepository.findOne({
-      where: { id: shiftId },
-    });
-
-    if (!shift) {
-      throw new NotFoundException('Shift not found.');
-    }
-
-    return shift;
-  }
+  
+  
 }

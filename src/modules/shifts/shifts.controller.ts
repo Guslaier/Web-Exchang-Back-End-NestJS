@@ -15,15 +15,6 @@ export class ShiftsController {
   {}
 
   @UseGuards(JwtAuthGuard , RolesGuard) 
-  @Roles("ADMIN" , "MANAGER" , "EMPLOYEE")
-  @Get('summary')
-  findShiftSummary(@CurrentUser() currentUser : any , @Query() query : QueryShiftId) {
-    return this.shiftsService.getSummary(currentUser , query) ;
-  }
-
-  
-
-  @UseGuards(JwtAuthGuard , RolesGuard) 
   @Roles("ADMIN" , "MANAGER")
   @Get('actives')
   findActivesShift(@Query() query : QueryDateDto) {
