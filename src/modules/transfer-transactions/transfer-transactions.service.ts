@@ -826,8 +826,8 @@ export class TransferTransactionsService {
 
         if (transferTransaction.type === 'CASH_IN') {
           const updateStockDto: UpdateStockByTransferTransactionForCancel = {
-            sender_shift: transferTransaction.shiftId as string,
-            receiver_shift: null, // เนื่องจากเป็นการโอนจากศูนย์ไปบูธ จึงไม่มี receiver shift,
+            sender_shift: null,
+            receiver_shift: transferTransaction.shiftId as string, // เนื่องจากเป็นการโอนจากศูนย์ไปบูธ จึงไม่มี receiver shift,
             exchangeRateId: transferTransaction.exchangeRateId as string,
             transferAmount: transferTransaction.amount,
           };
@@ -850,11 +850,11 @@ export class TransferTransactionsService {
             message: `Successfully canceled cash in transfer transaction with ID ${transactionId}`,
           };
         }
-
+  
         if (transferTransaction.type === 'CASH_OUT') {
           const updateStockDto: UpdateStockByTransferTransactionForCancel = {
-            sender_shift: null, // เนื่องจากเป็นการโอนจากบูธไปศูนย์ จึงไม่มี sender shift,
-            receiver_shift: transferTransaction.shiftId as string,
+            sender_shift: transferTransaction.shiftId as string,
+            receiver_shift: null,
             exchangeRateId: transferTransaction.exchangeRateId as string,
             transferAmount: transferTransaction.amount,
           };
@@ -903,11 +903,11 @@ export class TransferTransactionsService {
             `Cannot cancel transfer transaction because reference shift is completed`,
           );
         }
-
+   
         if (transferTransaction.type === 'TRANSFER_OUT') {
           const updateStockDto: UpdateStockByTransferTransactionForCancel = {
-            sender_shift: transferTransaction.refShiftId as string,
-            receiver_shift: transferTransaction.shiftId as string,
+            sender_shift: transferTransaction.shiftId as string,
+            receiver_shift: null,
             exchangeRateId: transferTransaction.exchangeRateId as string,
             transferAmount: transferTransaction.amount,
           };
@@ -940,8 +940,8 @@ export class TransferTransactionsService {
 
         if (transferTransaction.type === 'TRANSFER_IN') {
           const updateStockDto: UpdateStockByTransferTransactionForCancel = {
-            sender_shift: transferTransaction.shiftId as string,
-            receiver_shift: transferTransaction.refShiftId as string,
+            sender_shift: null,
+            receiver_shift: transferTransaction.shiftId as string,
             exchangeRateId: transferTransaction.exchangeRateId as string,
             transferAmount: transferTransaction.amount,
           };
