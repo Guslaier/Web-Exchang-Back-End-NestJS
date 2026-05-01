@@ -7,6 +7,7 @@ import {SystemLogsService} from './../system-logs/system-logs.service' ;
 import {EntityManager, Repository} from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Redis } from "ioredis";
+import { re } from "mathjs";
 
     
 @Injectable()
@@ -329,12 +330,11 @@ export class StocksService {
         return updateQuery;
     }
 
-     async updateCacheTotalExchangedCancel(shiftId : string | undefined , updateRecieveAmount : number) {
+    async updateCacheTotalExchangedCancel(shiftId : string | undefined , updateRecieveAmount : number) {
         const THBSummary = this.getTHBSummaryCache(shiftId) ; 
         if(!THBSummary) {
             return null ; 
         }
-        console.log(updateRecieveAmount) ; 
         const promiseUpdateReceive =  this.redisClient.hincrby(shiftId??'','total_exchanged' , Math.trunc(-updateRecieveAmount)) ; 
         const promiseUpdateBalance =  this.redisClient.hincrby(shiftId??'','total_balance' , Math.trunc(updateRecieveAmount)) ;
         await Promise.all([promiseUpdateReceive , promiseUpdateBalance])  ; 
@@ -342,64 +342,26 @@ export class StocksService {
 
 
     
-async updateStockByTransferTransactionForCancel( user: any , updateStockDto: UpdateStockByTransferTransactionForCancel , manager: EntityManager ) {
-        const isSenderExist = updateStockDto.sender_shift ? true : false ;
-        const isReceiverExist = updateStockDto.receiver_shift ? true : false ;
-        const promiseSenderShift = isSenderExist ? this.shiftsService.getShiftById(updateStockDto?.sender_shift ?? undefined) : Promise.resolve(null) ;
-        const promiseReceiverShift = isReceiverExist ? this.shiftsService.getShiftById(updateStockDto?.receiver_shift ?? undefined) : Promise.resolve(null) ;
-
-        // ดึงข้อมูล shift ของ sender และ receiver พร้อมกันเพื่อเพิ่มประสิทธิภาพ
-        const [senderShift, receiverShift] = await Promise.all([promiseSenderShift, promiseReceiverShift]);
-
-        // ห้ามเป็น null ทั้งคู่ เพราะถ้าไม่มี shift ของฝ่ายใดฝ่ายหนึ่งแปลว่าไม่สามารถทำธุรกรรมได้
-        if (!isSenderExist && !isReceiverExist) {
-            this.log(user, 'CREATE_TRANSFER_TRANSACTION_FAILED', `Failed cause both sender and receiver are not provided.`, manager);
-            throw new BadRequestException(`Failed cause both sender and receiver are not provided.`);
+    async updateStockByTransferTransactionForCancel( user: any , updateStockDto: UpdateStockByTransferTransactionForCancel , manager: EntityManager ) {
+        const senderShiftId = updateStockDto.sender_shift ; 
+        const receiverShiftId = updateStockDto.receiver_shift ; 
+        const exchangeRateId = updateStockDto.exchangeRateId  ;
+        const amount = updateStockDto.transferAmount ; 
+        // sender -ยอดแลก +คงเหลือ
+        if(senderShiftId) {
+            await this.updateTotalExchangedForCancel(senderShiftId , exchangeRateId , amount , manager) ;
         }
 
-
-        //กรณี BtoCenter จะเอาออกจากสต็อกของสาขาแล้วไปเข้าสต็อกกลาง จะเป็นค่าnull
-        if(isSenderExist == true && isReceiverExist == false) {
-            const stockSender = await this.getStock(senderShift?.id , updateStockDto.exchangeRateId) ;
-            if(!stockSender) {
-                this.log(user, 'CREATE_TRANSFER_TRANSACTION_FAILED', `Failed cause cannot find stock for sender's shift ${senderShift?.id} and exchange rate ${updateStockDto.exchangeRateId} in stock.`, manager);
-                throw new BadRequestException(`Failed cause cannot find stock for sender's shift ${senderShift?.id} and exchange rate ${updateStockDto.exchangeRateId} in stock.`);
+        // receiver -ยอดรับ -คงเหลือ
+        if(receiverShiftId) {
+            const receiverStock = await this.getStock(receiverShiftId , exchangeRateId) ;   
+            const isReceiveUpdateOverBalance = !this.checkBalance(receiverStock , amount) ;
+            if(isReceiveUpdateOverBalance) {
+                this.log(user, 'CANCEL_EXCHANGE_TRANSACTION_FAILED', `Failed cause the exchange amount ${amount} exceeds the available balance ${receiverStock?.total_balance} for shift ${receiverShiftId} and exchange rate ${exchangeRateId}.`, manager);
+                throw new BadRequestException(`Failed cause the exchange amount ${amount} exceeds the available balance ${receiverStock?.total_balance} for shift ${receiverShiftId} and exchange rate ${(await this.exchangeRatesService.findById(exchangeRateId as string)).name}.`);
             }
-            const isOverBalance = !this.checkBalance(stockSender , updateStockDto.transferAmount) ;
-            if(isOverBalance) {
-                this.log(user, 'CREATE_TRANSFER_TRANSACTION_FAILED', `Failed cause the transfer amount ${updateStockDto.transferAmount} exceeds the available balance ${stockSender?.total_balance} for sender's shift ${senderShift?.id} and exchange rate ${updateStockDto.exchangeRateId}.`, manager);
-                throw new BadRequestException(`Failed cause the transfer amount ${updateStockDto.transferAmount} exceeds the available balance ${stockSender?.total_balance} for sender's shift ${senderShift?.id} and exchange rate ${updateStockDto.exchangeRateId}.`);
-            }
-            return await this.updateTotalExchanged(senderShift?.id , updateStockDto.exchangeRateId , updateStockDto.transferAmount , manager) ;
+            await this.updateTotalReceiveForCancel(receiverShiftId , exchangeRateId , amount , manager) ; 
         }
-
-
-        // กรณี BtoB จะเอาออกจากสต็อกของสาขาแล้วไปเข้าสต็อกของอีกสาขาหนึ่ง
-        if (isSenderExist) {
-            const stockSender = await this.getStock(senderShift?.id , updateStockDto.exchangeRateId) ;
-            if(!stockSender) {
-                this.log(user, 'CREATE_TRANSFER_TRANSACTION_FAILED', `Failed cause cannot find stock for sender's shift ${senderShift?.id} and exchange rate ${updateStockDto.exchangeRateId} in stock.`, manager);
-                throw new BadRequestException(`Failed cause cannot find stock for sender's shift ${senderShift?.id} and exchange rate ${updateStockDto.exchangeRateId} in stock.`);
-            } 
-            const isOverBalance = !this.checkBalance(stockSender , updateStockDto.transferAmount) ;
-            if(isOverBalance) {
-                this.log(user, 'CREATE_TRANSFER_TRANSACTION_FAILED', `Failed cause the transfer amount ${updateStockDto.transferAmount} exceeds the available balance ${stockSender?.total_balance} for sender's shift ${senderShift?.id} and exchange rate ${updateStockDto.exchangeRateId}.`, manager);
-                throw new BadRequestException(`Failed cause the transfer amount ${updateStockDto.transferAmount} exceeds the available balance ${stockSender?.total_balance} for sender's shift ${senderShift?.id} and exchange rate ${updateStockDto.exchangeRateId}.`);
-            }
-            await this.updateTotalExchanged(senderShift?.id , updateStockDto.exchangeRateId , updateStockDto.transferAmount , manager) ;
-                 
-        }
-
-        // ถ้ามี receiver ให้ทำการอัพเดตสต็อกของ receiver ด้วย ไม่ว่าจะเป็นกรณี BtoB หรือ CenterToB
-        const stockReceiver = await this.getStock(receiverShift?.id , updateStockDto.exchangeRateId) ;
-        if(!stockReceiver) {
-            const savedStock = await this.create(receiverShift?.id , updateStockDto.exchangeRateId , manager) ;
-            if(!savedStock) {
-                this.log(user, 'CREATE_TRANSFER_TRANSACTION_FAILED', `Failed to create stock for receiver's shift ${receiverShift?.id} and exchange rate ${updateStockDto.exchangeRateId}`, manager);
-                throw new InternalServerErrorException(`Failed to create stock for receiver's shift ${receiverShift?.id} and exchange rate ${updateStockDto.exchangeRateId}`);
-            }
-        }
-        return await this.updateTotalReceive(receiverShift?.id , updateStockDto.exchangeRateId , updateStockDto.transferAmount , manager) ;
     }
 
 
