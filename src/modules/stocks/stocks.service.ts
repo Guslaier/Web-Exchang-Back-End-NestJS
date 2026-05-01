@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable , InternalServerErrorException, NotFoundException , Inject} from "@nestjs/common";
+import { BadRequestException, Injectable , InternalServerErrorException, NotFoundException , Inject, ForbiddenException} from "@nestjs/common";
 import {UpdateStockByExchangeTransactionDto , UpdateStockByExchangeTransactionForCancel, UpdateStockByTransferTransactionDto, UpdateStockByTransferTransactionForCancel} from './dto/stocks.dto';
 import { Stock } from './entities/stocks.entitiy' ;
 import {ShiftsService} from './../shifts/shifts.service';
@@ -63,11 +63,41 @@ export class StocksService {
 
     // read
 
-    async getTHBSummary(user : any , shiftId : string | undefined) {
-        const THBSummaryCache = await this.getTHBSummaryCache(shiftId) ; 
-        if (!THBSummaryCache) {
+    async getTHBSummary(user : any , queryId : string | undefined) {
+        const isEmp = ( user.role === 'EMPLOYEE' ) ;
+        const shift = isEmp ? await this.shiftsService.getLastShiftByUserId(user.id) : null ;
+        const shiftId = isEmp ? shift?.id : queryId ;
 
+       if(shift?.status === 'COMPLETED') {
+            throw new ForbiddenException('This stock information are for Admin and manager only.'); 
+       }
+
+        if (!shiftId) {
+            throw new BadRequestException('Shift id is not found for stock information.'); 
         }
+
+        const THBSummaryCache = await this.getTHBSummaryCache(shiftId as string) ; 
+        if(THBSummaryCache.total_balance != undefined && THBSummaryCache.total_balance != null ) {
+            return THBSummaryCache ; 
+        } 
+
+        const THBid = await this.getTHBIdCache() ; 
+        const THBSummary = await this.stockRepository.findOne({
+            where : {
+                shiftId : shiftId as string  , 
+                exchangeRateId : THBid as string ,
+            } , 
+            select : {
+                total_received : true , 
+                total_exchanged : true , 
+                total_balance : true , 
+            }
+        }) ;
+    
+        if(!THBSummary){
+            throw new NotFoundException(`Stock information of shift : ${shiftId} is not found.`) ; 
+        }
+        return THBSummary ; 
     }
 
     async getTHBIdCache() {
