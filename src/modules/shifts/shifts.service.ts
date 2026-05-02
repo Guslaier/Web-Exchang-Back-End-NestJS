@@ -70,17 +70,25 @@ export class ShiftsService {
     });
 
     try {
-
       const savedShift = await shiftRepo.save(row);
-      const logQuery  = await this.log(currentUser,'OPEN_SHIFT_SUCCESS',`shift created  id : ${savedShift.id}`,manager,);
+      const logQuery = await this.log(
+        currentUser,
+        'OPEN_SHIFT_SUCCESS',
+        `shift created  id : ${savedShift.id}`,
+        manager,
+      );
       return { message: 'open shift success.' };
-
     } catch (err) {
-
       const errorMessage = err instanceof Error ? err.message : String(err);
-      await this.log(currentUser,'OPEN_SHIFT_FAILED',`internal server error: ${errorMessage}`,manager,);
-      throw new InternalServerErrorException('error in internal server. please contact admin.',);
-    
+      await this.log(
+        currentUser,
+        'OPEN_SHIFT_FAILED',
+        `internal server error: ${errorMessage}`,
+        manager,
+      );
+      throw new InternalServerErrorException(
+        'error in internal server. please contact admin.',
+      );
     }
   }
 
@@ -135,7 +143,8 @@ export class ShiftsService {
           { id: shift.id },
           { status: 'OPEN', endTime: null },
         );
-        const logQuery = this.log(currentUser,
+        const logQuery = this.log(
+          currentUser,
           'OPEN_SHIFT_SUCCESS',
           `updated shift id : ${shift.id}  to Open`,
           manager,
@@ -175,7 +184,6 @@ export class ShiftsService {
     end.setHours(23, 59, 59, 999);
 
     try {
-
       return await this.shiftRepository.query(
         `select id , "boothId" , "userId" , total_receive , total_exchange , balance , status , "startTime" 
                 from shifts   
@@ -219,8 +227,7 @@ export class ShiftsService {
       throw new InternalServerErrorException('Internal Server Error');
     }
   }
-  
-  
+
   async getLastShiftByUserId(userId: string) {
     const fromDate = new Date();
     const toDate = new Date();
@@ -236,32 +243,36 @@ export class ShiftsService {
     return shifts.length > 0 ? shifts[0] : null;
   }
 
-  async getLastShiftByBoothId(boothId: string | undefined) {
+  async getLastShiftByBoothId(boothId: string | undefined, required = true) {
     if (!boothId) {
-      return null;
+      if (required) {
+        throw new BadRequestException('Booth ID is required.');
+      } else {
+        return null;
+      }
     }
-
     const fromDate = new Date();
     const toDate = new Date();
     fromDate.setHours(0, 0, 0, 0);
-    toDate.setDate(toDate.getDate() + 1) ; 
+    toDate.setDate(toDate.getDate() + 1);
     toDate.setHours(23, 59, 59, 999);
 
     const shiftQuery = this.shiftRepository.find({
-      where: { boothId: boothId, startTime: Between(fromDate, toDate) , status : Not("COMPLETED") },
+      where: { boothId: boothId, startTime: Between(fromDate, toDate) },
       order: { createdAt: 'DESC' },
       take: 1,
     });
     const shifts = await shiftQuery;
 
-    if(shifts.length === 0 ) {
-        throw new NotFoundException("Shift is not found from sent id.") ;    
+    if (shifts.length === 0) {
+      if (required) {
+        throw new NotFoundException('No shift found for this booth today.');
+      } else {
+        return [];
+      }
     }
-
     return shifts.length > 0 ? shifts[0] : null;
   }
-
-  
 
   async getShiftById(shiftId: string | undefined) {
     if (!shiftId || !isUUID(shiftId)) {
@@ -278,10 +289,8 @@ export class ShiftsService {
 
     return shift;
   }
- 
-  
-  // update 
 
+  // update
 
   async setCloseDaily(shiftId: string, data: SummaryData, currentUser: any) {
     if (!isUUID(shiftId)) {
@@ -351,7 +360,7 @@ export class ShiftsService {
     }
   }
 
-   async setStatusToCLose(currentUser: any, body: ShiftIdDto) {
+  async setStatusToCLose(currentUser: any, body: ShiftIdDto) {
     const shiftId =
       currentUser.role === 'EMPLOYEE'
         ? (await this.getLastShiftByUserId(currentUser.id))?.id
@@ -368,7 +377,12 @@ export class ShiftsService {
           { id: shiftId },
           { status: 'CLOSE', endTime: new Date() },
         );
-        const logQuery = await this.log(currentUser,'CLOSE_SHIFT_SUCCESS',`closed shift id : ${shiftId}` , manager) ; 
+        const logQuery = await this.log(
+          currentUser,
+          'CLOSE_SHIFT_SUCCESS',
+          `closed shift id : ${shiftId}`,
+          manager,
+        );
       });
     } catch (err) {
       const errMessage = err instanceof Error ? err.message : String(err);
@@ -381,7 +395,4 @@ export class ShiftsService {
     }
     return { message: 'Close shift success.' };
   }
-
-  
-  
 }

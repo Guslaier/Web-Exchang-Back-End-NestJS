@@ -32,7 +32,7 @@ export class ShiftsController {
   @Roles("ADMIN" , "MANAGER")
   @Get('booth')
   getShiftsBooth(@Query()  query : GetShiftBoothQuery) {
-    return this.shiftsService.getLastShiftByBoothId(query.id) ; 
+    return this.shiftsService.getLastShiftByBoothId(query.id, false) ; 
   }
 
   @UseGuards(JwtAuthGuard , RolesGuard) 
