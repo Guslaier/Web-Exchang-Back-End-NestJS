@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, IsOptional, IsDateString , IsDate, IsNumber, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
-import type  {ShiftData} from './../../../types/index' ;  
+import type  {ShiftData , BoothData} from './../../../types/index' ;  
 
 
 export class CreateShiftDto {
@@ -66,4 +66,10 @@ export class ShiftIdDto implements Pick<ShiftData , 'id'>   {
   @IsUUID() 
   @IsOptional() 
   id: string; 
+}
+
+export class GetShiftBoothQuery implements Pick<BoothData , 'id' > {
+  @IsUUID()
+  @IsNotEmpty()
+  id : string ; 
 }

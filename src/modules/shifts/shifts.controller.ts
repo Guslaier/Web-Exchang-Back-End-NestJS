@@ -1,6 +1,6 @@
 import { Controller, Post, Get, Put, Delete, Param, Body, UseGuards, Query } from '@nestjs/common';
 import { ShiftsService } from './shifts.service';
-import { QueryDateDto, QueryShiftId, SummaryData , UserIdDto , ShiftIdDto , BoothIdDto} from './dto/shift.dto';
+import { QueryDateDto, QueryShiftId, SummaryData , UserIdDto , ShiftIdDto , BoothIdDto , GetShiftBoothQuery} from './dto/shift.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -26,6 +26,13 @@ export class ShiftsController {
   @Get()
   findShifts(@Query() query : QueryDateDto) {
     return this.shiftsService.getShifts(query) ;
+  }
+
+  @UseGuards(JwtAuthGuard , RolesGuard) 
+  @Roles("ADMIN" , "MANAGER")
+  @Get('booth')
+  getShiftsBooth(@Query()  query : GetShiftBoothQuery) {
+    return this.shiftsService.getLastShiftByBoothId(query.id) ; 
   }
 
   @UseGuards(JwtAuthGuard , RolesGuard) 
