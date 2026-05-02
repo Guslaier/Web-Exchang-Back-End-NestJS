@@ -16,6 +16,7 @@ import {
   DataSource,
   EntityManager,
   Between,
+  Not,
 } from 'typeorm';
 import { SystemLogsService } from '../../modules/system-logs/system-logs.service';
 import Redis from 'ioredis';
@@ -219,20 +220,6 @@ export class ShiftsService {
     }
   }
   
-  // async getActiveShiftByBoothId(boothId: string) {
-  //   return await this.shiftRepository.findOne({
-  //     where: { boothId: boothId, endTime: IsNull() },
-  //   });
-  // }
-  
-
-  //  async getActiveShiftByUserId(userId: string) {
-  //   return await this.shiftRepository.findOne({
-  //     where: { userId: userId, endTime: IsNull() },
-  //   });
-  // }
-
-
   
   async getLastShiftByUserId(userId: string) {
     const fromDate = new Date();
@@ -257,14 +244,20 @@ export class ShiftsService {
     const fromDate = new Date();
     const toDate = new Date();
     fromDate.setHours(0, 0, 0, 0);
+    toDate.setDate(toDate.getDate() + 1) ; 
     toDate.setHours(23, 59, 59, 999);
 
     const shiftQuery = this.shiftRepository.find({
-      where: { boothId: boothId, startTime: Between(fromDate, toDate) },
+      where: { boothId: boothId, startTime: Between(fromDate, toDate) , status : Not("COMPLETED") },
       order: { createdAt: 'DESC' },
       take: 1,
     });
     const shifts = await shiftQuery;
+
+    if(shifts.length === 0 ) {
+        throw new NotFoundException("Shift is not found from sent id.") ;    
+    }
+
     return shifts.length > 0 ? shifts[0] : null;
   }
 
