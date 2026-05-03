@@ -116,7 +116,7 @@ export class ExchangeRatesService {
       name: `${currency.code}`,
       currencyId: currency.id,
       range_start: 0,
-      range_stop: 99999999, // ตั้งค่าไว้สูงๆ เพื่อให้ครอบคลุมทุกจำนวนเงิน
+      range_stop: 9999999, // ตั้งค่าไว้สูงๆ เพื่อให้ครอบคลุมทุกจำนวนเงิน
       formula_buy: 'BASE',
       formula_sell: 'BASE',
       buy_rate: currency.buyRate,
