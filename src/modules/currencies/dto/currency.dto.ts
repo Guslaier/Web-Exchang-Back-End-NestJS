@@ -47,3 +47,8 @@ export enum UpdateMode {
   AUTO = 'AUTO',
   MANUAL = 'MANUAL',
 }
+
+export class CurrencyUpdateModeDto {
+  id: string;
+  mode: UpdateMode;
+}

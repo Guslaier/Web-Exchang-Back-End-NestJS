@@ -310,7 +310,8 @@ export class BoothsService {
         const activeShift = await manager.getRepository(Shift).findOne({
           where: {
             id: shiftId,
-            endTime: IsNull(),
+            userId: booth.currentShiftId as string,
+            status: Not('COMPLETED'),
             createdAt: MoreThanOrEqual(todayStart),
           },
         });

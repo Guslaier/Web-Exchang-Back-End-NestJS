@@ -376,11 +376,11 @@ export class ExclusiveExchangeRatesService {
     if (rates.length === 0) return [];
 
     return rates.reduce((acc: any[], rate) => {
-      let boothGroup = acc.find((b) => b.booth_id === rate.booth.id);
+      let boothGroup = acc.find((b) => b.booth_id === rate.booth?.id);
       if (!boothGroup) {
         boothGroup = {
-          booth_id: rate.booth.id,
-          booth_name: rate.booth.name,
+          booth_id: rate.booth?.id,
+          booth_name: rate.booth?.name,
           exchange_rates: [],
         };
         acc.push(boothGroup);

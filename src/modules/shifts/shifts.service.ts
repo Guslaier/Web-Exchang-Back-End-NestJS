@@ -244,6 +244,7 @@ export class ShiftsService {
         return null;
       }
     }
+
     const fromDate = new Date();
     const toDate = new Date();
     fromDate.setHours(0, 0, 0, 0);

@@ -14,9 +14,10 @@ import { Repository, DataSource } from 'typeorm';
 import { Currency } from './entities/currency.entity';
 import { firstValueFrom } from 'rxjs';
 import { SystemLogsService } from '../system-logs/system-logs.service';
-import { UpdateMode } from './dto/currency.dto';
+import { CurrencyUpdateModeDto, UpdateMode } from './dto/currency.dto';
 import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
 import { handleError } from '../../common/error/error';
+import { re } from 'mathjs';
 
 @Injectable()
 export class CurrenciesService implements OnModuleInit {
@@ -401,43 +402,46 @@ export class CurrenciesService implements OnModuleInit {
     return this.currencyRepo.findOne({ where: { id } });
   }
 
-  async setUpdateModeAll(user: any, mode: UpdateMode) {
-    try {
-      return await this.dataSource.transaction(async (manager) => {
-        const repo = manager.getRepository(Currency);
+  async setUpdateModeBulk(user: any, updateData: CurrencyUpdateModeDto[]) {
+  try {
+    return await this.dataSource.transaction(async (manager) => {
+      console.log('Received bulk mode update request:', updateData);
+      if (!updateData ||
+        !Array.isArray(updateData) ||
+        updateData.length === 0) {
+          throw new BadRequestException('Invalid input data. Expecting an array.');
+      }
+      const results = await Promise.all(
+        updateData.map(async (item) => {
+          try {
+            // 🚩 จุดสำคัญ: ถ้าเป็นไปได้ ฟังก์ชัน setUpdateMode ควรรับตัวแปร 'manager' เข้าไปด้วย
+            // ไม่อย่างนั้นมันจะไม่ถูกนับรวมใน Transaction นี้ (ถ้าพัง มันจะไม่ Rollback ตัวที่สำเร็จไปแล้ว)
+            // เช่น: await this.setUpdateMode(manager, user, item.id, item.mode as UpdateMode);
+            const report = await this.setUpdateMode(user, item.id, item.mode as UpdateMode);
+            
+            // 2. คืนค่า Object ใหม่ที่เพิ่ม statusUpdate เข้าไป
+            return { ...report, statusUpdate: true };
+          } catch (err: any) {
+            // ถ้ายอมให้บางตัวพังได้โดยไม่กระทบตัวอื่น ให้ return null แบบนี้ถูกต้องแล้ว
+            // แต่ถ้าอยากให้พัง 1 ตัว = ยกเลิกทั้งหมด (Rollback) ให้ใช้ 'throw err;' แทนครับ
+            console.error(`Failed to update ${item.id}:`, err);
+            return { id: item.id, error: err.message || 'Unknown error', statusUpdate: false }; // คืนข้อมูลที่บอกว่าตัวไหนพัง พร้อมข้อความผิดพลาด (ถ้าต้องการ)
+          }
+        })
+      );
 
-        await repo
-          .createQueryBuilder()
-          .update(Currency)
-          .set({ updateMode: mode, updatedAt: new Date() })
-          .execute();
-
-        await this.systemLogsService.createLog(
-          user,
-          {
-            userId: user?.id || null,
-            action: 'CURRENCY_MODE_CHANGE_ALL_SUCCESS',
-            details: `All currencies update mode changed to: ${mode}`,
-          },
-          manager,
-        );
-
-        if (mode === UpdateMode.AUTO) {
-          this.updateAutoRateAll(); // พยายามอัปเดตทันทีถ้าเปลี่ยนเป็น AUTO
-        }
-        console.log('All currencies update mode changed to:', mode);
-        await this.exchangeRatesService.updateRateAll(); // อัปเดตเรทลูกทั้งหมดหลังจากอัปเดตเรทแม่เสร็จ
-        return await repo.find({ order: { code: 'ASC' } });
-      });
-    } catch (err) {
-      handleError(err, 'Failed to set update mode for all currencies');
-    }
+      // 3. รีเทิร์นผลลัพธ์ทั้งหมดออกไป (จะเป็น Array ของ report หรือ null)
+      return results;
+    });
+  } catch (err: any) {
+    handleError(err, 'Failed to set update mode for all currencies');
   }
+}
 
   async getTHBCurrency() {
     try {
       return await this.currencyRepo.findOne({ where: { code: 'THB' } });
-    } catch (err) {
+    } catch (err: any) {
       const errMessage = err instanceof Error ? err.message : String(err);
       await this.systemLogsService.createLog(null, {
         userId: null,
@@ -453,7 +457,7 @@ export class CurrenciesService implements OnModuleInit {
       const currency = await this.currencyRepo.findOne({ where: { code } });
       if (!currency) throw new NotFoundException('Currency not found');
       return currency;
-    } catch (err) {
+    } catch (err: any) {
       const errMessage = err instanceof Error ? err.message : String(err);
       await this.systemLogsService.createLog(null, {
         userId: null,

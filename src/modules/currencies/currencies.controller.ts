@@ -10,7 +10,7 @@ import {
   Header,
 } from '@nestjs/common';
 import { CurrenciesService } from './currencies.service';
-import { UpdateMode } from './dto/currency.dto';
+import { CurrencyUpdateModeDto, UpdateMode } from './dto/currency.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -37,23 +37,14 @@ export class CurrenciesController {
     return await this.currenciesService.updateAutoRateAll();
   }
 
-  // 3. เปลี่ยนโหมดการอัปเดต (AUTO <-> MANUAL)
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('MANAGER', 'ADMIN')
-  @Patch('mode/:id')
-  async setMode(
-    @CurrentUser() user: any,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body('mode') mode: UpdateMode,
-  ) {
-    return await this.currenciesService.setUpdateMode(user, id, mode);
-  }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('MANAGER', 'ADMIN')
   @Patch('mode')
-  async setModeAll(@CurrentUser() user: any, @Body('mode') mode: UpdateMode) {
-    return await this.currenciesService.setUpdateModeAll(user, mode);
+  async setModeBulk(
+    @CurrentUser() user: any, 
+    @Body('data') updateData: CurrencyUpdateModeDto[]) {
+    return await this.currenciesService.setUpdateModeBulk(user, updateData);
   }
 
   // 4. อัปเดตเรทแบบ Manual (Bulk Update - ส่งมาเป็น Array)
