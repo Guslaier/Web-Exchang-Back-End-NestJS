@@ -43,7 +43,7 @@ export class Shift {
   @Column({type : 'decimal' , scale : 2 , nullable : true })
   cash_advance : number ; 
 
-  @Column({ default: 'OPEN' })
+  @Column({ default: 'CLOSE' })
   status: string;
 
   @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" , transformer: TimestampTransformer })
