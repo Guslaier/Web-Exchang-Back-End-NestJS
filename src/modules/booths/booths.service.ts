@@ -121,6 +121,11 @@ export class BoothsService {
     return booth;
   }
 
+  async getBoothIfExist(id : string) {
+    const boothData = await this.findOne(id) ;
+    return boothData ; 
+  }
+
   // อัปเดตข้อมูลบูธ
   async update(user: any, id: string, updateBoothDto: UpdateBoothDto) {
     try {
