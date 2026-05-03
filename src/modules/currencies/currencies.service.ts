@@ -384,53 +384,58 @@ export class CurrenciesService implements OnModuleInit {
   }
 
   // +++++++++++++++++++++++++++ 5. Toggle Mode ++++++++++++++++++++++++++++
-  async setUpdateMode(user: any, id: string, mode: UpdateMode) {
-    const currency = await this.currencyRepo.findOne({ where: { id } });
+  // เพิ่ม manager?: EntityManager เข้ามา และเปลี่ยนไปใช้ repo ตามสถานการณ์
+  async setUpdateMode(user: any, id: string, mode: UpdateMode, manager?: any) {
+    // ถ้ามี manager ให้ใช้ manager ถ้าไม่มีให้ใช้ repo ปกติ
+    const repo = manager ? manager.getRepository(Currency) : this.currencyRepo;
+
+    const currency = await repo.findOne({ where: { id } });
     if (!currency) throw new NotFoundException('Not found');
 
     if (mode === UpdateMode.MANUAL && !currency.hasInitialBotData) {
       throw new ForbiddenException('Missing initial BOT data.');
     }
 
-    await this.currencyRepo.update(id, { updateMode: mode });
+    await repo.update(id, { updateMode: mode });
+
     await this.systemLogsService.createLog(user, {
       userId: user?.id || null,
       action: 'CURRENCY_MODE_CHANGE_SUCCESS',
       details: `Currency ${currency.code} update mode changed to: ${mode}`,
     });
-    await this.exchangeRatesService.updateRateAll(user); // อัปเดตเรทลูกทั้งหมดหลังจากอัปเดตเรทแม่เสร็จ
-    return this.currencyRepo.findOne({ where: { id } });
+    return repo.findOne({ where: { id } });
   }
 
   async setUpdateModeBulk(user: any, updateData: CurrencyUpdateModeDto[]) {
   try {
+    if (!updateData || !Array.isArray(updateData) || updateData.length === 0) {
+      throw new BadRequestException('Invalid input data. Expecting an array.');
+    }
+
     return await this.dataSource.transaction(async (manager) => {
       console.log('Received bulk mode update request:', updateData);
-      if (!updateData ||
-        !Array.isArray(updateData) ||
-        updateData.length === 0) {
-          throw new BadRequestException('Invalid input data. Expecting an array.');
-      }
-      const results = await Promise.all(
-        updateData.map(async (item) => {
-          try {
-            // 🚩 จุดสำคัญ: ถ้าเป็นไปได้ ฟังก์ชัน setUpdateMode ควรรับตัวแปร 'manager' เข้าไปด้วย
-            // ไม่อย่างนั้นมันจะไม่ถูกนับรวมใน Transaction นี้ (ถ้าพัง มันจะไม่ Rollback ตัวที่สำเร็จไปแล้ว)
-            // เช่น: await this.setUpdateMode(manager, user, item.id, item.mode as UpdateMode);
-            const report = await this.setUpdateMode(user, item.id, item.mode as UpdateMode);
-            
-            // 2. คืนค่า Object ใหม่ที่เพิ่ม statusUpdate เข้าไป
-            return { ...report, statusUpdate: true };
-          } catch (err: any) {
-            // ถ้ายอมให้บางตัวพังได้โดยไม่กระทบตัวอื่น ให้ return null แบบนี้ถูกต้องแล้ว
-            // แต่ถ้าอยากให้พัง 1 ตัว = ยกเลิกทั้งหมด (Rollback) ให้ใช้ 'throw err;' แทนครับ
-            console.error(`Failed to update ${item.id}:`, err);
-            return { id: item.id, error: err.message || 'Unknown error', statusUpdate: false }; // คืนข้อมูลที่บอกว่าตัวไหนพัง พร้อมข้อความผิดพลาด (ถ้าต้องการ)
-          }
-        })
-      );
+      
+      const results = [];
 
-      // 3. รีเทิร์นผลลัพธ์ทั้งหมดออกไป (จะเป็น Array ของ report หรือ null)
+      // ✅ ใช้ for...of เพื่อให้ทำงานเรียงลำดับ ป้องกัน Database Deadlock
+      for (const item of updateData) {
+        try {
+          // ✅ โยน manager เข้าไปให้ setUpdateMode ใช้งาน
+          const report = await this.setUpdateMode(user, item.id, item.mode as UpdateMode, manager);
+          results.push({ ...report, statusUpdate: true });
+        } catch (err: any) {
+          console.error(`Failed to update ${item.id}:`, err);
+          results.push({
+            id: item.id,
+            error: err.message || 'Unknown error',
+            statusUpdate: false,
+          });
+        }
+      }
+
+      // ✅ พระเอกอยู่ตรงนี้: เรียกอัปเดตเรทลูก "ครั้งเดียว" หลังจากที่อัปเดตสถานะของทุกสกุลเงินเสร็จแล้ว
+      await this.exchangeRatesService.updateRateAll(user);
+
       return results;
     });
   } catch (err: any) {
