@@ -36,7 +36,7 @@ export class ShiftsController {
   }
 
   @UseGuards(JwtAuthGuard , RolesGuard) 
-  @Roles("EMPLOYEE" , "ADMIN" , "MANAGER")
+  @Roles("ADMIN" , "MANAGER")
   @Post()
   open(@CurrentUser() currentUser : any , @Body() body : BoothIdDto) { 
     return  this.shiftsService.openShift(currentUser , body) ; 
