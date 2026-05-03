@@ -412,7 +412,7 @@ export class CurrenciesService implements OnModuleInit {
       throw new BadRequestException('Invalid input data. Expecting an array.');
     }
 
-    return await this.dataSource.transaction(async (manager) => {
+    const results = await this.dataSource.transaction(async (manager) => {
       console.log('Received bulk mode update request:', updateData);
       
       const results = [];
@@ -433,11 +433,12 @@ export class CurrenciesService implements OnModuleInit {
         }
       }
 
-      // ✅ พระเอกอยู่ตรงนี้: เรียกอัปเดตเรทลูก "ครั้งเดียว" หลังจากที่อัปเดตสถานะของทุกสกุลเงินเสร็จแล้ว
-      await this.exchangeRatesService.updateRateAll(user);
-
-      return results;
+      // หลังจากอัปเดตโหมดทั้งหมดแล้ว ค่อยอัปเดตเรทลูกทีเดียวเพื่อลดโอกาสเกิด Deadlock
+      
+      
     });
+    await this.updateAutoRateAll();
+    return results;
   } catch (err: any) {
     handleError(err, 'Failed to set update mode for all currencies');
   }
