@@ -286,68 +286,22 @@ export class ShiftsService {
   // update 
 
 
-  async setCloseDaily(shiftId: string, data: SummaryData, currentUser: any) {
-    if (!isUUID(shiftId)) {
-      await this.log(
-        currentUser,
-        'SET_CLOSE_DAILY_FAILED',
-        'Id is not correct format.',
-      );
-      throw new BadRequestException('Id is not correct format.');
+  async setCloseDaily(paras: SummaryData, currentUser: any) {
+    const shiftData = await this.getShiftById(paras.id) ; 
+
+    if (!shiftData) {
+      await this.log(currentUser , 'SHIFT_AUDIT_FAILED' , `Shift no found from sent id : ${paras.id}`) ; 
+      throw new NotFoundException('Shift no found') ;
     }
 
-    const shift = await this.shiftRepository.findOne({
-      where: { id: shiftId },
-    });
-
-    if (!shift) {
-      await this.log(
-        currentUser,
-        'SET_CLOSE_DAILY_FAILED',
-        'Could not find shift from shift id.',
-      );
-      throw new NotFoundException('Could not find shift from shift id.');
+    if(shiftData.status === 'OPEN' || shiftData.status === 'COMPLETED') {
+      await this.log(currentUser , 'SHIFT_AUDIT_FAILED' , `Shift id : ${paras.id} is not 'CLOSE' Status.`) ;
+      throw new ConflictException("Shift is not 'CLOSE' status")
     }
 
-    if (shift.status != 'close') {
-      const errorCause =
-        shift.status == 'OPEN' ? 'it still active.' : 'it has been summarized.';
-      await this.log(
-        currentUser,
-        'SET_CLOSE_DAILY_FAILED',
-        `This shift cannot be summerize casue ${errorCause}`,
-      );
-      throw new ConflictException(
-        `This shift cannot be summerize casue ${errorCause}`,
-      );
-    }
+    
 
-    const balanceCheck = data?.balanceCheck ? data.balanceCheck : 0;
-    const cashAdvance = data?.cashAdvance ? data.cashAdvance : 0;
-
-    if (cashAdvance < 0) {
-      await this.log(
-        currentUser,
-        'SET_CLOSE_DAILY_FAILED',
-        'Cash advacne cannot be negative.',
-      );
-      throw new BadRequestException('Cash advacne cannot be negative.');
-    }
-
-    try {
-      return await this.dataSource.transaction(async (manager) => {
-        const shiftRepo = manager.getRepository(Shift);
-        await shiftRepo.update(shiftId, {
-          balance_check: balanceCheck,
-          cash_advance: cashAdvance,
-          status: 'SUMMARIZED',
-        });
-        await this.log(currentUser, 'SET_CLOSE_DAILY_SUCCESS', '', manager);
-      });
-    } catch (err) {
-      handleError(err, 'ShiftsService.setCloseDaily');
-    }
-  }
+   }
 
   async setStatusToOpen(currentUser : any , id : string  , previousStatus : string , manager : EntityManager) 
   {
