@@ -260,50 +260,55 @@ ${JSON.stringify(r.updated)}`,
 
   // สร้างเรทใหม่ (พร้อมเช็คขอบเขตและสูตร)
   async create(user: any, data: Partial<ExchangeRate>): Promise<ExchangeRate> {
-    if (!data.currencyId)
-      throw new BadRequestException('currencyId is required');
+    try {
+      if (!data.currencyId)
+        throw new BadRequestException('currencyId is required');
 
-    const currency = await this.exchangeRateRepo.manager.findOne(Currency, {
-      where: { id: data.currencyId },
-    });
-    if (!currency) throw new NotFoundException('Currency not found');
+      const currency = await this.exchangeRateRepo.manager.findOne(Currency, {
+        where: { id: data.currencyId },
+      });
+      if (!currency) throw new NotFoundException('Currency not found');
 
-    // เช็ค Range ไม่ให้ทับกัน และเช็ค Syntax ของสูตร
-    await this.validateRange(
-      currency.id,
-      data.range_start || 0,
-      data.range_stop || 999999,
-    );
+      // เช็ค Range ไม่ให้ทับกัน และเช็ค Syntax ของสูตร
+      await this.validateRange(
+        currency.id,
+        data.range_start || 0,
+        data.range_stop || 999999,
+      );
 
-    // ถ้าไม่มีสูตรให้ตั้งเป็น BASE (เรทแม่ตรงๆ)
-    this.validateFormulaSyntax(data.formula_buy || 'BASE');
-    this.validateFormulaSyntax(data.formula_sell || 'BASE');
-    const formulaVal = await this.validateFormulas(
-      currency.id,
-      data.formula_buy || 'BASE',
-      data.formula_sell || 'BASE',
-    );
+      // ถ้าไม่มีสูตรให้ตั้งเป็น BASE (เรทแม่ตรงๆ)
+      this.validateFormulaSyntax(data.formula_buy || 'BASE');
+      this.validateFormulaSyntax(data.formula_sell || 'BASE');
+      const formulaVal = await this.validateFormulas(
+        currency.id,
+        data.formula_buy || 'BASE',
+        data.formula_sell || 'BASE',
+      );
 
-    const newRate = this.exchangeRateRepo.create({
-      ...data,
-      name: data.name || `${currency.code}.${Date.now()}`, // ถ้าไม่มีชื่อให้ตั้งเป็นรหัสสกุลเงิน + timestamp
-      formula_buy: data.formula_buy || 'BASE',
-      formula_sell: data.formula_sell || 'BASE',
-      buy_rate: formulaVal.buy_rate,
-      sell_rate: formulaVal.sell_rate,
-    });
+      const newRate = this.exchangeRateRepo.create({
+        ...data,
+        name: data.name || `${currency.code}.${Date.now()}`, // ถ้าไม่มีชื่อให้ตั้งเป็นรหัสสกุลเงิน + timestamp
+        formula_buy: data.formula_buy || 'BASE',
+        formula_sell: data.formula_sell || 'BASE',
+        buy_rate: formulaVal.buy_rate,
+        sell_rate: formulaVal.sell_rate,
+      });
 
-    const saved = await this.exchangeRateRepo.save(newRate);
-    await this.exclusiveRateService.createForNewExchangeRate(
-      this.exchangeRateRepo.manager,
-      saved,
-    );
-    await this.log(
-      user,
-      'CREATE_RATE_SUCCESS',
-      `Name: "${saved.name}" = buy: ${saved.buy_rate} sell: ${saved.sell_rate} id: ${saved.id}`,
-    );
-    return saved;
+      const saved = await this.exchangeRateRepo.save(newRate);
+      await this.exclusiveRateService.createForNewExchangeRate(
+        this.exchangeRateRepo.manager,
+        saved,
+      );
+      await this.log(
+        user,
+        'CREATE_RATE_SUCCESS',
+        `Name: "${saved.name}" = buy: ${saved.buy_rate} sell: ${saved.sell_rate} id: ${saved.id}`,
+      );
+      this.sseService.triggerRefreshSignal(); // แจ้งให้หน้าเว็บรีเฟรชข้อมูลหลังสร้างเรทใหม่
+      return saved;
+    } catch (error) {
+      handleError(error, 'ExchangeRatesService.create');
+    }
   }
 
   // แก้ไขเรท (เช็คขอบเขตใหม่และคำนวณเรทใหม่)
