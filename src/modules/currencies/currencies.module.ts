@@ -1,5 +1,5 @@
 // currencies/currencies.module.ts
-import { Module } from '@nestjs/common';
+import { Module, Sse } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CurrenciesService } from './currencies.service';
@@ -7,6 +7,7 @@ import { Currency } from './entities/currency.entity';
 import { SystemLogsModule } from '../system-logs/system-logs.module';
 import { CurrenciesController } from './currencies.controller';
 import { ExchangeRatesModule } from '../exchange-rates/exchange-rates.module';
+import { SseModule } from '../sse/sse.module';
 
 
 @Module({
@@ -15,6 +16,7 @@ import { ExchangeRatesModule } from '../exchange-rates/exchange-rates.module';
     HttpModule, // เพื่อใช้ HttpService
     SystemLogsModule,
     ExchangeRatesModule,
+    SseModule,
   ],
   controllers: [CurrenciesController],
   providers: [CurrenciesService],

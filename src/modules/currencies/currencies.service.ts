@@ -18,6 +18,7 @@ import { CurrencyUpdateModeDto, UpdateMode } from './dto/currency.dto';
 import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
 import { handleError } from '../../common/error/error';
 import { re } from 'mathjs';
+import { SseService } from '../sse/sse.service';
 
 @Injectable()
 export class CurrenciesService implements OnModuleInit {
@@ -104,6 +105,8 @@ export class CurrenciesService implements OnModuleInit {
     private readonly systemLogsService: SystemLogsService,
     @Inject(ExchangeRatesService)
     private readonly exchangeRatesService: ExchangeRatesService,
+    @Inject(SseService)
+    private readonly sseService: SseService,
   ) {}
 
   @Cron(process.env.UPDATE_RATE_AUTO_TIME || '0 7 * * *', {
@@ -348,6 +351,7 @@ export class CurrenciesService implements OnModuleInit {
         }
 
         await this.exchangeRatesService.updateRateAll(user, manager); // อัปเดตเรทลูกทั้งหมดหลังจากอัปเดตเรทแม่เสร็จ
+        this.sseService.triggerRefreshSignal(); // แจ้งให้หน้าเว็บรีเฟรชข้อมูล
         // 4. คืนผลลัพธ์ให้ชัดเจนว่าตัวไหนผ่าน ตัวไหนติด
         return {
           message: 'Bulk update processed',
@@ -434,7 +438,7 @@ export class CurrenciesService implements OnModuleInit {
       }
 
       // หลังจากอัปเดตโหมดทั้งหมดแล้ว ค่อยอัปเดตเรทลูกทีเดียวเพื่อลดโอกาสเกิด Deadlock
-      
+      this.sseService.triggerRefreshSignal(); // แจ้งให้หน้าเว็บรีเฟรชข้อมูล
       
     });
     await this.updateAutoRateAll();

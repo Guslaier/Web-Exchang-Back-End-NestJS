@@ -176,7 +176,6 @@ export class ExclusiveExchangeRatesService {
         `Updated all exclusives for master rate ID: ${exchangeRate.id}`,
         manager,
       );
-      this.sseService.triggerRefreshSignal(); 
     } catch (err: any) {
       await this.log(null, 'UPDATE_BY_MASTER_FAILED', `Error: ${err.message}`, manager);
       throw err;
@@ -363,7 +362,7 @@ export class ExclusiveExchangeRatesService {
       `Updated ID: ${id} | Result: ${saved.buy_rate} < ${saved.buy_rate_max} < ${baseSellRate}`,
       manager,
     );
-    this.sseService.triggerRefreshSignal();
+
     return saved;
   }
 
@@ -460,7 +459,6 @@ export class ExclusiveExchangeRatesService {
     if (isAdjusted) {
       await this.log(null, 'SYSTEM_RATE_ADJUSTED_SUCCESS', `ID: ${childId} | ${remark}`, manager);
     }
-    this.sseService.triggerRefreshSignal();
   }
 
   // // กดยืนยันการตรวจสอบเรทแบบกลุ่ม

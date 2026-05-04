@@ -136,7 +136,6 @@ export class ExchangeRatesService {
       'CREATE_DEFAULT_SUBRATE_SUCCESS',
       `Created default sub-rate for ${currency.code} with Name: ${defaultSubRate.name} id: ${defaultSubRate.id}`,
     );
-    this.sseService.triggerRefreshSignal();
   }
   // อัปเดตเรทลูกตามเรทแม่ (Sync BOT)
   async updateRatesForCurrency(
@@ -170,7 +169,6 @@ export class ExchangeRatesService {
         `Name:"${updated.name}" = buy: ${updated.buy_rate} sell: ${updated.sell_rate} id: ${updated.id}`,
       );
     }
-    this.sseService.triggerRefreshSignal();
   }
 
   // อัปเดตเรททั้งหมดในระบบ (Bulk Sync)
@@ -210,6 +208,7 @@ export class ExchangeRatesService {
             // เรียกฟังก์ชัน update ตัวเดิมที่มีอยู่ (ส่ง id แยกกับ data)
             const updated = await this.update(user, id, data);
 
+            this.sseService.triggerRefreshSignal(); // แจ้งให้หน้าเว็บรีเฟรชข้อมูลหลังอัปเดตแต่ละเรท
             results.push({
               id,
               success: true,
@@ -304,7 +303,6 @@ ${JSON.stringify(r.updated)}`,
       'CREATE_RATE_SUCCESS',
       `Name: "${saved.name}" = buy: ${saved.buy_rate} sell: ${saved.sell_rate} id: ${saved.id}`,
     );
-    this.sseService.triggerRefreshSignal();
     return saved;
   }
 
@@ -364,7 +362,6 @@ ${JSON.stringify(r.updated)}`,
       'UPDATE_RATE_SUCCESS',
       `Name: "${updated.name}" = buy: ${updated.buy_rate} sell: ${updated.sell_rate} id: ${updated.id}`,
     );
-    this.sseService.triggerRefreshSignal();
     return {
       id: updated.id,
       name: updated.name,
