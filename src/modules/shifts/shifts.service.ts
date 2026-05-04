@@ -66,8 +66,8 @@ export class ShiftsService {
     today = true 
   ) {
     const shiftRepo = manager.getRepository(Shift);
-    const now = new Date()
-    const startTime = today ? now : new Date(now.getFullYear() , now.getMonth() , (now.getDate() + 1) , 8 ,0 ,0 ,0) 
+    const now = new Date() ; 
+    const startTime = today ? now : new Date(now.getFullYear() , now.getMonth() , (now.getDate() + 1) , 8 ,0 ,0 ,0) ; 
     const row = shiftRepo.create({
       userId: userId,
       boothId: boothId,
@@ -279,10 +279,6 @@ export class ShiftsService {
       where: { id: shiftId },
     });
 
-    if (!shift) {
-      throw new NotFoundException('Shift not found.');
-    }
-
     return shift;
   }
  
@@ -367,34 +363,44 @@ export class ShiftsService {
   }
 
    async setStatusToCLose(currentUser: any, body: ShiftIdDto) {
-    const shiftId =
-      currentUser.role === 'EMPLOYEE'
-        ? (await this.getLastShiftByUserId(currentUser.id))?.id
-        : body.id;
-    if (!shiftId) {
-      await this.log(currentUser, 'CLOSE_SHIFT_FAILED', 'No shift found.');
-      throw new NotFoundException('No active shift found.');
+    const isEmployee = (currentUser.role === 'EMPLOYEE') ; 
+    const id = isEmployee ? currentUser.id : body.id ; 
+    
+    if (!id) {
+      await this.log(currentUser , 'CLOSE_SHIFT_FAILED' , `Bad argrument no id sent by this user`) ;
+      throw new BadRequestException('Shift id is requried for Non employee') ;  
     }
 
-    try {
-      await this.dataSource.transaction(async (manager) => {
-        const shiftRepo = manager.getRepository(Shift);
-        await shiftRepo.update(
-          { id: shiftId },
-          { status: 'CLOSE', endTime: new Date() },
-        );
-        const logQuery = await this.log(currentUser,'CLOSE_SHIFT_SUCCESS',`closed shift id : ${shiftId}` , manager) ; 
-      });
-    } catch (err) {
-      const errMessage = err instanceof Error ? err.message : String(err);
-      await this.log(
-        currentUser,
-        'CLOSE_SHIFT_FAILED',
-        `close shift failed  err : ${errMessage}`,
-      );
-      handleError(err, 'ShiftsService.setStatusToCLose');
+    const shiftData = isEmployee ? await this.getLastShiftByUserId(id) : await this.getShiftById(id) ; 
+
+    if(!shiftData) {
+      const errMessage = isEmployee ? 'Shift are not found from this employee.' : `Shift are not found from this sent shift id : ${id}. ` ; 
+      await this.log(currentUser , 'CLOSE_SHIFT_FAILED' , errMessage) ;
+      throw new NotFoundException(errMessage) ; 
     }
-    return { message: 'Close shift success.' };
+
+    if(shiftData.status === 'COMPLETED') {
+        await this.log(currentUser , 'CLOSE_SHIFT_FAILED' , `This shift id : ${shiftData.id} is already completed. can't be open or close anymore.`) ;
+        throw new ConflictException('This shift id is already completed.') ; 
+    }
+
+    return await this.dataSource.transaction(async(manager) => {
+      try {
+        const shiftRepo = manager.getRepository(Shift) ; 
+        const updateResult = await shiftRepo.update({id : shiftData.id} , {status : 'CLOSE'}) ; 
+
+        if(updateResult.affected == 0) {
+          await this.log(currentUser , 'CLOSE_SHIFT_FAILED' , `Can't Update shift id : ${shiftData.id}.`,manager) ; 
+          throw new NotFoundException(`Can't shift to close.`) ; 
+        }
+
+        await this.log(currentUser , 'CLOSE_SHIFT_SUCCESS' , `Shift id : ${shiftData.id} to update status from ${shiftData.status} to CLOSE.`,manager) ;
+        return {message : 'Close shift success.'} ; 
+      }
+      catch(err) {
+        handleError(err,`Shifts.service`) ;
+      }
+    }) ;
   }
 
   
