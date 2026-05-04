@@ -53,7 +53,7 @@ export class ShiftsController {
   @Roles("ADMIN" , "MANAGER")
   @Put('summarize/:id')
   summarize(@Param('id') id : string , @Body() summaryData : SummaryData , @CurrentUser() currentUser : any) {
-    return this.shiftsService.setCloseDaily(id , summaryData , currentUser) ; 
+    return this.shiftsService.setCloseDaily(summaryData , currentUser) ; 
   }
   
 
