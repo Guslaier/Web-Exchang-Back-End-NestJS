@@ -235,7 +235,7 @@ export class CurrenciesService implements OnModuleInit {
                   buyRate: buy,
                   sellRate: sell,
                   hasInitialBotData: true,
-                  updatedAt: new Date(),
+                  lastBotUpdate: new Date(lastUpdated),
                 },
               );
             }
@@ -247,6 +247,7 @@ export class CurrenciesService implements OnModuleInit {
               buyRate: buy,
               sellRate: sell,
               hasInitialBotData: true,
+              lastBotUpdate: new Date(lastUpdated),
             });
             await repo.save(newCurrency);
             await this.exchangeRatesService.createDefaultSubRate(
