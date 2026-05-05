@@ -35,6 +35,9 @@ export class Currency implements CurrencyIF {
   @Column({ default: false })
   hasInitialBotData: boolean; // บ่งบอกว่าเคยได้รับข้อมูลจาก BOT หรือไม่
 
+  @Column({ nullable: true })
+  lastBotUpdate: Date; // เก็บเวลาที่ได้รับข้อมูลจาก BOT ล่าสุด
+
   @CreateDateColumn({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" , transformer: TimestampTransformer })
   createdAt: Date;
 
