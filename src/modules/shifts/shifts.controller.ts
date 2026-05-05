@@ -1,6 +1,6 @@
 import { Controller, Post, Get, Put, Delete, Param, Body, UseGuards, Query } from '@nestjs/common';
 import { ShiftsService } from './shifts.service';
-import { QueryDateDto, QueryShiftId, SummaryData , UserIdDto , ShiftIdDto , BoothIdDto , GetShiftBoothQuery} from './dto/shift.dto';
+import { QueryDateDto, QueryShiftId, ShiftAuditBody , ShiftAuditParam , UserIdDto , ShiftIdDto , BoothIdDto , GetShiftBoothQuery} from './dto/shift.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -49,13 +49,11 @@ export class ShiftsController {
     return this.shiftsService.setStatusToCLose(currentUser , body) ; 
   }
 
-  @UseGuards(JwtAuthGuard , RolesGuard) 
-  @Roles("ADMIN" , "MANAGER")
-  @Put('summarize/:id')
-  summarize(@Param('id') id : string , @Body() summaryData : SummaryData , @CurrentUser() currentUser : any) {
-    return this.shiftsService.setCloseDaily(summaryData , currentUser) ; 
-  }
+    @UseGuards(JwtAuthGuard , RolesGuard)
+    @Roles('ADMIN' , 'MANAGER')
+    @Put('audit/:id')
+    PutShift(@CurrentUser() user : any , @Param() param : ShiftAuditParam , @Body() body : ShiftAuditBody) {
+        return this.shiftsService.updateAuditShift(user , param.id , body) ; 
+    }
   
-
- 
 }

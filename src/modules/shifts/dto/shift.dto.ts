@@ -1,7 +1,7 @@
 import { IsString, IsNotEmpty, IsOptional, IsDateString , IsDate, IsNumber, IsUUID, min, Min, IsObject, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import type  {ShiftData , BoothData} from './../../../types/index' ;  
-import { CreateCashCountDto } from './../../cash-counts/dto/cash-count.dto' ; 
+import {CashCountItemArrayDto } from './../../cash-counts/dto/cash-count.dto' ; 
 
 export class CreateShiftDto {
   @IsString()
@@ -34,11 +34,14 @@ export class QueryDateDto {
 
 }
 
-export class SummaryData implements Pick<ShiftData , 'id' | 'balanceCheck' | 'cashAdvance' > {
-  @IsUUID()
-  @IsNotEmpty()
-  id : string ; 
+export class ShiftAuditParam implements Pick<ShiftData , 'id'> {
+    @IsUUID() 
+    @IsNotEmpty()
+    id : string ; 
+}
 
+
+export class ShiftAuditBody implements Pick<ShiftData ,   'balanceCheck' | 'cashAdvance' > {
   @IsNumber()
   @IsNotEmpty()
   balanceCheck : number ; 
@@ -50,8 +53,8 @@ export class SummaryData implements Pick<ShiftData , 'id' | 'balanceCheck' | 'ca
 
   @IsObject() 
   @ValidateNested()
-  @Type(()=> CreateCashCountDto)
-  cashCountData  : CreateCashCountDto  ;
+  @Type(()=> CashCountItemArrayDto)
+  cashCountData  : CashCountItemArrayDto  ;
 }
 
 export class QueryShiftId {

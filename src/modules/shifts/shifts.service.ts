@@ -19,13 +19,16 @@ import {
   Not,
 } from 'typeorm';
 import { SystemLogsService } from '../../modules/system-logs/system-logs.service';
+import { CashCountsService } from './../../modules/cash-counts/cash-counts.service';
+import { TransactionsService } from './../../modules/transactions/transactions.service' ; 
 import Redis from 'ioredis';
 import {
   QueryDateDto,
   QueryShiftId,
   ShiftIdDto,
-  SummaryData,
   BoothIdDto,
+  ShiftAuditBody , 
+  ShiftAuditParam 
 } from './dto/shift.dto';
 import { isUUID } from 'class-validator';
 import { handleError } from '../../common/error/error';
@@ -38,6 +41,8 @@ export class ShiftsService {
     @InjectRepository(Shift)
     private readonly shiftRepository: Repository<Shift>,
     private readonly systemLogsService: SystemLogsService,
+    private readonly cashCountServicee : CashCountsService , 
+    private readonly transactionService : TransactionsService , 
     @Inject('REDIS_CLIENT')
     private readonly redisClient: Redis,
     private readonly dataSource: DataSource,
@@ -68,10 +73,12 @@ export class ShiftsService {
     const shiftRepo = manager.getRepository(Shift);
     const now = new Date() ; 
     const startTime = today ? now : new Date(now.getFullYear() , now.getMonth() , (now.getDate() + 1) , 8 ,0 ,0 ,0) ; 
+    const status = today ? 'OPEN' : 'CLOSE' ; 
     const row = shiftRepo.create({
       userId: userId,
       boothId: boothId,
-      startTime : startTime
+      startTime : startTime , 
+      status : status
     });
 
     try {
@@ -281,27 +288,27 @@ export class ShiftsService {
 
     return shift;
   }
+
+    async getShiftWithCloseStatusOrFail(user : any ,id : string , message : string) {
+      const shiftData = await this.getShiftById(id) ; 
+      if(!shiftData) {
+        await this.log(user , `${message}_FAILED` , `Shift not fount from sent id : ${id}.`) ;
+        throw new NotFoundException('Shift not found.') ; 
+      }
+
+      if(shiftData.status !== 'CLOSE') {
+        await this.log(user , `${message}_FAILED` , `Shift id : ${id} is not in CLOSE status.`) ; 
+        throw new ConflictException('Shift is not in close status') ; 
+      }
+
+      return shiftData ; 
+
+    }
+
  
   
   // update 
 
-
-  async setCloseDaily(paras: SummaryData, currentUser: any) {
-    const shiftData = await this.getShiftById(paras.id) ; 
-
-    if (!shiftData) {
-      await this.log(currentUser , 'SHIFT_AUDIT_FAILED' , `Shift no found from sent id : ${paras.id}`) ; 
-      throw new NotFoundException('Shift no found') ;
-    }
-
-    if(shiftData.status === 'OPEN' || shiftData.status === 'COMPLETED') {
-      await this.log(currentUser , 'SHIFT_AUDIT_FAILED' , `Shift id : ${paras.id} is not 'CLOSE' Status.`) ;
-      throw new ConflictException("Shift is not 'CLOSE' status")
-    }
-
-    
-
-   }
 
   async setStatusToOpen(currentUser : any , id : string  , previousStatus : string , manager : EntityManager) 
   {
@@ -355,6 +362,30 @@ export class ShiftsService {
         handleError(err,`Shifts.service`) ;
       }
     }) ;
+  }
+
+  async updateAuditShift(user : any , id : string , paras : ShiftAuditBody) {
+    const shiftData = await this.getShiftWithCloseStatusOrFail(user , id , 'AUDIT_SHIFT') ;
+          
+    await this.dataSource.transaction(async(manager) =>{
+      const transactionData = await this.transactionService.create(manager, {type : 'CLOSE_SHIFT_CASH_COUNT' , shiftId : id}) ;
+            
+      const transactionId = transactionData.id ; 
+      const denominations = paras.cashCountData.denominations ;
+      const amounts = paras.cashCountData.amounts ;
+      const cashCountData = await this.cashCountServicee.create(user , {transactionId : transactionId , denominations : denominations ,amounts :amounts } , manager) ; 
+           
+      const shiftRepo = manager.getRepository(Shift) ; 
+      const updateresult = await shiftRepo.update({id : id , status : 'CLOSE'} ,{status : 'COMPLETED' ,  balance_check : paras.balanceCheck , cash_advance : paras.cashAdvance}) ;
+      if(updateresult.affected == 0) {
+        await this.log(user , 'AUDIT_SHIFT_FAILED' , `Can't audit this shift id: ${id} may casuse by some user just change status to 'OPEN'.`) ; 
+          throw new ConflictException(`Can't audit this shift id: ${id} may casuse by some user just change status to 'OPEN'.`) ;
+      }
+
+      await this.log(user ,'AUDIT_SHIFT_SUCCESS' , `This shift id : ${id} had been audited.`) ; 
+
+      }) ;           
+    return {message : 'Audit shift success.'} ; 
   }
 
   
