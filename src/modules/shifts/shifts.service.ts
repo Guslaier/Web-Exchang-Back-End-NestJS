@@ -364,7 +364,7 @@ export class ShiftsService {
     return await this.dataSource.transaction(async(manager) => {
       try {
         const shiftRepo = manager.getRepository(Shift) ; 
-        const updateResult = await shiftRepo.update({id : shiftData.id} , {status : 'CLOSE'}) ; 
+        const updateResult = await shiftRepo.update({id : shiftData.id} , {status : 'CLOSE' , endTime : new Date()}) ; 
 
         if(updateResult.affected == 0) {
           await this.log(currentUser , 'CLOSE_SHIFT_FAILED' , `Can't Update shift id : ${shiftData.id}.`,manager) ; 
