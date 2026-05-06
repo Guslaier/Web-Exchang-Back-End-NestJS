@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Body, Param, Patch, BadRequestException, Header } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, BadRequestException, Header, UseGuards } from '@nestjs/common';
 import { ExclusiveExchangeRatesService } from './exclusive-exchange-rates.service';
-import { CreateExclusiveExchangeRateDto } from './dto/exclusive-exchange-rate.dto';
+import { CreateExclusiveExchangeRateDto, UpdateExclusiveExchangeRateDto } from './dto/exclusive-exchange-rate.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -21,6 +21,16 @@ export class ExclusiveExchangeRatesController {
     return await this.exclusiveExchangeRatesService.update(null, id.toString(), updateDto as any);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'ADMIN')
+  @Post('bulk-update')
+  async bulkUpdate(
+    @CurrentUser() user: any,
+    @Body('data') data: UpdateExclusiveExchangeRateDto[],
+  ) {
+    return await this.exclusiveExchangeRatesService.updateBulkByIDs(user, data);
+  }
+
   @Get('booth/:boothId')
   @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   async getByBooth(@Param('boothId') boothId: string) {
@@ -39,19 +49,25 @@ export class ExclusiveExchangeRatesController {
     return await this.exclusiveExchangeRatesService.findByCurrency(currencyCode);
   }
 
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'ADMIN')
   @Get()
   @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   async getAll() {
     return await this.exclusiveExchangeRatesService.findAll();
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'ADMIN')
   @Get('pending-reviews')
   @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   async getPendingReviews() {
     return await this.exclusiveExchangeRatesService.findPendingReviews();
   }
 
-  
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'ADMIN')
   @Post('confirm-review')
   async confirmReview(@CurrentUser() user: any, @Body() dto: ConfirmReviewDto) {
     if (!dto.ids || !Array.isArray(dto.ids)) {

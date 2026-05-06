@@ -10,11 +10,13 @@ import { ExchangeRate } from '../exchange-rates/entities/exchange-rate.entity';
 import { Booth } from '../booths/entities/booth.entity';
 import { SystemLogsService } from '../system-logs/system-logs.service';
 import { Inject } from '@nestjs/common';
-import { evaluate, im } from 'mathjs';
+import { evaluate, im, re } from 'mathjs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { isUUID } from 'class-validator';
 import { handleError } from '../../common/error/error';
 import { SseService } from '../sse/sse.service';
+import { UpdateExclusiveExchangeRateDto } from './dto/exclusive-exchange-rate.dto';
+import { DataSource } from 'typeorm';
 
 @Injectable()
 export class ExclusiveExchangeRatesService {
@@ -29,6 +31,8 @@ export class ExclusiveExchangeRatesService {
     private readonly boothRepo: Repository<Booth>,
     @Inject(SseService)
     private readonly sseService: SseService,
+    @Inject(DataSource)
+    private readonly dataSource: DataSource,
   ) {}
 
   private async log(
@@ -68,7 +72,14 @@ export class ExclusiveExchangeRatesService {
           formula_buy: 'BUY',
           formula_buy_max: `BUY + (SELL - BUY) * ${process.env.DEFAULT_MAX_RATE_EXCLUSIVE_PERCENTAGE ? parseFloat(process.env.DEFAULT_MAX_RATE_EXCLUSIVE_PERCENTAGE) / 100 : 0.02}`,
           buy_rate: exchangeRate.buy_rate,
-          buy_rate_max: exchangeRate.buy_rate + (exchangeRate.sell_rate - exchangeRate.buy_rate) * (process.env.DEFAULT_MAX_RATE_EXCLUSIVE_PERCENTAGE ? parseFloat(process.env.DEFAULT_MAX_RATE_EXCLUSIVE_PERCENTAGE) / 100 : 0.02),
+          buy_rate_max:
+            exchangeRate.buy_rate +
+            (exchangeRate.sell_rate - exchangeRate.buy_rate) *
+              (process.env.DEFAULT_MAX_RATE_EXCLUSIVE_PERCENTAGE
+                ? parseFloat(
+                    process.env.DEFAULT_MAX_RATE_EXCLUSIVE_PERCENTAGE,
+                  ) / 100
+                : 0.02),
         });
         await repo.save(exclusive);
         await this.log(
@@ -78,8 +89,13 @@ export class ExclusiveExchangeRatesService {
           manager,
         );
       }
-    } catch (err : any) {
-      await this.log(null, 'CREATE_EXCLUSIVE_FAILED', `Error: ${err.message}`, manager);
+    } catch (err: any) {
+      await this.log(
+        null,
+        'CREATE_EXCLUSIVE_FAILED',
+        `Error: ${err.message}`,
+        manager,
+      );
       throw err;
     }
   }
@@ -102,7 +118,14 @@ export class ExclusiveExchangeRatesService {
           formula_buy: 'BUY',
           formula_buy_max: `BUY + (SELL - BUY) * ${process.env.DEFAULT_MAX_RATE_EXCLUSIVE_PERCENTAGE ? parseFloat(process.env.DEFAULT_MAX_RATE_EXCLUSIVE_PERCENTAGE) / 100 : 0.02}`,
           buy_rate: base.buy_rate,
-          buy_rate_max: base.buy_rate + (base.sell_rate - base.buy_rate) * (process.env.DEFAULT_MAX_RATE_EXCLUSIVE_PERCENTAGE ? parseFloat(process.env.DEFAULT_MAX_RATE_EXCLUSIVE_PERCENTAGE) / 100 : 0.02)
+          buy_rate_max:
+            base.buy_rate +
+            (base.sell_rate - base.buy_rate) *
+              (process.env.DEFAULT_MAX_RATE_EXCLUSIVE_PERCENTAGE
+                ? parseFloat(
+                    process.env.DEFAULT_MAX_RATE_EXCLUSIVE_PERCENTAGE,
+                  ) / 100
+                : 0.02),
         });
       });
 
@@ -115,8 +138,13 @@ export class ExclusiveExchangeRatesService {
           manager,
         );
       }
-    } catch (err  : any) {
-      await this.log(user, 'GENERATE_EXCLUSIVE_BOOTH_FAILED', `Error: ${err.message}`, manager);
+    } catch (err: any) {
+      await this.log(
+        user,
+        'GENERATE_EXCLUSIVE_BOOTH_FAILED',
+        `Error: ${err.message}`,
+        manager,
+      );
       throw err;
     }
   }
@@ -177,7 +205,12 @@ export class ExclusiveExchangeRatesService {
         manager,
       );
     } catch (err: any) {
-      await this.log(null, 'UPDATE_BY_MASTER_FAILED', `Error: ${err.message}`, manager);
+      await this.log(
+        null,
+        'UPDATE_BY_MASTER_FAILED',
+        `Error: ${err.message}`,
+        manager,
+      );
       throw err;
     }
   }
@@ -207,7 +240,11 @@ export class ExclusiveExchangeRatesService {
       );
       return { buy_rate, buy_rate_max, isValid: true };
     } catch (e: any) {
-      await this.log(null, 'VALIDATE_FORMULA_ERROR', `Formula validation failed for RateID: ${exchangeRateId}`);
+      await this.log(
+        null,
+        'VALIDATE_FORMULA_ERROR',
+        `Formula validation failed for RateID: ${exchangeRateId}`,
+      );
       throw new BadRequestException(
         `Invalid formula syntax: ${e.message} - Rate ID: ${exchangeRateId}`,
       );
@@ -216,7 +253,10 @@ export class ExclusiveExchangeRatesService {
 
   // // ตรวจสอบโครงสร้างตัวอักษรในสูตร
   private validateFormulaSyntax(formula: string): void {
-    const forbiddenChars = formula.replace(/[0-9.+\-*/^()\s]|BASE|BUY|SELL|MAX/gi, '');
+    const forbiddenChars = formula.replace(
+      /[0-9.+\-*/^()\s]|BASE|BUY|SELL|MAX/gi,
+      '',
+    );
 
     if (forbiddenChars.length > 0) {
       throw new BadRequestException(
@@ -226,13 +266,18 @@ export class ExclusiveExchangeRatesService {
 
     if (/[+\-*/]{2,}/.test(formula.replace(/\s/g, ''))) {
       if (!/[+\-*/]-/.test(formula)) {
-        throw new ForbiddenException('Invalid operator sequence detected in formula');
+        throw new ForbiddenException(
+          'Invalid operator sequence detected in formula',
+        );
       }
     }
   }
 
   private validateFormulaSyntaxMax(formula: string): void {
-    const forbiddenChars = formula.replace(/[0-9.+\-*/^()\s]|BASE|BUY|SELL/gi, '');
+    const forbiddenChars = formula.replace(
+      /[0-9.+\-*/^()\s]|BASE|BUY|SELL/gi,
+      '',
+    );
 
     if (forbiddenChars.length > 0) {
       throw new BadRequestException(
@@ -242,7 +287,9 @@ export class ExclusiveExchangeRatesService {
 
     if (/[+\-*/]{2,}/.test(formula.replace(/\s/g, ''))) {
       if (!/[+\-*/]-/.test(formula)) {
-        throw new ForbiddenException('Invalid operator sequence detected in MAX formula');
+        throw new ForbiddenException(
+          'Invalid operator sequence detected in MAX formula',
+        );
       }
     }
   }
@@ -258,12 +305,17 @@ export class ExclusiveExchangeRatesService {
 
     const upperFormula = formula.toUpperCase().trim();
     if (upperFormula === 'BUY' && options.BUY !== undefined) return options.BUY;
-    if (upperFormula === 'SELL' && options.SELL !== undefined) return options.SELL;
+    if (upperFormula === 'SELL' && options.SELL !== undefined)
+      return options.SELL;
     if (upperFormula === 'BASE') return baseValue;
     if (upperFormula === 'MAX' && options.MAX !== undefined) return options.MAX;
 
     if (formula.length > 100) {
-      await this.log(null, 'CALCULATE_FORMULA_FAILED', 'Formula string length exceeds limit');
+      await this.log(
+        null,
+        'CALCULATE_FORMULA_FAILED',
+        'Formula string length exceeds limit',
+      );
       return baseValue;
     }
 
@@ -290,12 +342,59 @@ export class ExclusiveExchangeRatesService {
 
       return parseFloat(finalValue.toFixed(6));
     } catch (err: any) {
-      await this.log(null, 'CALCULATE_FORMULA_ERROR', `Formula: ${formula} | Error: ${err.message}`);
-      if (throwOnError) throw new BadRequestException(`Calculation Error: ${err.message}`);
+      await this.log(
+        null,
+        'CALCULATE_FORMULA_ERROR',
+        `Formula: ${formula} | Error: ${err.message}`,
+      );
+      if (throwOnError)
+        throw new BadRequestException(`Calculation Error: ${err.message}`);
       return baseValue;
     }
   }
-
+  async updateBulkByIDs(user: any, data: UpdateExclusiveExchangeRateDto[]) {
+    try {
+      const result = await this.dataSource.transaction(async (manager) => {
+        const resultd = await Promise.all(
+          data.map(async (d) => {
+            try {
+              await this.update(
+                user,
+                d.id,
+                {
+                  formula_buy: d.formula_buy,
+                  formula_buy_max: d.formula_buy_max,
+                } as any,
+                manager,
+              );
+              return {
+                id: d.id,
+                status: 'success',
+                message: `Updated successfully with buy: ${d.formula_buy} and max: ${d.formula_buy_max}`,
+              };
+            } catch (err: any) {
+              return { id: d.id, status: 'error', message: err.message };
+            }
+          }),
+        );
+        
+        await this.log(
+          user,
+          'BULK_UPDATE_SUCCESS',
+          // 🚀 แก้ไขตรงบรรทัดนี้: เปลี่ยน result เป็น resultd ให้หมด
+          `Bulk update completed with ${resultd.filter((r) => r.status === 'success').length} successes and ${resultd.filter((r) => r.status === 'error').length} errors.`,
+        );
+        
+        return resultd;
+      });
+      
+      this.sseService.triggerRefreshSignal();
+      return result;
+    } catch (err: any) {
+      await this.log(user, 'BULK_UPDATE_FAILED', `Error: ${err.message}`);
+      handleError(err, 'BULK_UPDATE_FAILED');
+    }
+  }
   // // อัปเดตข้อมูลเรทลูกรายรายการ
   async update(
     user: any,
@@ -303,7 +402,9 @@ export class ExclusiveExchangeRatesService {
     data: Partial<ExclusiveExchangeRate>,
     manager?: EntityManager,
   ) {
-    const repo = manager ? manager.getRepository(ExclusiveExchangeRate) : this.exclusiveRateRepo;
+    const repo = manager
+      ? manager.getRepository(ExclusiveExchangeRate)
+      : this.exclusiveRateRepo;
 
     if (isUUID(id) === false) {
       await this.log(user, 'UPDATE_EXCLUSIVE_FAILED', `Invalid UUID: ${id}`);
@@ -338,13 +439,25 @@ export class ExclusiveExchangeRatesService {
 
     // // ตรวจสอบเงื่อนไข Buy <= Max < Sell
     if (calculatedBuy > calculatedMax) {
-      await this.log(user, 'UPDATE_EXCLUSIVE_FAILED', `Buy(${calculatedBuy}) > Max(${calculatedMax})`);
-      throw new BadRequestException(`Buy rate cannot be greater than Max rate Detil:ed Buy: ${calculatedBuy} > Max: ${calculatedMax}`);
+      await this.log(
+        user,
+        'UPDATE_EXCLUSIVE_FAILED',
+        `Buy(${calculatedBuy}) > Max(${calculatedMax})`,
+      );
+      throw new BadRequestException(
+        `Buy rate cannot be greater than Max rate Detil:ed Buy: ${calculatedBuy} > Max: ${calculatedMax}`,
+      );
     }
 
     if (calculatedMax >= baseSellRate) {
-      await this.log(user, 'UPDATE_EXCLUSIVE_FAILED', `Max(${calculatedMax}) >= Sell(${baseSellRate})`);
-      throw new BadRequestException(`Max rate must be lower than master sell rate Detil:ed Max: ${calculatedMax} >= Sell: ${baseSellRate}`);
+      await this.log(
+        user,
+        'UPDATE_EXCLUSIVE_FAILED',
+        `Max(${calculatedMax}) >= Sell(${baseSellRate})`,
+      );
+      throw new BadRequestException(
+        `Max rate must be lower than master sell rate Detil:ed Max: ${calculatedMax} >= Sell: ${baseSellRate}`,
+      );
     }
 
     target.formula_buy = fBuy;
@@ -422,12 +535,21 @@ export class ExclusiveExchangeRatesService {
     masterSell: number,
     manager?: EntityManager,
   ) {
-    const repo = manager ? manager.getRepository(ExclusiveExchangeRate) : this.exclusiveRateRepo;
+    const repo = manager
+      ? manager.getRepository(ExclusiveExchangeRate)
+      : this.exclusiveRateRepo;
     const child = await repo.findOne({ where: { id: childId } });
     if (!child) throw new NotFoundException('Exclusive record missing');
 
-    let newMax = await this.calculateFormula(child.formula_buy_max, masterBuy, { BUY: masterBuy, SELL: masterSell });
-    let newBuy = await this.calculateFormula(child.formula_buy, masterBuy, { BUY: masterBuy, SELL: masterSell, MAX: newMax });
+    let newMax = await this.calculateFormula(child.formula_buy_max, masterBuy, {
+      BUY: masterBuy,
+      SELL: masterSell,
+    });
+    let newBuy = await this.calculateFormula(child.formula_buy, masterBuy, {
+      BUY: masterBuy,
+      SELL: masterSell,
+      MAX: newMax,
+    });
 
     let isAdjusted = false;
     let remark = '';
@@ -457,7 +579,12 @@ export class ExclusiveExchangeRatesService {
     });
 
     if (isAdjusted) {
-      await this.log(null, 'SYSTEM_RATE_ADJUSTED_SUCCESS', `ID: ${childId} | ${remark}`, manager);
+      await this.log(
+        null,
+        'SYSTEM_RATE_ADJUSTED_SUCCESS',
+        `ID: ${childId} | ${remark}`,
+        manager,
+      );
     }
   }
 
@@ -479,8 +606,15 @@ export class ExclusiveExchangeRatesService {
           reviewed_at: new Date(),
         },
       );
-      await this.log(user, 'BULK_REVIEW_SUCCESS', `Reviewed ${ids.length} items`);
-      return { success: true, message: `Successfully reviewed ${ids.length} items` };
+      await this.log(
+        user,
+        'BULK_REVIEW_SUCCESS',
+        `Reviewed ${ids.length} items`,
+      );
+      return {
+        success: true,
+        message: `Successfully reviewed ${ids.length} items`,
+      };
     } catch (err: any) {
       await this.log(user, 'BULK_REVIEW_ERROR', `Error: ${err.message}`);
       throw err;
@@ -491,7 +625,11 @@ export class ExclusiveExchangeRatesService {
   async findByBooth(boothId: string) {
     const booth = await this.boothRepo.findOne({ where: { id: boothId } });
     if (!booth) {
-      await this.log(null, 'FIND_BY_BOOTH_FAILED', `Booth ID ${boothId} not found`);
+      await this.log(
+        null,
+        'FIND_BY_BOOTH_FAILED',
+        `Booth ID ${boothId} not found`,
+      );
       throw new NotFoundException('Booth not found');
     }
 
@@ -521,9 +659,15 @@ export class ExclusiveExchangeRatesService {
 
   // // ค้นหาเรทลูกทั้งหมดที่ผูกกับเรทแม่ตัวนี้
   async findByExchangeRate(exchangeRateId: string) {
-    const master = await this.exchangeRateRepo.findOne({ where: { id: exchangeRateId } });
+    const master = await this.exchangeRateRepo.findOne({
+      where: { id: exchangeRateId },
+    });
     if (!master) {
-      await this.log(null, 'FIND_BY_MASTER_FAILED', `Master Rate ID ${exchangeRateId} not found`);
+      await this.log(
+        null,
+        'FIND_BY_MASTER_FAILED',
+        `Master Rate ID ${exchangeRateId} not found`,
+      );
       throw new NotFoundException('Exchange rate not found');
     }
 
@@ -618,26 +762,41 @@ export class ExclusiveExchangeRatesService {
     });
 
     if (pending.length > 0) {
-      await this.log(null, 'FETCH_PENDING_REVIEWS_SUCCESS', `Found ${pending.length} items waiting for review`);
+      await this.log(
+        null,
+        'FETCH_PENDING_REVIEWS_SUCCESS',
+        `Found ${pending.length} items waiting for review`,
+      );
     }
 
-    return pending.map(rate => ({
+    return pending.map((rate) => ({
       id: rate.id,
       booth_name: rate.booth.name,
       currency_name: rate.exchangeRate.name,
       old_buy_max: rate.buy_rate_max,
       system_remark: rate.system_remark,
-      updated_at: rate.updated_at
+      updated_at: rate.updated_at,
     }));
   }
 
-  async isBuyRateAllowed(currentUser : any,exclusiveRateId: string , proposedRate : number ) {
+  async isBuyRateAllowed(
+    currentUser: any,
+    exclusiveRateId: string,
+    proposedRate: number,
+  ) {
     const exclusiveRate = await this.findById(exclusiveRateId);
     if (!exclusiveRate) {
-      await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Exclusive ID ${exclusiveRateId} not found`);
+      await this.log(
+        currentUser,
+        'CREATE_EXCHANGE_TRANSACTION_FAILED',
+        `Exclusive ID ${exclusiveRateId} not found`,
+      );
       throw new NotFoundException('Exclusive rate not found');
     }
 
-    return !(proposedRate > exclusiveRate.buy_rate_max || proposedRate < Math.trunc(exclusiveRate.buy_rate));
+    return !(
+      proposedRate > exclusiveRate.buy_rate_max ||
+      proposedRate < Math.trunc(exclusiveRate.buy_rate)
+    );
   }
 }
