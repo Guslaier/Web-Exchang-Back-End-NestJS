@@ -275,6 +275,22 @@ export class ShiftsService {
     return shifts.length > 0 ? shifts[0] : null;
   }
 
+  async getNonOpenPreviousShiftByBoothId(boothId : string) {
+      const shiftDatas = await this.shiftRepository.query(`
+            select s.id , u."username" , b.name , s.cash_advance  , s.balance_check  , s."startTime"  , s."endTime" 
+            from (
+              select * from shifts s 
+              where s."boothId" = $1 and s.status != 'OPEN'
+              order by s."startTime" desc limit 2
+            ) s 
+            join users u on s."userId" = u.id 
+            join booths b on s."boothId" = b.id
+            order by s."startTime" asc limit 1 
+        `,
+        [boothId]) ; 
+
+      return shiftDatas ? shiftDatas[0] : null ; 
+  }
   
 
   async getShiftById(shiftId: string | undefined) {
