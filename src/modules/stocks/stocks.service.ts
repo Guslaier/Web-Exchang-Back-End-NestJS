@@ -120,6 +120,10 @@ export class StocksService {
         return await this.stockRepository.findOne({ where: { shiftId :  shiftId, exchangeRateId :  exchangeRateId } });
     }
 
+    async getStockByShiftId(shiftId : string) {
+        return await this.stockRepository.find({where : {shiftId : shiftId}}) ; 
+    }
+
     checkBalance( exchangedStock : Stock | null, exchangeAmount : number) {
         return (exchangedStock) && Number(exchangedStock.total_balance)  >= Number(exchangeAmount) ;
     }
