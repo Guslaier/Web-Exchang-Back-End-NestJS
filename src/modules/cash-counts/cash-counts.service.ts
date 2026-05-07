@@ -166,5 +166,6 @@ export class CashCountsService {
         amount : true 
       }
     })
+    return cashCountData ;
   }
 }
