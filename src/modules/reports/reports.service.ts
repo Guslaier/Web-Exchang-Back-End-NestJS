@@ -16,20 +16,22 @@ export class ReportsService {
     //create
     //read
     async getPreviousShiftData(user : any , boothId : string) {
-        const data = []  ; 
 
         const shiftData = await this.shiftService.getNonOpenPreviousShiftByBoothId(boothId) ; 
         if(shiftData) {
             const shiftId = shiftData?.id  ;
-            const stockData = this.stockService.getStockByShiftId(shiftId)  ;
-            const cashCountData = this.cashCountService.getCashCountByShiftId(shiftId) ; 
-            await Promise.all([stockData , cashCountData]) ; 
+            const stockDataPromise = this.stockService.getStockByShiftId(shiftId)  ;
+            const cashCountDataPromise = this.cashCountService.getCashCountByShiftId(shiftId) ; 
+            const [stockData , cashCountData] =  await Promise.all([stockDataPromise , cashCountDataPromise]) ; 
 
-            data.push(shiftId) ;
-            data.push(stockData) ; 
+            return  {
+                shift : shiftData , 
+                stock : stockData ,  
+                cash : cashCountData,
+            }
         }
         
-        return data ; 
+        return {} ; 
     }
     //update
     //delete
