@@ -365,7 +365,7 @@ export class TransferTransactionsService {
         // ถ้า boothId ไม่มีการเปิดกะอยู่ จะไม่อนุญาตให้ทำรายการโอนระหว่างบูธ
         const activeShift = await this.shiftService.getLastShiftByBoothId(transferDto.boothId) ; 
     
-        if (!activeShift || (activeShift?.endTime != null)) {
+        if (!activeShift || (activeShift?.status === 'COMPLETED')) {
           await this.log(
             user,
             'TRANSFER_BOOTH_TO_BOOTH_FAILED',
@@ -394,7 +394,7 @@ export class TransferTransactionsService {
         // ถ้า targetBoothId ไม่มีการเปิดกะอยู่ จะไม่อนุญาตให้ทำรายการโอนระหว่างบูธ
         const targetActiveShift = await this.shiftService.getLastShiftByBoothId(transferDto.refBoothId) ; 
       
-        if (!targetActiveShift || (targetActiveShift?.endTime != null)) {
+        if (!targetActiveShift || targetActiveShift.status === 'COMPLETED') {
           await this.log(
             user,
             'TRANSFER_BOOTH_TO_BOOTH_FAILED',
@@ -584,7 +584,7 @@ export class TransferTransactionsService {
 
         const targetActiveShift = await this.shiftService.getLastShiftByBoothId(transferDto.boothId) ;  
       
-        if (!targetActiveShift || targetActiveShift?.endTime != null) {
+        if (!targetActiveShift || targetActiveShift.status === 'COMPLETED') {
           await this.log(
             user,
             'TRANSFER_CENTER_TO_BOOTH_FAILED',
