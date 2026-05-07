@@ -85,7 +85,7 @@ export class ExchangeTransactionsService {
     }
     else if(activeShift.status !== 'OPEN') {
       await this.log(currentUser,'CREATE_EXCHANGE_TRANSACTION_FAILED', `Failed to create exchange transaction due to no shift for this user is not in 'OPEN' status.`,);
-
+      throw new ConflictException(`shift for this user is not in 'OPEN' status.`) ;
     }
 
     const exchangeRateId = await this.exchangeRateService.findById(
@@ -589,6 +589,7 @@ export class ExchangeTransactionsService {
     }
     else if(activeShift.status !== 'OPEN') {
       await this.log(currentUser,'SET_EXCHANGE_TRANSACTION_PENDING_FAILED',`Failed to set exchange transaction with ID: ${param.id} Cause Shift is not in 'OPEN' status.`);
+      throw new ConflictException(`Shift is not in 'OPEN' status.`) ;
     }
 
     const exchangeTransaction =
