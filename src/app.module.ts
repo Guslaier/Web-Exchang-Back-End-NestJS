@@ -17,6 +17,7 @@ import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.mod
 import { ExclusiveExchangeRatesModule } from './modules/exclusive-exchange-rates/exclusive-exchange-rates.module';
 import { SystemLogsModule } from './modules/system-logs/system-logs.module';
 import { RedisModule } from './modules/redis/redis.module';
+import { ReportsModule } from './modules/reports/reports.module' ; 
 import { SseModule } from './modules/sse/sse.module';
 import { StocksModule } from './modules/stocks/stocks.module';
 import * as pg from 'pg';
@@ -64,6 +65,7 @@ pg.types.setTypeParser(1114, (value) => value);
     RedisModule,
     SseModule,
     StocksModule,
+    ReportsModule ,
   ],
 })
 export class AppModule {}
