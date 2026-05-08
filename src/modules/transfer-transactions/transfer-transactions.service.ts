@@ -40,6 +40,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../users/entities/user.entity';
 import { stat } from 'fs';
 import { FirstShiftCashCountDto } from './dto/transfer-transaction.dto';
+import { create } from 'domain';
 
 @Injectable()
 export class TransferTransactionsService {
@@ -1003,6 +1004,7 @@ export class TransferTransactionsService {
             type: true,
             status: true,
             shiftId: true,
+            createdAt: true,
             booth: {
               id: true,
               name: true,
@@ -1029,6 +1031,7 @@ export class TransferTransactionsService {
         refShiftId: transferTransaction?.refShiftId,
         refBoothId: transferTransaction?.refBoothId,
         refBoothName: transferTransaction?.refBooth?.name,
+        createdAt: transferTransaction?.createdAt,
       };
     } catch (error) {
       throw new BadRequestException(
@@ -1053,6 +1056,7 @@ export class TransferTransactionsService {
             type: true,
             status: true,
             shiftId: true,
+            createdAt: true,
             booth: {
               id: true,
               name: true,
@@ -1080,6 +1084,7 @@ export class TransferTransactionsService {
           refShiftId: transaction?.refShiftId,
           refBoothId: transaction?.refBoothId,
           refBoothName: transaction?.refBooth?.name,
+          createdAt: transaction?.createdAt,
         });
         return result;
       }, []);
@@ -1105,6 +1110,7 @@ export class TransferTransactionsService {
             type: true,
             status: true,
             shiftId: true,
+            createdAt: true,
             booth: {
               id: true,
               name: true,
@@ -1132,6 +1138,7 @@ export class TransferTransactionsService {
           refShiftId: transaction?.refShiftId,
           refBoothId: transaction?.refBoothId,
           refBoothName: transaction?.refBooth?.name,
+          createdAt: transaction?.createdAt,
         });
         return result;
       }, []);
@@ -1159,6 +1166,7 @@ export class TransferTransactionsService {
             type: true,
             status: true,
             shiftId: true,
+            createdAt: true,
             booth: {
               id: true,
               name: true,
@@ -1186,6 +1194,7 @@ export class TransferTransactionsService {
           refShiftId: transaction?.refShiftId,
           refBoothId: transaction?.refBoothId,
           refBoothName: transaction?.refBooth?.name,
+          createdAt: transaction?.createdAt,
         });
         return result;
       }, []);
@@ -1219,6 +1228,7 @@ export class TransferTransactionsService {
             type: true,
             status: true,
             shiftId: true,
+            createdAt: true,
             booth: {
               id: true,
               name: true,
@@ -1246,6 +1256,7 @@ export class TransferTransactionsService {
           refShiftId: transaction?.refShiftId,
           refBoothId: transaction?.refBoothId,
           refBoothName: transaction?.refBooth?.name,
+          createdAt: transaction?.createdAt,
         });
         return result;
       }, []);
