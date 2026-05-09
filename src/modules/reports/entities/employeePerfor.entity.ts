@@ -20,8 +20,6 @@ export class EmployeePerformance {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @OneToMany(() => Shift, (shift) => shift.user)
-  shift: Shift[];
 
   @Column()
   totalBalanceCheck: number;

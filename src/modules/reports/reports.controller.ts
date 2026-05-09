@@ -42,11 +42,12 @@ export class ReportsController {
 
   // 2. ดึงข้อมูลภาพรวม (รองรับทั้ง All และ Range ใน Path เดียว)
   @Get()
-  getAll(@Query('startDate') start?: string, @Query('endDate') end?: string) {
+  getAll(@Query('startDate') start?: string, @Query('endDate') end?: string, @Query('withShifts') withShifts: string = 'false') {
     if (start && end) {
       return this.reportService.getAllEmployeePerformance(
         new Date(start),
         new Date(end),
+        withShifts === 'true'
       );
     }
     return this.reportService.getAllEmployeePerformance();

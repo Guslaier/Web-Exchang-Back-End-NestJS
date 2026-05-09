@@ -121,6 +121,7 @@ export class ReportsService {
         user: {
           id: true,
           username: true,
+          email: true,
           ...(withShifts && {
             shifts: {
               id: true,
@@ -136,7 +137,7 @@ export class ReportsService {
     });
   }
 
-  async getAllEmployeePerformance(startDate?: Date, endDate?: Date) {
+  async getAllEmployeePerformance(startDate?: Date, endDate?: Date,withShifts = false) {
     const where = startDate && endDate ? {
       reportMonth: Between(
         new Date(startDate.getFullYear(), startDate.getMonth(), 1),
@@ -145,14 +146,25 @@ export class ReportsService {
     } : {};
 
     return await this.employeePerformanceRepository.find({
-      relations: ['user'],
+      relations: ['user', ...(withShifts ? ['user.shifts', 'user.shifts.booth'] : [])],
       where,
       select: {
         id: true,
         totalBalanceCheck: true,
         totalCashAdvance: true,
         reportMonth: true,
-        user: { id: true, username: true }
+        user: { id: true, username: true, email: true ,
+          ...(withShifts && {
+            shifts: {
+              id: true,
+              startTime: true,
+              endTime: true,
+              balance_check: true,
+              cash_advance: true,
+              booth: { id: true, name: true }
+            }
+          })
+        }
       }
     });
   }
@@ -169,6 +181,7 @@ export class ReportsService {
             user: {
                 id: true,
                 username: true,
+                email: true,
                 shifts: {
                     id: true,
                     startTime: true,
