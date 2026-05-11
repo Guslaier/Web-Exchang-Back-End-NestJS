@@ -12,9 +12,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { GetPreviousShift, PutShiftBody } from './dto/report.dto';
+import { GetPreviousShift , GetShifts , PutShiftBody } from './dto/report.dto';
 import { ReportsService } from './reports.service';
-import { report } from 'process';
 
 @Controller('reports')
 export class ReportsController {
@@ -25,6 +24,13 @@ export class ReportsController {
   @Get('previous/shift')
   getPreviousShfit(@CurrentUser() user: any, @Query() query: GetPreviousShift) {
     return this.reportService.getPreviousShiftData(user, query.id);
+  }
+
+  @UseGuards(JwtAuthGuard , RolesGuard)
+  @Roles('ADMIN' , 'MANAGER') 
+  @Get('shifts')
+  getShfits(@CurrentUser() user : any  , @Query() query : GetShifts) {
+    return this.reportService.getShiftsReport(user , query.status , query.from , query.to) ; 
   }
 
   //==================report employee performance ================

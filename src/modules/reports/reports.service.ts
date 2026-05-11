@@ -1,14 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import {} from './dto/report.dto';
-import { ShiftsService } from './../shifts/shifts.service';
-import { StocksService } from './../stocks/stocks.service';
-import { CashCountsService } from './../cash-counts/cash-counts.service';
-import { EmployeePerformance } from './entities/employeePerfor.entity';
 import { Between, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { Shift } from '../shifts/entities/shift.entity';
 import { User } from '../users/entities/user.entity';
+import { handleError } from './../../common/error/error';
+import { GetShifts } from './dto/report.dto';
+import { ShiftsService } from './../shifts/shifts.service';
+import { StocksService } from './../stocks/stocks.service';
+import { CashCountsService } from './../cash-counts/cash-counts.service';
+import { ExchangeTransactionsService } from './../exchange-transactions/exchange-transactions.service' ;
+import { TransferTransactionsService } from './../transfer-transactions/transfer-transactions.service';
+import { EmployeePerformance } from './entities/employeePerfor.entity';
 
 @Injectable()
 export class ReportsService {
@@ -16,6 +19,8 @@ export class ReportsService {
     private readonly shiftService: ShiftsService,
     private readonly stockService: StocksService,
     private readonly cashCountService: CashCountsService,
+    private readonly exchangeTransactionService : ExchangeTransactionsService , 
+    private readonly tranferTransactionService : TransferTransactionsService , 
     @InjectRepository(EmployeePerformance)
     private readonly employeePerformanceRepository: Repository<EmployeePerformance>,
     private readonly dataSource: DataSource,
@@ -45,6 +50,41 @@ export class ReportsService {
 
     return {};
   }
+
+  async getShiftsReport(user : any , status : string , from : Date , to : Date ) {
+      from.setHours(0,0,0,0) ;
+      to.setHours(23,59,59,9999) ;
+
+
+      const shiftsData  = await this.shiftService.getShiftsByStatus(status , from , to); 
+
+      if (!shiftsData || (shiftsData && shiftsData.length === 0))  
+        return null ; 
+      
+      const reportData  =  await Promise.all(shiftsData.map(async (shift)=>{
+        const cashCountDataPromise = this.cashCountService.getCashCountByShiftId(shift.id) ;
+        const exchangeTransactionDataPromise = this.exchangeTransactionService.getForeingAmountExchangeRateAndStatusFromShiftId(shift.id) ;
+        const tranferTransactionDataPromise =this.tranferTransactionService.getAmountTypeStatusByShiftId(shift.id) ;
+        
+        try {
+          const [cashCountData , exchangeTransactionData , tranferTransactionData] = await Promise.all([cashCountDataPromise , exchangeTransactionDataPromise , tranferTransactionDataPromise]) ; 
+          return {
+            shiftData : shift , 
+            cashCountData : cashCountData , 
+            exchangeTransactionData : exchangeTransactionData , 
+            tranferTransactionData : tranferTransactionData ,
+          }
+        }
+        catch(err) {
+          handleError(err) ; 
+        }
+        
+      })) ;  
+
+
+      return reportData ; 
+  }
+
   //update
   //delete
 
