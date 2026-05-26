@@ -86,3 +86,15 @@ export class GetShiftBoothQuery implements Pick<BoothData , 'id' > {
   @IsNotEmpty()
   id : string ; 
 }
+
+export class GetShiftPreviousCashcount implements Pick<BoothData , 'id'> {
+  @IsUUID()
+  @IsNotEmpty() 
+  id : string ; 
+}
+
+export class GetShiftCurrrentDetails implements Pick<BoothData , 'id' > {
+    @IsUUID()
+  @IsNotEmpty() 
+  id : string ; 
+}

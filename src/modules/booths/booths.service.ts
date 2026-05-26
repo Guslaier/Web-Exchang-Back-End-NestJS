@@ -23,6 +23,7 @@ import { ExclusiveExchangeRatesService } from '../exclusive-exchange-rates/exclu
 import { Shift } from '../shifts/entities/shift.entity';
 import { handleError } from '../../common/error/error';
 import { SseService } from '../sse/sse.service';
+import { to } from 'mathjs';
 
 @Injectable()
 export class BoothsService {
@@ -119,6 +120,24 @@ export class BoothsService {
     const booth = await this.boothRepository.findOne({ where: { id } });
     if (!booth) throw new NotFoundException('Booth not found');
     return booth;
+  }
+
+  async findBoothCurrentShift() {
+    const from = new Date() ; 
+    from.setHours(0, 0, 0, 0);
+    const to = new Date() ; 
+    to.setHours(23,59,59,999) ; 
+
+    const boothData = await this.boothRepository.query(
+      `select b.id as boothId , s.id as shiftId , u.id as userId , b.name  , u.username , b.location , s.status  from 
+       booths b left join (select s.id , s."boothId" , s."userId" , s.status from shifts s where s."startTime" between $1 and $2) s 
+       on b.id = s."boothId" and b."currentShiftId" = s."userId" 
+       left join users u on b."currentShiftId" = u.id
+       where (b."deletedAt" is null) and (b."isActive" = true)` , 
+      [from , to] 
+    ) ; 
+
+    return boothData ; 
   }
 
   async getBoothIfExist(id : string) {

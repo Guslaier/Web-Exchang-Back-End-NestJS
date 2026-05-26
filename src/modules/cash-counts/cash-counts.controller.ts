@@ -10,13 +10,11 @@ import { Roles } from '../../common/decorators/roles.decorator';
 export class CashCountsController {
   constructor(private readonly cashCountsService: CashCountsService) {}
 
-  @Post()
-  create(@Body() createCashCountDto: CreateCashCountDto)  {
-    return ;
+
+  @Get('shift/:shiftId')
+  getByShiftId(@Param('shiftId') shiftId : string) {
+    return this.cashCountsService.getCashCountByShiftId(shiftId) ; 
   }
 
-  @Get(':transactionNo')
-  findOne(@Param('transactionNo') transactionNo: string){
-    return ;
-  }
+  
 }

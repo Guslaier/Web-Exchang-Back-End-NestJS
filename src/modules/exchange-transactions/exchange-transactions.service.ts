@@ -118,14 +118,13 @@ export class ExchangeTransactionsService {
         `Mismatch in calculated exchange rate: ${exchangeRate} and provided exchange rate: ${body.exchangeRate} for proposed rate thai baht amount shouled be ${body.foreignAmount * body.exchangeRate}`,
       );
     }
-
     const exclusiveExchangeRates =
       await this.exclusiveExchangeRatesService.findByExchangeRate(
         body.exchangeRatesId,
       );
     let exclusiveExchangeRate: any = null;
     for (const exclusiveRate of exclusiveExchangeRates) {
-      if (exclusiveRate.booth_id === activeShift.boothId) {
+      if (exclusiveRate?.booth_id === activeShift.boothId) {
         exclusiveExchangeRate = exclusiveRate;
         break;
       }

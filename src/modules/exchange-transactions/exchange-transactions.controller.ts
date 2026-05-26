@@ -39,6 +39,13 @@ export class ExchangeTransactionsController {
     return this.exchangeTransactionsService.getTransactionsFromShift(currentUser , query); 
   }
 
+  @UseGuards(JwtAuthGuard  , RolesGuard) 
+  @Roles('ADMIN', 'MANAGER')
+  @Get('current-booth/shifts/:id')
+  getTransactionsFromBoothCurrentShiftId(@CurrentUser() currentUser : any , @Param('id') id : string) {
+    return this.exchangeTransactionsService.getForeingAmountExchangeRateAndStatusFromShiftId(id) ; 
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('EMPLOYEE','ADMIN', 'MANAGER')
   @Get()

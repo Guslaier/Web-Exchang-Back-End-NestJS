@@ -1,6 +1,6 @@
 import { Controller, Post, Get, Put, Delete, Param, Body, UseGuards, Query } from '@nestjs/common';
 import { ShiftsService } from './shifts.service';
-import { QueryDateDto, QueryShiftId, ShiftAuditBody , ShiftAuditParam , UserIdDto , ShiftIdDto , BoothIdDto , GetShiftBoothQuery} from './dto/shift.dto';
+import { QueryDateDto, QueryShiftId, ShiftAuditBody , ShiftAuditParam , UserIdDto , ShiftIdDto , BoothIdDto , GetShiftBoothQuery , GetShiftPreviousCashcount , GetShiftCurrrentDetails} from './dto/shift.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -33,6 +33,20 @@ export class ShiftsController {
   @Get('booth')
   getShiftsBooth(@Query()  query : GetShiftBoothQuery) {
     return this.shiftsService.getLastShiftByBoothId(query.id, false) ; 
+  }
+
+  @UseGuards(JwtAuthGuard , RolesGuard)
+  @Roles("ADMIN" , "MANAGER")
+  @Get('previous/cashcount') 
+  getShiftPreviousCashcount(@Query() query : GetShiftPreviousCashcount) {
+    return this.shiftsService.getCashCountFromPreviousShift(query.id) ; 
+  }
+
+  @UseGuards(JwtAuthGuard , RolesGuard)
+  @Roles('ADMIN' , 'MANAGER')
+  @Get('current/detail/')
+  getShiftsCurrentDetails(@Query() query : GetShiftCurrrentDetails) {
+    return ; 
   }
 
   @UseGuards(JwtAuthGuard , RolesGuard) 

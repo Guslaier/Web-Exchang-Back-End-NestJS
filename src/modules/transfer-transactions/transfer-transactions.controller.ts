@@ -26,7 +26,7 @@ import {
 } from './dto/transfer-transaction.dto';
 import { get } from 'http';
 import { CurrenciesService } from '../currencies/currencies.service';
-import { In } from 'typeorm';
+import { In, ReadPreference } from 'typeorm';
 import { CashCountsService } from '../cash-counts/cash-counts.service';
 
 
@@ -95,6 +95,13 @@ export class TransferTransactionsController {
     return this.transferTransactionsService.getTransferTransactionsByBoothId(
       boothId,
     );
+  }
+
+  @UseGuards(JwtAuthGuard , RolesGuard) 
+  @Roles('ADMIN' , 'MANAGER')
+  @Get('booth/shift/:shiftId')
+  async getAmountTypeStatusByShiftId(@Param('shiftId') shiftId : string) {
+    return this.transferTransactionsService.getAmountTypeStatusByShiftId(shiftId); 
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

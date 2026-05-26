@@ -660,7 +660,7 @@ export class ExclusiveExchangeRatesService {
   // // ค้นหาเรทลูกทั้งหมดที่ผูกกับเรทแม่ตัวนี้
   async findByExchangeRate(exchangeRateId: string) {
     const master = await this.exchangeRateRepo.findOne({
-      where: { id: exchangeRateId },
+      where: { id : exchangeRateId },
     });
     if (!master) {
       await this.log(
@@ -676,11 +676,12 @@ export class ExclusiveExchangeRatesService {
       relations: ['booth'],
     });
 
+
     return rates.map((rate) => ({
       id: rate.id,
       exchange_rate_id: rate.exchange_rate_id,
-      booth_id: rate.booth.id,
-      booth_name: rate.booth.name,
+      booth_id: rate.booth ? rate.booth.id : null,
+      booth_name: rate.booth ? rate.booth.name : null,
       name: master.name,
       range_start: master.range_start,
       range_stop: master.range_stop,

@@ -8,7 +8,7 @@ export type TranStatus =
 export type TranSectionType =
   | 'EXCHANGE'
   | 'TRANSFER'
-  | 'FISERST_SHIFT_CASH_COUNT'
+  | 'FIRST_SHIFT_CASH_COUNT'
   | 'CLOSE_SHIFT_CASH_COUNT'; // อิงตาม Database
 export type TransferTransactionType =
   | 'CASH_IN'

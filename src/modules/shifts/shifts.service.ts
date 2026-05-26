@@ -86,7 +86,7 @@ export class ShiftsService {
       const savedShift = await shiftRepo.save(row);
       const logQuery  = await this.log(currentUser,'OPEN_SHIFT_SUCCESS',`Shift id : ${savedShift.id} was opened by User id : ${currentUser.id}`,manager,);
       this.sseService.triggerRefreshSignal() ;  
-      return {message : 'Open shift success.'} ; 
+      return savedShift ; 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       await this.log(currentUser,'OPEN_SHIFT_FAILED',`internal server error: ${errorMessage}`,manager,);
@@ -310,14 +310,11 @@ export class ShiftsService {
   async getNonOpenPreviousShiftByBoothId(boothId : string) {
       const shiftDatas = await this.shiftRepository.query(`
             select s.id , u."username" , b.name , s.cash_advance  , s.balance_check  , s."startTime"  , s."endTime" 
-            from (
-              select * from shifts s 
-              where s."boothId" = $1 and s.status != 'OPEN'
-              order by s."startTime" desc limit 2
-            ) s 
+            from shifts s 
             join users u on s."userId" = u.id 
             join booths b on s."boothId" = b.id
-            order by s."startTime" asc limit 1 
+            where s.status = 'COMPLETED' and b.id = $1
+            order by s."startTime" desc limit 1 
         `,
         [boothId]) ; 
 
@@ -353,7 +350,15 @@ export class ShiftsService {
 
     }
 
- 
+  async getCashCountFromPreviousShift(boothId : string) {
+        const shiftData = await this.getNonOpenPreviousShiftByBoothId(boothId);       
+        const cashCountData = shiftData ? await this.cashCountServicee.getCashCountByShiftId(shiftData.id) : [] ; 
+        return cashCountData ; 
+  }
+
+  async getCurrentShiftDetails(boothId : string) {
+      const shiftData = await this.getLastShiftByBoothId(boothId) ;
+  }
   
   // update 
 
@@ -368,7 +373,7 @@ export class ShiftsService {
     } 
 
     await this.log(currentUser , 'OPEN_SHIFT_SUCCESS' , `Update shift id : ${id} from ${previousStatus} to OPEN`,manager) ;
-    this.sseService.triggerRefreshSignal() ; 
+    // this.sseService.triggerRefreshSignal() ; 
     return {message : 'Open shift success.'} ; 
   }
 
