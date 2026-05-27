@@ -33,12 +33,6 @@ export class BoothsController {
     return this.boothsService.findOne(id);
   }
 
-  @UseGuards(JwtAuthGuard) 
-  @Roles('ADMIN' , 'MANAGER')
-  @Get('find-booth-current-shift') 
-  findBoothCurrentShift() {
-    return this.boothsService.findBoothCurrentShift() ;
-  }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER')
