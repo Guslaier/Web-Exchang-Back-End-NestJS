@@ -6,6 +6,7 @@ import {
   Inject,
   BadRequestException,
   ForbiddenException,
+  ConsoleLogger,
 } from '@nestjs/common';
 import { BoothsService } from '../../modules/booths/booths.service';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -23,6 +24,7 @@ import { CashCountsService } from './../../modules/cash-counts/cash-counts.servi
 import { TransactionsService } from './../../modules/transactions/transactions.service' ; 
 import { SseService } from './../../modules/sse/sse.service' ; 
 import Redis from 'ioredis';
+import { SharedTransactionsService } from '../shared-transactions/shared-transactions.service';
 import {
   QueryDateDto,
   QueryShiftId,
@@ -33,6 +35,7 @@ import {
 } from './dto/shift.dto';
 import { isUUID } from 'class-validator';
 import { handleError } from '../../common/error/error';
+import { ShiftDetail } from './../../types/index' ;
 
 @Injectable()
 export class ShiftsService {
@@ -47,6 +50,7 @@ export class ShiftsService {
     @Inject('REDIS_CLIENT')
     private readonly redisClient: Redis,
     private readonly dataSource: DataSource,
+    private readonly sharedTransactionsService: SharedTransactionsService,
   ) {}
 
   // create
@@ -356,8 +360,36 @@ export class ShiftsService {
         return cashCountData ; 
   }
 
-  async getCurrentShiftDetails(boothId : string) {
-      const shiftData = await this.getLastShiftByBoothId(boothId) ;
+  async getCurrentShiftDetails(boothId : string , from : Date = new Date() , to : Date = new Date()) {
+
+    const boothData = await this.boothService.findBoothCurrentShift(boothId , from , to ) ; 
+
+
+    if (!boothData) {
+      return null;
+    }
+
+
+    
+    const shiftDetail = new ShiftDetail(boothData.name , boothData.location , true  ,boothData.userid , boothData.username)  ;
+
+    shiftDetail.setShiftData(boothData.shiftid , boothData.status) ;
+
+    const shiftId = boothData.shiftid ; 
+
+   if (shiftId) {
+      const [transferTransactions, cashCounts, exchangeTransactions] = await Promise.all([
+        this.sharedTransactionsService.getAmountTypeStatusByShiftId(shiftId),
+        this.cashCountServicee.getCashCountByShiftId(shiftId),
+        this.sharedTransactionsService.getForeingAmountExchangeRateAndStatusFromShiftId(shiftId),
+      ]);
+
+      shiftDetail.setCashcount(cashCounts) ; 
+      shiftDetail.setTrafer(transferTransactions) ; 
+      shiftDetail.setExchange(exchangeTransactions) ; 
+    }
+
+    return shiftDetail ; 
   }
   
   // update 

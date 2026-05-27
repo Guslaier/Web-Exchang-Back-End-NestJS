@@ -9,12 +9,22 @@ import { SseModule } from '../../modules/sse/sse.module' ;
 import { CashCountsModule } from './../../modules/cash-counts/cash-counts.module' ; 
 import { TransactionsModule } from './../../modules/transactions/transactions.module'
 import { RedisModule } from '../../modules/redis/redis.module';
+import { SharedTransactionsModule } from '../shared-transactions/shared-transactions.module';
+
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Shift]) , BoothsModule , SystemLogsModule , CashCountsModule , RedisModule , TransactionsModule , SseModule],
+  imports: [
+    TypeOrmModule.forFeature([Shift]),
+    BoothsModule,
+    SystemLogsModule,
+    CashCountsModule,
+    RedisModule,
+    TransactionsModule,
+    SseModule,
+    SharedTransactionsModule,
+  ],
   controllers: [ShiftsController],
   providers: [ShiftsService],
   exports: [ShiftsService],
-  
 })
 export class ShiftsModule {}

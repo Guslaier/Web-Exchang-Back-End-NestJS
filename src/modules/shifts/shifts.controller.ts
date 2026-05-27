@@ -46,7 +46,7 @@ export class ShiftsController {
   @Roles('ADMIN' , 'MANAGER')
   @Get('current/detail/')
   getShiftsCurrentDetails(@Query() query : GetShiftCurrrentDetails) {
-    return ; 
+    return this.shiftsService.getCurrentShiftDetails(query.id) ; 
   }
 
   @UseGuards(JwtAuthGuard , RolesGuard) 
