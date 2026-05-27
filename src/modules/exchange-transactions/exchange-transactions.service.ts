@@ -6,6 +6,7 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  forwardRef,
 } from '@nestjs/common';
 import {
   CreateExchangeTransactionDto,
@@ -25,7 +26,7 @@ import { CustomersService } from './../../modules/customers/customers.service';
 import { CashCountsService } from './../../modules/cash-counts/cash-counts.service';
 import { StocksService } from './../../modules/stocks/stocks.service';
 import { CreateTransactionDto } from './../../modules/transactions/dto/transaction.dto';
-import { UpdateStockByExchangeTransactionForCancel} from './../../modules/stocks/dto/stocks.dto'
+import { UpdateStockByExchangeTransactionForCancel } from './../../modules/stocks/dto/stocks.dto'
 import { InputValidator } from './helper/input-validator';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, IsNull, Not } from 'typeorm';
@@ -35,7 +36,6 @@ import { handleError } from '../../common/error/error';
 @Injectable()
 export class ExchangeTransactionsService {
   constructor(
-    @Inject(ShiftsService)
     private readonly shiftsService: ShiftsService,
     private readonly exchangeRateService: ExchangeRatesService,
     private readonly exclusiveExchangeRatesService: ExclusiveExchangeRatesService,
@@ -48,8 +48,8 @@ export class ExchangeTransactionsService {
     private readonly exchangeTransactionRepository: Repository<ExchangeTransaction>,
     private readonly transactionsService: TransactionsService,
     private readonly dataSource: DataSource,
-  ) {}
-   
+  ) { }
+
   // create 
 
   private async log(
@@ -80,12 +80,12 @@ export class ExchangeTransactionsService {
       currentUser.id,
     );
     if (!activeShift) {
-      await this.log(currentUser,'CREATE_EXCHANGE_TRANSACTION_FAILED','Failed to create exchange transaction due to no active shift found for the user',);
+      await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', 'Failed to create exchange transaction due to no active shift found for the user',);
       throw new NotFoundException('No active shift found for the user');
     }
-    else if(activeShift.status !== 'OPEN') {
-      await this.log(currentUser,'CREATE_EXCHANGE_TRANSACTION_FAILED', `Failed to create exchange transaction due to no shift for this user is not in 'OPEN' status.`,);
-      throw new ConflictException(`shift for this user is not in 'OPEN' status.`) ;
+    else if (activeShift.status !== 'OPEN') {
+      await this.log(currentUser, 'CREATE_EXCHANGE_TRANSACTION_FAILED', `Failed to create exchange transaction due to no shift for this user is not in 'OPEN' status.`,);
+      throw new ConflictException(`shift for this user is not in 'OPEN' status.`);
     }
 
     const exchangeRateId = await this.exchangeRateService.findById(
@@ -132,8 +132,8 @@ export class ExchangeTransactionsService {
     const isRateAllow =
       (body.type === 'SELL' &&
         Math.trunc(exchangeRate) >= Math.trunc(exchangeRateId.sell_rate)) ||
-      (body.type === 'BUY' &&
-        Math.trunc(exchangeRate) <=
+        (body.type === 'BUY' &&
+          Math.trunc(exchangeRate) <=
           Math.trunc(exclusiveExchangeRate.buy_rate_max))
         ? true
         : false;
@@ -206,16 +206,16 @@ export class ExchangeTransactionsService {
 
         const customer = insertCustomer
           ? await this.customerService.create(
-              manager,
-              transaction.id,
-              passportNo,
-              fullName,
-              nationality,
-              phoneNumber,
-              hotelName,
-              roomNumber,
-              customer_img?.filename ?? '',
-            )
+            manager,
+            transaction.id,
+            passportNo,
+            fullName,
+            nationality,
+            phoneNumber,
+            hotelName,
+            roomNumber,
+            customer_img?.filename ?? '',
+          )
           : null;
 
         const exchangeTransRepo = manager.getRepository(ExchangeTransaction);
@@ -232,9 +232,9 @@ export class ExchangeTransactionsService {
             isNegotiateRate:
               (body.type === 'BUY' &&
                 Math.trunc(exchangeRate) !==
-                  Math.trunc(exclusiveExchangeRate.buy_rate)) ||
-              (body.type === 'SELL' &&
-                Math.trunc(exchangeRate) !==
+                Math.trunc(exclusiveExchangeRate.buy_rate)) ||
+                (body.type === 'SELL' &&
+                  Math.trunc(exchangeRate) !==
                   Math.trunc(exclusiveExchangeRate.sell_rate))
                 ? true
                 : false,
@@ -270,15 +270,15 @@ export class ExchangeTransactionsService {
 
   // read
 
-  async getTransactionsFromShift(currentUser: any,query: GetExchangeTransactionsFromShiftsDto | undefined,) {
+  async getTransactionsFromShift(currentUser: any, query: GetExchangeTransactionsFromShiftsDto | undefined,) {
     let isEmployee = currentUser.role === 'EMPLOYEE' ? true : false;
-    
-    const shiftData = isEmployee ? await this.shiftsService.getLastShiftByUserId(currentUser.id) : null ;  
-    if(shiftData && shiftData.status !== 'OPEN') {
-      throw new ConflictException(`Shift is not in 'OPEN' status.`) ;    
+
+    const shiftData = isEmployee ? await this.shiftsService.getLastShiftByUserId(currentUser.id) : null;
+    if (shiftData && shiftData.status !== 'OPEN') {
+      throw new ConflictException(`Shift is not in 'OPEN' status.`);
     }
 
-    const shiftId = shiftData ? shiftData.id : query?.id ;
+    const shiftId = shiftData ? shiftData.id : query?.id;
 
     if (!shiftId) {
       throw new BadRequestException('No active shift found');
@@ -349,28 +349,28 @@ export class ExchangeTransactionsService {
     return exchangeTransactions;
   }
 
-  async getForeingAmountExchangeRateAndStatusFromShiftId(id : string) {
+  async getForeingAmountExchangeRateAndStatusFromShiftId(id: string) {
     const exchangeTransactionData = await this.exchangeTransactionRepository.find({
-        relations: {
-          transaction: {
-            shift: true 
-          }
+      relations: {
+        transaction: {
+          shift: true
+        }
+      },
+      where: {
+        transaction: {
+          shiftId: id,
         },
-        where: {
-          transaction: {
-            shiftId: id,
-          },
-        },
-        select: {
-          id: true,
-          type: true,
-          foreignCurrencyAmount: true,
-          exchangeRate: true,
-          status : true , 
-        },
-      });
+      },
+      select: {
+        id: true,
+        type: true,
+        foreignCurrencyAmount: true,
+        exchangeRate: true,
+        status: true,
+      },
+    });
 
-    return exchangeTransactionData ; 
+    return exchangeTransactionData;
   }
 
   async getTransactionDetail(
@@ -386,8 +386,8 @@ export class ExchangeTransactionsService {
       if (!activeShift) {
         throw new BadRequestException('Active shift not found for the employee.');
       }
-      else if(activeShift.status !== 'OPEN') {
-        throw new ConflictException('Shift is not open for employee.') ; 
+      else if (activeShift.status !== 'OPEN') {
+        throw new ConflictException('Shift is not open for employee.');
       }
 
       const exchangeTransaction =
@@ -501,14 +501,14 @@ export class ExchangeTransactionsService {
     const { id, ...customerInfo } = customer
       ? customer
       : {
-          id: null,
-          fullName: null,
-          passportNo: null,
-          hotelName: null,
-          roomNumber: null,
-          phoneNumber: null,
-          passportImg: null,
-        };
+        id: null,
+        fullName: null,
+        passportNo: null,
+        hotelName: null,
+        roomNumber: null,
+        phoneNumber: null,
+        passportImg: null,
+      };
 
     const exchangeTransactionDetail = {
       ...restExchangeTransaction,
@@ -607,12 +607,12 @@ export class ExchangeTransactionsService {
       currentUser.id,
     );
     if (!activeShift) {
-      await this.log(currentUser,'SET_EXCHANGE_TRANSACTION_PENDING_FAILED',`Failed to set exchange transaction with ID: ${param.id} Cause Active shift not found for the employee.`);
+      await this.log(currentUser, 'SET_EXCHANGE_TRANSACTION_PENDING_FAILED', `Failed to set exchange transaction with ID: ${param.id} Cause Active shift not found for the employee.`);
       throw new NotFoundException('Active shift not found for the employee.');
     }
-    else if(activeShift.status !== 'OPEN') {
-      await this.log(currentUser,'SET_EXCHANGE_TRANSACTION_PENDING_FAILED',`Failed to set exchange transaction with ID: ${param.id} Cause Shift is not in 'OPEN' status.`);
-      throw new ConflictException(`Shift is not in 'OPEN' status.`) ;
+    else if (activeShift.status !== 'OPEN') {
+      await this.log(currentUser, 'SET_EXCHANGE_TRANSACTION_PENDING_FAILED', `Failed to set exchange transaction with ID: ${param.id} Cause Shift is not in 'OPEN' status.`);
+      throw new ConflictException(`Shift is not in 'OPEN' status.`);
     }
 
     const exchangeTransaction =
@@ -743,19 +743,19 @@ export class ExchangeTransactionsService {
         }
 
         if (body.status === 'VOIDED') {
-        const exchangeTransaction = await this.getTransactionDetail(currentUser, { id: param.id });
-        const updateStockForCancel: UpdateStockByExchangeTransactionForCancel = {
-          id: param.id,
-          type: exchangeTransaction.type,
-          shiftId : exchangeTransaction.shiftId,
-          exchangeRateId : exchangeTransaction.exchangeRateId,
-          foreignCurrencyAmount : exchangeTransaction.foreignCurrencyAmount,
-          totalthaiBahtAmount: exchangeTransaction.totalthaiBahtAmount,
-        } 
-        console.log('exchangeTransaction for cancel: ', exchangeTransaction);
-        console.log('updateStockForCancel: ', updateStockForCancel);
-        await this.stocksService.updateStockByExchangeTransactionForCancel(currentUser , updateStockForCancel  , manager) ; 
-      }
+          const exchangeTransaction = await this.getTransactionDetail(currentUser, { id: param.id });
+          const updateStockForCancel: UpdateStockByExchangeTransactionForCancel = {
+            id: param.id,
+            type: exchangeTransaction.type,
+            shiftId: exchangeTransaction.shiftId,
+            exchangeRateId: exchangeTransaction.exchangeRateId,
+            foreignCurrencyAmount: exchangeTransaction.foreignCurrencyAmount,
+            totalthaiBahtAmount: exchangeTransaction.totalthaiBahtAmount,
+          }
+          console.log('exchangeTransaction for cancel: ', exchangeTransaction);
+          console.log('updateStockForCancel: ', updateStockForCancel);
+          await this.stocksService.updateStockByExchangeTransactionForCancel(currentUser, updateStockForCancel, manager);
+        }
       });
       return {
         message: `Exchange transaction with ID: ${param.id} has been set to ${body.status} status`,
