@@ -113,9 +113,7 @@ export class ShiftsService {
     } 
 
     const shiftData = await this.getLastShiftByBoothId(boothId , false) ; 
-    console.log(shiftData) ; 
     if (shiftData == null) {
-      console.log("shift Occured today.") ; 
       return await this.dataSource.transaction(async(manager)=>{
         try {
          return await this.create(currentUser , boothData.currentShiftId as string   , boothId , manager);
@@ -196,7 +194,6 @@ export class ShiftsService {
         [start, end],
       );
     } catch (err) {
-      console.log(err);
       throw new InternalServerErrorException('Internal Server Error');
     }
   }
@@ -257,7 +254,6 @@ export class ShiftsService {
         [start, end],
       );
     } catch (err) {
-      console.log(err);
       throw new InternalServerErrorException('Internal Server Error');
     }
   }
