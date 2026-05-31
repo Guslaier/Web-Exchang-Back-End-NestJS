@@ -89,7 +89,7 @@ export class ShiftsService {
     try {
       const savedShift = await shiftRepo.save(row);
       const logQuery  = await this.log(currentUser,'OPEN_SHIFT_SUCCESS',`Shift id : ${savedShift.id} was opened by User id : ${currentUser.id}`,manager,);
-      this.sseService.triggerRefreshSignal() ;  
+      this.sseService.triggerRefreshBoothId(boothId) ;  
       return savedShift ; 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -401,7 +401,7 @@ export class ShiftsService {
     } 
 
     await this.log(currentUser , 'OPEN_SHIFT_SUCCESS' , `Update shift id : ${id} from ${previousStatus} to OPEN`,manager) ;
-    // this.sseService.triggerRefreshSignal() ; 
+    this.sseService.triggerRefreshShiftId(id) ; 
     return {message : 'Open shift success.'} ; 
   }
 
@@ -436,7 +436,7 @@ export class ShiftsService {
           await this.log(currentUser , 'CLOSE_SHIFT_FAILED' , `Can't Update shift id : ${shiftData.id}.`,manager) ; 
           throw new NotFoundException(`Can't shift to close.`) ; 
         }
-        this.sseService.triggerRefreshSignal() ; 
+        this.sseService.triggerRefreshShiftId(shiftData.id) ; 
         await this.log(currentUser , 'CLOSE_SHIFT_SUCCESS' , `Shift id : ${shiftData.id} to update status from ${shiftData.status} to CLOSE.`,manager) ;
         return {message : 'Close shift success.'} ; 
       }
@@ -473,7 +473,8 @@ export class ShiftsService {
 
       await this.log(user ,'AUDIT_SHIFT_SUCCESS' , `This shift id : ${id} had been audited.`) ; 
 
-      }) ;           
+      }) ; 
+    this.sseService.triggerRefreshShiftId(id) ;          
     return {message : 'Audit shift success.'} ; 
   }
 
