@@ -137,41 +137,16 @@ export class CashCountsService {
   }
 
   async getCashCountByShiftId(shiftId : string) {
-    // const cashCountData = await this.cashCountRepository.find({
-    //   relations : {
-    //     transaction : {
-    //       shift : true
-    //     }
-    //   }
-    //   ,
-    //   where : {
-    //     transaction : {
-    //       type : 'FIRST_SHIFT_CASH_COUNT' , 
-    //       shift : {
-    //         id : shiftId , 
-    //       }
-    //     }
-    // }
-    //   ,
-    //   select : {
-    //     transaction : {
-    //       id : true ,
-    //       shift : {
-    //         id : true 
-    //       }
-    //     } ,
-    //     id : true ,
-    //     currencyId : true , 
-    //     denomination : true , 
-    //     amount : true 
-    //   }
-    // })
+    // เพิ่ม deletedAt ลง transaction แล้ว Query เฉพาะออกมาที่เป็น null 
+    // ใช้การ join กับ tranfer transaction  เพิ่มเพื่อดึงข้อมูลเฉพาะที่ยังไม่ถูก softdelete
+
 
     const cashCountData = await this.cashCountRepository.query(`
         select cc.denomination , cc.amount from cash_counts cc
         join transactions t on cc."transactionId" = t.id
         join shifts s on t."shiftId" = s.id
-        where s.id = $1 and ((s.status != 'COMPLETED' and t."type" = 'FIRST_SHIFT_CASH_COUNT')  or (s.status = 'COMPLETED' and t."type" = 'CLOSE_SHIFT_CASH_COUNT'))  
+        join transfer_transactions tt on t.id = tt.id 
+        where s.id = $1 and  tt."deletedAt" is null and ((s.status != 'COMPLETED' and t."type" = 'FIRST_SHIFT_CASH_COUNT')  or (s.status = 'COMPLETED' and t."type" = 'CLOSE_SHIFT_CASH_COUNT'))  
       ` ,[shiftId]) ;
 
     return cashCountData ;
