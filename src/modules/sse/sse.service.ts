@@ -6,13 +6,22 @@ export class SseService {
     constructor(
     ) {}
 
-     private readonly Stream = new Subject<{signal: string}>()
+    private readonly Stream = new Subject<{signal?: string , boothId ?: string , shiftId ?: string}>() ;
     
+     triggerRefreshShiftId(id : string) {
+        this.Stream.next({shiftId : id}) ; 
+    }
+
+
+    triggerRefreshBoothId(id : string) {
+        this.Stream.next({boothId : id}) ; 
+    }
+
     triggerRefreshSignal() {
         this.Stream.next({ signal: 'refresh' });
     }
 
-    getRefreshSignal(): Observable<{signal: string}> {
+    getRefreshSignal(): Observable<{signal?: string , boothId ?: string}> {
         return this.Stream.asObservable();
     }
 
