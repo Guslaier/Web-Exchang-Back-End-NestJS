@@ -138,7 +138,7 @@ export class TransferTransactionsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER')
-  @Post('test-first-shift-cash-count')
+  @Post('first-shift-cash-count')
   async testFirstShiftCashCount(
     @Body() firstShiftCashCountDto: FirstShiftCashCountDto,
     @CurrentUser() user: any,
@@ -150,4 +150,15 @@ export class TransferTransactionsController {
       );
     return result;
   }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Delete('first-shift-cash-count/:shiftId')
+  async deleteFirstCashcount(
+    @Param('shiftId') shiftId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.transferTransactionsService.deleteFirstCashcount(user, shiftId);
+  }
 }
+

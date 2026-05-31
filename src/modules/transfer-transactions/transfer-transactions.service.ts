@@ -31,7 +31,7 @@ import { UpdateStockByTransferTransactionForCancel } from '../stocks/dto/stocks.
 import { handleError } from '../../common/error/error';
 import { SseService } from '../sse/sse.service';
 import { CreateCashCountDto } from '../cash-counts/dto/cash-count.dto';
-import { TranSectionType } from 'index';
+import { TranSectionType , TranStatus} from 'index';
 import { CashCountsService } from '../cash-counts/cash-counts.service';
 import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
 import { ShiftsService } from '../shifts/shifts.service' ; 
@@ -1285,4 +1285,30 @@ export class TransferTransactionsService {
 
     return tranferTransactionData ; 
   }
+
+  async deleteFirstCashcount(user: any, shiftId: string) {
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const tranferRepo = manager.getRepository(TransferTransaction) ; 
+        const updateResult = tranferRepo.query(`
+            update transfer_transactions tt
+            set status = 'CANCELED' , "deletedAt" = now()
+            where tt.id in (
+              select t.id
+              from transactions t
+              where t.type = 'FIRST_SHIFT_CASH_COUNT' and  t."shiftId" = $1
+            ) and tt."deletedAt" is null 
+          ` , [shiftId])
+
+        await this.log(user,'DELETE_FIRST_SHIFT_CASH_COUNT_SUCCESS',`Canceled first shift cash count for shift ID ${shiftId}`,manager,);
+
+        await this.sseService.triggerRefreshShiftId(shiftId) ; 
+
+        return updateResult;
+      });
+    } catch (error) {
+      handleError(error, 'DELETE_FIRST_SHIFT_CASH_COUNT_FAILED');
+    }
+  }
 }
+

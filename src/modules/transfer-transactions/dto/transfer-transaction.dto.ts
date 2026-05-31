@@ -17,6 +17,7 @@ import {
 import { Type } from 'class-transformer';
 import type { TransferTransactionData,TranSectionType,TranStatus, TransferTransactionType,CashCountData } from './../../../types';
 import { CashCountItemDto } from '../../cash-counts/dto/cash-count.dto';
+import { isOperatorNode } from 'mathjs';
 
 
 
@@ -131,6 +132,29 @@ export class TransferCenterToBoothDto implements Omit<TransferTransactionData,'u
 
 }
 
+export class TranferCashcountDto implements Omit<TransferTransactionData,'userId'|'refBoothId' |'type'|'createdAt' | 'updatedAt' | 'id' | 'exchangeRateId' > {
+  @IsUUID()
+  @IsNotEmpty()
+  boothId: string;
+
+  @IsNumber()
+  @IsNotEmpty()
+  @IsInt()
+  amount: number;
+
+  @IsString()
+  @IsOptional()
+  type: TransferTransactionType; // กำหนดเป็น optional และใช้ TransferTransactionType แทน TranSectionType เพราะเราต้องการระบุประเภทการโอนที่ชัดเจน เช่น 'TRANSFER_IN' หรือ 'TRANSFER_OUT'
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsString()
+  @IsOptional()
+  status: TranStatus;
+}
+
 
 export class UpdateTransferTransactionDto {
   @IsString()
@@ -163,8 +187,8 @@ export class GetTotalReceiveDto {
 // // 3. DTO หลักสำหรับรับ Request
 export class FirstShiftCashCountDto {
   @ValidateNested()
-  @Type(() => TransferCenterToBoothDto)
-  transferDto: TransferCenterToBoothDto;
+  @Type(() => TranferCashcountDto)
+  transferDto: TranferCashcountDto;
 
   @IsArray()
   @ArrayNotEmpty()
