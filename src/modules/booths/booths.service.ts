@@ -145,6 +145,43 @@ export class BoothsService {
     return boothData;
   }
 
+  async findBoothShiftOuterJoin(from?: Date, to?: Date) {
+    try {
+      let query: string;
+      const params = [];
+
+      if (from && to) {
+        const fromDate = new Date(from);
+        const toDate = new Date(to);
+        fromDate.setHours(0, 0, 0, 0);
+        toDate.setHours(23, 59, 59, 999);
+
+        query = `
+          SELECT b.id AS "boothID", s.id AS "shiftID"
+          FROM booths b
+          FULL OUTER JOIN (
+            SELECT * FROM shifts 
+            WHERE "startTime" BETWEEN $1 AND $2 AND "deletedAt" IS NULL
+          ) s ON b.id = s."boothId" AND b."currentShiftId" = s."userId"
+          WHERE b."deletedAt" IS NULL
+        `;
+        params.push(fromDate, toDate);
+      } else {
+        query = `
+          SELECT b.id AS "boothID", s.id AS "shiftID"
+          FROM booths b
+          FULL OUTER JOIN shifts s 
+            ON b.id = s."boothId" AND b."currentShiftId" = s."userId" AND s."deletedAt" IS NULL
+          WHERE b."deletedAt" IS NULL
+        `;
+      }
+
+      return await this.boothRepository.query(query, params);
+    } catch (error) {
+      handleError(error, 'BoothsService.findBoothShiftOuterJoin');
+    }
+  }
+
   // อัปเดตข้อมูลบูธ
   async update(user: any, id: string, updateBoothDto: UpdateBoothDto) {
     try {

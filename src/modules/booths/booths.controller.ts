@@ -8,6 +8,7 @@ import {
   Param,
   UseGuards,
   Header,
+  Query
 } from '@nestjs/common';
 import { BoothsService } from './booths.service';
 import { CreateBoothDto, UpdateBoothDto } from './dto/booth.dto';
@@ -92,5 +93,17 @@ export class BoothsController {
     @Param('shiftId') shiftId: string,
   ) {
     return this.boothsService.findBoothByShiftId(shiftId);
+  }
+
+  
+  @UseGuards(JwtAuthGuard , RolesGuard)
+  @Roles('ADMIN' , 'MANAGER')
+  @Get('outer-join')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
+  findBoothShiftOuterJoin( @Query('from') from?: string, @Query('to') to?: string, ) 
+  {
+    const fromDate = from ? new Date(from) : undefined;
+    const toDate = to ? new Date(to) : undefined;
+    return this.boothsService.findBoothShiftOuterJoin(fromDate, toDate);
   }
 }
