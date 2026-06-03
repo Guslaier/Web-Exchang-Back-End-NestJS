@@ -140,7 +140,7 @@ export class BoothsService {
       const boothData = await this.boothRepository.query(
         `select b.id as boothId , u.id as userId , b.name  , u.username , b.location 
         from booths b
-        join users u on b."currentShiftId" = u.id
+        left join users u on b."currentShiftId" = u.id
         where b.id = $1 and b."deletedAt" is null and b."isActive" = true`,
         [boothId],
       );
