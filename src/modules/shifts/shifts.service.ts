@@ -104,7 +104,7 @@ export class ShiftsService {
         `Shift id : ${savedShift.id} was opened by User id : ${currentUser.id}`,
         manager,
       );
-      this.sseService.triggerRefreshBoothId(boothId);
+      this.sseService.triggerRefreshBoothShiftId(boothId , savedShift.id);
       return savedShift;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
