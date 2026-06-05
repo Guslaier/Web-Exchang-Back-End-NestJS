@@ -45,6 +45,7 @@ pg.types.setTypeParser(1114, (value) => value);
         },
         autoLoadEntities: true,
         synchronize: true, // ควรเป็น false บน Production
+        // logging: true
       }),
       inject: [ConfigService],
     }),
@@ -69,4 +70,4 @@ pg.types.setTypeParser(1114, (value) => value);
     SharedTransactionsModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }

@@ -78,6 +78,7 @@ export class ExchangeTransactionsService {
   ): Promise<any> {
     // validate input section
 
+
     const activeShift = await this.shiftsService.getLastShiftByUserId(
       currentUser.id,
     );
@@ -200,7 +201,7 @@ export class ExchangeTransactionsService {
           type: body.type,
           foreignRateId: body.exchangeRatesId,
           foreignCurrencyAmount: body.foreignAmount,
-          totalThaiBahtAmount: body.thaiBahtAmount,
+          totalThaiBahtAmount: Math.trunc(body.thaiBahtAmount),
         },
         execManager,
       );

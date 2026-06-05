@@ -122,27 +122,72 @@ export class BoothsService {
     return booth;
   }
 
-  async findBoothCurrentShift(id: string, from: Date, to: Date) {
-    from.setHours(0, 0, 0, 0);
-    to.setHours(23, 59, 59, 999);
-
-    const boothData = await this.boothRepository.query(
-      `select b.id as boothId , s.id as shiftId , u.id as userId , b.name  , u.username , b.location , s.status , s.cash_advance , s.balance_check from 
-       booths b left join (select s.id , s."boothId" , s."userId" , s.status , s."startTime"  , s.cash_advance , s.balance_check  from shifts s where s."startTime" between $1 and $2) s 
-       on b.id = s."boothId" and b."currentShiftId" = s."userId" 
-       left join users u on b."currentShiftId" = u.id
-       where b.id = $3 and (b."deletedAt" is null) and (b."isActive" = true)
-       order by s."startTime" desc
-       limit 1 `,
-      [from, to, id],
-    );
-
-    return boothData[0];
+  async findBoothCurrentShift(boothId ?: string  | null , shiftId ?: string | null  ) {
+    if (shiftId) {
+      const boothData = await this.boothRepository.query(
+        `select b.id as boothId , s.id as shiftId , u.id as userId , b.name  , u.username , b.location , s.status , s.cash_advance , s.balance_check 
+        from shifts s 
+        join booths b on s."boothId" = b.id
+        join users u on s."userId" = u.id
+        where s.id = $1 and s."deletedAt" is null`,
+        [shiftId],
+      );
+      return boothData[0];
+    } else {
+      if (!boothId) {
+        throw new BadRequestException('boothId is required when shiftId is not provided');
+      }
+      const boothData = await this.boothRepository.query(
+        `select b.id as boothId , u.id as userId , b.name  , u.username , b.location 
+        from booths b
+        left join users u on b."currentShiftId" = u.id
+        where b.id = $1 and b."deletedAt" is null and b."isActive" = true`,
+        [boothId],
+      );
+      return boothData[0];
+    }
   }
 
   async getBoothIfExist(id: string) {
     const boothData = await this.findOne(id);
     return boothData;
+  }
+
+  async findBoothShiftOuterJoin(from?: Date, to?: Date) {
+    try {
+      let query: string;
+      const params = [];
+
+      if (from && to) {
+        const fromDate = new Date(from);
+        const toDate = new Date(to);
+        fromDate.setHours(0, 0, 0, 0);
+        toDate.setHours(23, 59, 59, 999);
+
+        query = `
+          SELECT b.id AS "boothID", s.id AS "shiftID" , s.status
+          FROM booths b
+          FULL OUTER JOIN (
+            SELECT * FROM shifts 
+            WHERE "startTime" BETWEEN $1 AND $2 AND "deletedAt" IS NULL
+          ) s ON b.id = s."boothId" AND b."currentShiftId" = s."userId"
+          WHERE b."deletedAt" IS NULL
+        `;
+        params.push(fromDate, toDate);
+      } else {
+        query = `
+          SELECT b.id AS "boothID", s.id AS "shiftID"
+          FROM booths b
+          FULL OUTER JOIN shifts s 
+            ON b.id = s."boothId" AND b."currentShiftId" = s."userId" AND s."deletedAt" IS NULL
+          WHERE b."deletedAt" IS NULL
+        `;
+      }
+
+      return await this.boothRepository.query(query, params);
+    } catch (error) {
+      handleError(error, 'BoothsService.findBoothShiftOuterJoin');
+    }
   }
 
   // อัปเดตข้อมูลบูธ

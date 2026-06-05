@@ -53,13 +53,13 @@ export class ExchangeTransaction {
   @Column()
   exchangeRateName: string;
 
-  @Column('decimal', { precision: 12, scale: 2 })
+  @Column('decimal', { precision: 12, scale: 6 })
   foreignCurrencyAmount: number;
 
-  @Column('decimal', { precision: 12, scale: 2 })
+  @Column('decimal', { precision: 12, scale: 6 })
   totalthaiBahtAmount: number;
 
-  @Column('decimal', { precision: 12, scale: 2 })
+  @Column('decimal', { precision: 12, scale: 6 })
   exchangeRate: number;
 
   @Column({ type: 'boolean', default: false })

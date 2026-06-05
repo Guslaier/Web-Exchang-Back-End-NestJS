@@ -105,8 +105,12 @@ export class GetShiftPreviousCashcount implements Pick<BoothData, 'id'> {
   id: string;
 }
 
-export class GetShiftCurrrentDetails implements Pick<BoothData, 'id'> {
+export class GetShiftCurrrentDetails {
   @IsUUID()
-  @IsNotEmpty()
-  id: string;
+  @IsOptional()
+  boothId: string;
+
+  @IsUUID()
+  @IsOptional()
+  shiftId : string; 
 }

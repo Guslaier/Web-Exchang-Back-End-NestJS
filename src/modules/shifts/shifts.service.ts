@@ -104,7 +104,7 @@ export class ShiftsService {
         `Shift id : ${savedShift.id} was opened by User id : ${currentUser.id}`,
         manager,
       );
-      this.sseService.triggerRefreshBoothId(boothId);
+      this.sseService.triggerRefreshBoothShiftId(boothId , savedShift.id);
       return savedShift;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -427,14 +427,12 @@ export class ShiftsService {
   }
 
   async getCurrentShiftDetails(
-    boothId: string,
-    from: Date = new Date(),
-    to: Date = new Date(),
+    boothId: string | null,
+    shiftId : string | null 
   ) {
     const boothData = await this.boothService.findBoothCurrentShift(
       boothId,
-      from,
-      to,
+      shiftId
     );
 
     if (!boothData) {
@@ -450,13 +448,11 @@ export class ShiftsService {
     );
 
     shiftDetail.setShiftData(
-      boothData.shiftid,
-      boothData.status,
-      boothData.cash_advance,
-      boothData.balance_check,
+      boothData.shiftid ?? null,
+      boothData.status ?? null,
+      boothData.cash_advance ?? null,
+      boothData.balance_check ?? null,
     );
-
-    const shiftId = boothData.shiftid;
 
     if (shiftId) {
       const [transferTransactions, cashCounts, exchangeTransactions] =

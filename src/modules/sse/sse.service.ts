@@ -19,6 +19,10 @@ export class SseService {
     this.Stream.next({ boothId: id });
   }
 
+  triggerRefreshBoothShiftId(boothId : string , shiftId : string) {
+    this.Stream.next({boothId : boothId , shiftId : shiftId}) ; 
+  }
+
   triggerRefreshSignal() {
     this.Stream.next({ signal: 'refresh' });
   }

@@ -299,16 +299,6 @@ export class TransferTransactionsService {
 
       await this.cashCountsService.create(user, cashCountData, manager);
 
-      await this.stocksService.updateStockByTransferTransaction(
-        user,
-        {
-          sender: null,
-          receiver: firstShiftCashCountDto.transferDto.boothId,
-          exchangeRateId: exchangeRate.id,
-          transferAmount: firstShiftCashCountDto.transferDto.amount,
-        },
-        manager,
-      );
       // // 8. Finalize Logs & Response
       await this.log(
         user,
@@ -1416,17 +1406,29 @@ export class TransferTransactionsService {
           [shiftId],
         );
 
-        const updateStockDto: UpdateStockByTransferTransactionForCancel = {
-          sender_shift: null,
-          receiver_shift: transferTransaction.shiftId as string, // เนื่องจากเป็นการโอนจากศูนย์ไปบูธ จึงไม่มี receiver shift,
-          exchangeRateId: transferTransaction.exchangeRateId,
-          transferAmount: transferTransaction.amount,
-        };
+        const exchangeRateId = (await this.exchangeRatesService.findByTHBCurrency())?.id;
+        const cashCount = await this.cashCountsService.getCashCountByShiftId(shiftId);
+
+        let totalReceived = 0;
+
+        cashCount.forEach((item: any) => {
+          const parsedAmount = Number(item.amount);
+          if (!isNaN(parsedAmount)) {
+            totalReceived += parsedAmount * Number(item.denomination);
+          }
+        });
+
         await this.stocksService.updateStockByTransferTransactionForCancel(
           user,
-          updateStockDto,
-          manager,
-        );
+          {
+            sender_shift: null,
+            receiver_shift: shiftId,
+            exchangeRateId: exchangeRateId as string,
+            transferAmount: totalReceived,
+          },
+          manager
+        )
+
         await this.log(
           user,
           'DELETE_FIRST_SHIFT_CASH_COUNT_SUCCESS',
