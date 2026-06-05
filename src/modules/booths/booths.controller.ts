@@ -18,7 +18,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 
 @Controller('booths')
 export class BoothsController {
-  constructor(private readonly boothsService: BoothsService) {}
+  constructor(private readonly boothsService: BoothsService) { }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER')
@@ -92,5 +92,13 @@ export class BoothsController {
     @Param('shiftId') shiftId: string,
   ) {
     return this.boothsService.findBoothByShiftId(shiftId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('EMPLOYEE', 'ADMIN', 'MANAGER')
+  @Get('find-booth-current-shift')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
+  findCurrentShift(@CurrentUser() user: any) {
+    return this.boothsService.getBoothAndShiftCurrentByUser(user);
   }
 }

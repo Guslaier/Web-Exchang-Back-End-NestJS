@@ -41,7 +41,7 @@ export class BoothsService {
     private readonly shift: Repository<Shift>,
     @Inject(SseService)
     private readonly sseService: SseService,
-  ) {}
+  ) { }
 
   /**
    * Helper สำหรับบันทึก Log โดยรองรับ Transaction manager
@@ -403,5 +403,21 @@ export class BoothsService {
       location: booth?.location || null,
       IsOpen: shift?.status === 'OPEN' ? true : false,
     };
+  }
+
+  async getBoothAndShiftCurrentByUser(user: any) {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const shift = await this.shift.findOne({
+      where: { userId: user.id, status: Not('COMPLETED'), createdAt: MoreThanOrEqual(todayStart) },
+    });
+    const booth = await this.boothRepository.findOne({
+      where: { currentShiftId: user.id },
+    });
+    console.log(booth);
+    return {
+      booth,
+      shift,
+    }
   }
 }

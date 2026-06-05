@@ -9,6 +9,7 @@ import {
   UploadedFile,
   Query,
   Put,
+  BadRequestException,
 } from '@nestjs/common';
 import { ExchangeTransactionsService } from './exchange-transactions.service';
 import {
@@ -31,7 +32,7 @@ import { customerStorage } from '../../config/diskStorage';
 export class ExchangeTransactionsController {
   constructor(
     private readonly exchangeTransactionsService: ExchangeTransactionsService,
-  ) {}
+  ) { }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('EMPLOYEE')
@@ -56,6 +57,41 @@ export class ExchangeTransactionsController {
     return this.exchangeTransactionsService.create(
       currentUser,
       createExchangeTransactionDto,
+      customer_img,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('EMPLOYEE')
+  @Post('bulk')
+  @UseInterceptors(
+    FileInterceptor('customer_img', {
+      storage: customerStorage,
+      fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/png') {
+          cb(null, true);
+        } else {
+          cb(new Error('Only JPEG and PNG files are allowed'), false);
+        }
+      },
+    }),
+  )
+  createBulk(
+    @CurrentUser() currentUser: any,
+    @Body() body: any,
+    @UploadedFile() customer_img?: Express.Multer.File,
+  ) {
+    let dtos: CreateExchangeTransactionDto[];
+    if (Array.isArray(body)) {
+      dtos = body;
+    } else if (body && body.transactions) {
+      dtos = typeof body.transactions === 'string' ? JSON.parse(body.transactions) : body.transactions;
+    } else {
+      throw new BadRequestException('Invalid request body. Expected an array of transactions.');
+    }
+    return this.exchangeTransactionsService.createExchangeTransactionBulk(
+      currentUser,
+      dtos,
       customer_img,
     );
   }

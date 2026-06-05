@@ -51,7 +51,7 @@ export class ShiftsService {
     private readonly redisClient: Redis,
     private readonly dataSource: DataSource,
     private readonly sharedTransactionsService: SharedTransactionsService,
-  ) {}
+  ) { }
 
   // create
 
@@ -80,14 +80,14 @@ export class ShiftsService {
     const startTime = today
       ? now
       : new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate() + 1,
-          8,
-          0,
-          0,
-          0,
-        );
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + 1,
+        8,
+        0,
+        0,
+        0,
+      );
     const status = today ? 'OPEN' : 'CLOSE';
     const row = shiftRepo.create({
       userId: userId,
@@ -188,7 +188,6 @@ export class ShiftsService {
               false,
             );
           }
-
           return await this.setStatusToOpen(
             currentUser,
             shiftData.id,

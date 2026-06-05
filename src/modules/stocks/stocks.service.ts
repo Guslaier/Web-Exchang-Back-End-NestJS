@@ -172,6 +172,22 @@ export class StocksService {
     return await this.stockRepository.find({ where: { shiftId: shiftId } });
   }
 
+  async getAllStocks(user: any, queryId: string | undefined) {
+    const isEmp = user.role === 'EMPLOYEE';
+    const shift = isEmp
+      ? await this.shiftsService.getLastShiftByUserId(user.id)
+      : null;
+    const shiftId = isEmp ? shift?.id : queryId;
+
+    if (!shiftId) {
+      throw new BadRequestException(
+        'Shift id is not found for stock information.',
+      );
+    }
+
+    return await this.getStockByShiftId(shiftId);
+  }
+
   checkBalance(exchangedStock: Stock | null, exchangeAmount: number) {
     return (
       exchangedStock &&

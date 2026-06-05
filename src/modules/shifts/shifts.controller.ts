@@ -29,10 +29,10 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('shifts')
 export class ShiftsController {
-  constructor(private readonly shiftsService: ShiftsService) {}
+  constructor(private readonly shiftsService: ShiftsService) { }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'MANAGER')
+  @Roles('EMPLOYEE', 'ADMIN', 'MANAGER')
   @Get('actives')
   findActivesShift(@Query() query: QueryDateDto) {
     return this.shiftsService.getActiveShifts(query);
@@ -46,7 +46,7 @@ export class ShiftsController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'MANAGER')
+  @Roles('EMPLOYEE', 'ADMIN', 'MANAGER')
   @Get('booth')
   getShiftsBooth(@Query() query: GetShiftBoothQuery) {
     return this.shiftsService.getLastShiftByBoothId(query.id, false);
@@ -67,7 +67,7 @@ export class ShiftsController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'MANAGER')
+  @Roles('EMPLOYEE', 'ADMIN', 'MANAGER')
   @Post()
   open(@CurrentUser() currentUser: any, @Body() body: BoothIdDto) {
     return this.shiftsService.openShift(currentUser, body);

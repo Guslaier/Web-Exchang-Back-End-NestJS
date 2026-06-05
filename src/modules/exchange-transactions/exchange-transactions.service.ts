@@ -48,7 +48,7 @@ export class ExchangeTransactionsService {
     private readonly exchangeTransactionRepository: Repository<ExchangeTransaction>,
     private readonly transactionsService: TransactionsService,
     private readonly dataSource: DataSource,
-  ) {}
+  ) { }
 
   // create
 
@@ -73,7 +73,9 @@ export class ExchangeTransactionsService {
     currentUser: any,
     body: CreateExchangeTransactionDto,
     customer_img?: Express.Multer.File,
-  ) {
+    manager?: EntityManager,
+    customerId?: string,
+  ): Promise<any> {
     // validate input section
 
     const activeShift = await this.shiftsService.getLastShiftByUserId(
@@ -114,10 +116,9 @@ export class ExchangeTransactionsService {
 
     const numberFields = [body.foreignAmount, body.thaiBahtAmount];
     this.inputValidator.validateNumberFieldsPositive(numberFields);
+    const exchangeRate: number = body.exchangeRate;
 
-    const exchangeRate: number = body.thaiBahtAmount / body.foreignAmount;
-
-    if (body.exchangeRate != exchangeRate) {
+    if (Math.trunc((body.exchangeRate * body.foreignAmount)) !== Math.trunc(body.thaiBahtAmount)) {
       await this.log(
         currentUser,
         'CREATE_EXCHANGE_TRANSACTION_FAILED',
@@ -127,6 +128,8 @@ export class ExchangeTransactionsService {
         `Mismatch in calculated exchange rate: ${exchangeRate} and provided exchange rate: ${body.exchangeRate} for proposed rate thai baht amount shouled be ${body.foreignAmount * body.exchangeRate}`,
       );
     }
+
+
     const exclusiveExchangeRates =
       await this.exclusiveExchangeRatesService.findByExchangeRate(
         body.exchangeRatesId,
@@ -141,8 +144,8 @@ export class ExchangeTransactionsService {
     const isRateAllow =
       (body.type === 'SELL' &&
         Math.trunc(exchangeRate) >= Math.trunc(exchangeRateId.sell_rate)) ||
-      (body.type === 'BUY' &&
-        Math.trunc(exchangeRate) <=
+        (body.type === 'BUY' &&
+          Math.trunc(exchangeRate) <=
           Math.trunc(exclusiveExchangeRate.buy_rate_max))
         ? true
         : false;
@@ -187,90 +190,105 @@ export class ExchangeTransactionsService {
       customer_img?.filename ?? '',
     ];
     const insertCustomer =
-      this.inputValidator.validateCustomerFieldFilled(customerFields);
+      !customerId && this.inputValidator.validateCustomerFieldFilled(customerFields);
+
+    const executeDbOperations = async (execManager: EntityManager) => {
+      await this.stocksService.updateStockByExchangeTransaction(
+        currentUser,
+        {
+          userId: currentUser.id,
+          type: body.type,
+          foreignRateId: body.exchangeRatesId,
+          foreignCurrencyAmount: body.foreignAmount,
+          totalThaiBahtAmount: body.thaiBahtAmount,
+        },
+        execManager,
+      );
+
+      const createTransactionDto: CreateTransactionDto = {
+        type: 'EXCHANGE',
+        shiftId: activeShift.id,
+      };
+      const transaction = await this.transactionsService.create(
+        execManager,
+        createTransactionDto,
+      );
+
+      let customerIdToUse = customerId;
+      if (!customerIdToUse && insertCustomer) {
+        const customer = await this.customerService.create(
+          execManager,
+          transaction.id,
+          passportNo,
+          fullName,
+          nationality,
+          phoneNumber,
+          hotelName,
+          roomNumber,
+          customer_img?.filename ?? '',
+        );
+        customerIdToUse = customer.id;
+      }
+
+      const exchangeTransRepo = execManager.getRepository(ExchangeTransaction);
+
+      try {
+        const createdExchangeTran = exchangeTransRepo.create({
+          id: transaction.id,
+          customerId: customerIdToUse || null,
+          exchangeRateId: body.exchangeRatesId,
+          exchangeRateName: exchangeRateId.name,
+          foreignCurrencyAmount: body.foreignAmount,
+          totalthaiBahtAmount: Math.trunc(body.thaiBahtAmount),
+          exchangeRate: exchangeRate,
+          isNegotiateRate:
+            (body.type === 'BUY' &&
+              Math.trunc(exchangeRate) !==
+              Math.trunc(exclusiveExchangeRate.buy_rate)) ||
+              (body.type === 'SELL' &&
+                Math.trunc(exchangeRate) !==
+                Math.trunc(exclusiveExchangeRate.sell_rate))
+              ? true
+              : false,
+          note: body.note ? body.note : null,
+          status: 'COMPLETED',
+          type: body.type,
+        });
+        await exchangeTransRepo.save(createdExchangeTran);
+        await this.log(
+          currentUser,
+          'CREATE_EXCHANGE_TRANSACTION_SUCCESS',
+          `Created exchange transaction with ID: ${createdExchangeTran.id}`,
+          execManager,
+        );
+        return createdExchangeTran;
+      } catch (error) {
+        await this.log(
+          currentUser,
+          'CREATE_EXCHANGE_TRANSACTION_FAILED',
+          `Failed to create exchange transaction due to database error. Error: ${error instanceof Error ? error.message : String(error)}`,
+          execManager,
+        );
+        throw new InternalServerErrorException(
+          `Failed to create exchange transaction due to database error. Error: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    };
 
     // insert section
     try {
-      await this.dataSource.transaction(async (manager) => {
-        await this.stocksService.updateStockByExchangeTransaction(
-          currentUser,
-          {
-            userId: currentUser.id,
-            type: body.type,
-            foreignRateId: body.exchangeRatesId,
-            foreignCurrencyAmount: body.foreignAmount,
-            totalThaiBahtAmount: body.thaiBahtAmount,
-          },
-          manager,
-        );
-
-        const createTransactionDto: CreateTransactionDto = {
-          type: 'EXCHANGE',
-          shiftId: activeShift.id,
-        };
-        const transaction = await this.transactionsService.create(
-          manager,
-          createTransactionDto,
-        );
-
-        const customer = insertCustomer
-          ? await this.customerService.create(
-              manager,
-              transaction.id,
-              passportNo,
-              fullName,
-              nationality,
-              phoneNumber,
-              hotelName,
-              roomNumber,
-              customer_img?.filename ?? '',
-            )
-          : null;
-
-        const exchangeTransRepo = manager.getRepository(ExchangeTransaction);
-
-        try {
-          const createdExchangeTran = exchangeTransRepo.create({
-            id: transaction.id,
-            customerId: customer ? customer.id : null,
-            exchangeRateId: body.exchangeRatesId,
-            exchangeRateName: exchangeRateId.name,
-            foreignCurrencyAmount: body.foreignAmount,
-            totalthaiBahtAmount: Math.trunc(body.thaiBahtAmount),
-            exchangeRate: exchangeRate,
-            isNegotiateRate:
-              (body.type === 'BUY' &&
-                Math.trunc(exchangeRate) !==
-                  Math.trunc(exclusiveExchangeRate.buy_rate)) ||
-              (body.type === 'SELL' &&
-                Math.trunc(exchangeRate) !==
-                  Math.trunc(exclusiveExchangeRate.sell_rate))
-                ? true
-                : false,
-            note: body.note ? body.note : null,
-            status: 'COMPLETED',
-            type: body.type,
-          });
-          await exchangeTransRepo.save(createdExchangeTran);
-          await this.log(
-            currentUser,
-            'CREATE_EXCHANGE_TRANSACTION_SUCCESS',
-            `Created exchange transaction with ID: ${createdExchangeTran.id}`,
-            manager,
-          );
-        } catch (error) {
-          await this.log(
-            currentUser,
-            'CREATE_EXCHANGE_TRANSACTION_FAILED',
-            `Failed to create exchange transaction due to database error. Error: ${error instanceof Error ? error.message : String(error)}`,
-            manager,
-          );
-          throw new InternalServerErrorException(
-            `Failed to create exchange transaction due to database error. Error: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-      });
-      return { message: 'Exchange transaction created successfully' };
+      let result;
+      if (manager) {
+        result = await executeDbOperations(manager);
+      } else {
+        await this.dataSource.transaction(async (newManager) => {
+          result = await executeDbOperations(newManager);
+        });
+      }
+      return {
+        message: 'Exchange transaction created successfully',
+        data: result,
+      };
     } catch (error) {
       handleError(
         error,
@@ -519,14 +537,14 @@ export class ExchangeTransactionsService {
     const { id, ...customerInfo } = customer
       ? customer
       : {
-          id: null,
-          fullName: null,
-          passportNo: null,
-          hotelName: null,
-          roomNumber: null,
-          phoneNumber: null,
-          passportImg: null,
-        };
+        id: null,
+        fullName: null,
+        passportNo: null,
+        hotelName: null,
+        roomNumber: null,
+        phoneNumber: null,
+        passportImg: null,
+      };
 
     const exchangeTransactionDetail = {
       ...restExchangeTransaction,
@@ -773,14 +791,14 @@ export class ExchangeTransactionsService {
             { id: param.id },
           );
           const updateStockForCancel: UpdateStockByExchangeTransactionForCancel =
-            {
-              id: param.id,
-              type: exchangeTransaction.type,
-              shiftId: exchangeTransaction.shiftId,
-              exchangeRateId: exchangeTransaction.exchangeRateId,
-              foreignCurrencyAmount: exchangeTransaction.foreignCurrencyAmount,
-              totalthaiBahtAmount: exchangeTransaction.totalthaiBahtAmount,
-            };
+          {
+            id: param.id,
+            type: exchangeTransaction.type,
+            shiftId: exchangeTransaction.shiftId,
+            exchangeRateId: exchangeTransaction.exchangeRateId,
+            foreignCurrencyAmount: exchangeTransaction.foreignCurrencyAmount,
+            totalthaiBahtAmount: exchangeTransaction.totalthaiBahtAmount,
+          };
           console.log('exchangeTransaction for cancel: ', exchangeTransaction);
           console.log('updateStockForCancel: ', updateStockForCancel);
           await this.stocksService.updateStockByExchangeTransactionForCancel(
@@ -795,6 +813,49 @@ export class ExchangeTransactionsService {
       };
     } catch (error) {
       handleError(error, 'ExchangeTransactionsService.setStatusByNonEmployee');
+    }
+  }
+
+  //ทำการสร้างexchange transaction แบบ bulk
+  async createExchangeTransactionBulk(
+    currentUser: any,
+    body: CreateExchangeTransactionDto[],
+    customer_img?: Express.Multer.File,
+  ) {
+    if (!body || body.length === 0) {
+      throw new BadRequestException('No transaction data provided for bulk creation');
+    }
+
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        let customerId: string | undefined = undefined;
+        const results = [];
+
+        for (let i = 0; i < body.length; i++) {
+          const item = body[i];
+
+          const res: any = await this.create(
+            currentUser,
+            item,
+            i === 0 ? customer_img : undefined,
+            manager,
+            customerId,
+          );
+
+          if (i === 0 && res?.data?.customerId) {
+            customerId = res.data.customerId;
+          }
+
+          results.push(res);
+        }
+
+        return {
+          message: 'Bulk exchange transactions created successfully',
+          data: results,
+        };
+      });
+    } catch (error) {
+      handleError(error, 'ExchangeTransactionsService.createExchangeTransactionBulk');
     }
   }
 }

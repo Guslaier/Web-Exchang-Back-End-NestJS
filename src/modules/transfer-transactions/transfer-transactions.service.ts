@@ -64,7 +64,7 @@ export class TransferTransactionsService {
     private readonly shiftService: ShiftsService,
     @InjectRepository(TransferTransaction)
     private readonly tranferTransactionRepo: Repository<TransferTransaction>,
-  ) {}
+  ) { }
 
   /**
    * Helper method to log actions
@@ -1142,7 +1142,7 @@ export class TransferTransactionsService {
       const transferTransactions = await this.dataSource
         .getRepository(TransferTransaction)
         .find({
-          relations: ['booth', 'refBooth'],
+          relations: ['booth', 'refBooth', 'transaction'],
           select: {
             id: true,
             userId: true,
@@ -1163,6 +1163,9 @@ export class TransferTransactionsService {
               id: true,
               name: true,
             },
+            transaction: {
+              type: true,
+            }
           },
         });
       return transferTransactions.reduce((result: any[], transaction) => {
@@ -1181,6 +1184,7 @@ export class TransferTransactionsService {
           refShiftId: transaction?.refShiftId,
           refBoothId: transaction?.refBoothId,
           refBoothName: transaction?.refBooth?.name,
+          transactionType: transaction?.transaction?.type,
           createdAt: transaction?.createdAt,
         });
         return result;
@@ -1385,6 +1389,20 @@ export class TransferTransactionsService {
     try {
       return await this.dataSource.transaction(async (manager) => {
         const tranferRepo = manager.getRepository(TransferTransaction);
+        const transferTransaction = await manager.query(`
+        select tt.*
+        from transfer_transactions tt
+        where tt.id in (
+              select t.id
+              from transactions t
+              where t.type = 'FIRST_SHIFT_CASH_COUNT' and  t."shiftId" = $1
+            ) and tt."deletedAt" is null 
+        `, [shiftId])
+        if (!transferTransaction) {
+          throw new BadRequestException(
+            `First shift cash count for shift ID ${shiftId} not found`,
+          );
+        }
         const updateResult = tranferRepo.query(
           `
             update transfer_transactions tt
@@ -1398,6 +1416,17 @@ export class TransferTransactionsService {
           [shiftId],
         );
 
+        const updateStockDto: UpdateStockByTransferTransactionForCancel = {
+          sender_shift: null,
+          receiver_shift: transferTransaction.shiftId as string, // เนื่องจากเป็นการโอนจากศูนย์ไปบูธ จึงไม่มี receiver shift,
+          exchangeRateId: transferTransaction.exchangeRateId,
+          transferAmount: transferTransaction.amount,
+        };
+        await this.stocksService.updateStockByTransferTransactionForCancel(
+          user,
+          updateStockDto,
+          manager,
+        );
         await this.log(
           user,
           'DELETE_FIRST_SHIFT_CASH_COUNT_SUCCESS',
