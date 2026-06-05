@@ -165,7 +165,7 @@ export class BoothsService {
         toDate.setHours(23, 59, 59, 999);
 
         query = `
-          SELECT b.id AS "boothID", s.id AS "shiftID"
+          SELECT b.id AS "boothID", s.id AS "shiftID" , s.status
           FROM booths b
           FULL OUTER JOIN (
             SELECT * FROM shifts 
