@@ -14,9 +14,9 @@ export class StocksController {
   ) {}
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'MANAGER', 'EMPLOYEE')
+  @Roles('ADMIN', 'MANAGER')
   @Get('shift')
-  getStockShift(@CurrentUser() user: any, @Query() query: GetStockShiftQuery) {
-    return this.stockService.getTHBSummary(user, query.id);
+  getStockShift(@Query() query: GetStockShiftQuery) {
+    return this.stockService.getStockShift(query.id);
   }
 }

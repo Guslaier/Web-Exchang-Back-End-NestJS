@@ -10,7 +10,7 @@ import { ShiftData } from './../../../types/index';
 
 export class GetStockShiftQuery implements Pick<ShiftData, 'id'> {
   @IsUUID()
-  @IsOptional()
+  @IsNotEmpty()
   id: string;
 }
 

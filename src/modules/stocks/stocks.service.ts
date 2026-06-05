@@ -807,4 +807,21 @@ export class StocksService {
       );
     }
   }
+
+  async getStockShift(shiftId: string) {
+    const query = `
+      SELECT 
+        s."exchangeRateName" , 
+        s.total_received, 
+        s.total_exchanged, 
+        s.total_balance, 
+        ee.buy_rate
+      FROM stocks s 
+      JOIN shifts ON s."shiftId" = shifts.id 
+      JOIN exclusive_exchange_rates ee ON s."exchangeRateId" = ee.exchange_rate_id AND shifts."boothId" = ee.booth_id
+      WHERE s."shiftId" = $1
+    `;
+    return await this.stockRepository.query(query, [shiftId]);
+  }
 }
+
