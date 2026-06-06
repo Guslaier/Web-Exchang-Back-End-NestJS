@@ -37,7 +37,7 @@ export class TransferTransactionsController {
     private readonly currenciesService: CurrenciesService,
     @Inject(CashCountsService)
     private readonly cashCountsService: CashCountsService,
-  ) {}
+  ) { }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER')
@@ -123,6 +123,19 @@ export class TransferTransactionsController {
   async getTransferTransactionsByShiftId(@Param('shiftId') shiftId: string) {
     return this.transferTransactionsService.getTransferTransactionsByShiftId(
       shiftId,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('EMPLOYEE')
+  @Get('employee/shift/:shiftId')
+  async getMyTransferTransactionsByShiftId(
+    @Param('shiftId') shiftId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.transferTransactionsService.getTransferTransactionsByShiftIdAndUserId(
+      shiftId,
+      user.id,
     );
   }
 

@@ -1296,6 +1296,70 @@ export class TransferTransactionsService {
     }
   }
 
+  async getTransferTransactionsByShiftIdAndUserId(shiftId: string, userId: string) {
+    try {
+      const checkShift = await this.dataSource.getRepository(Shift).findOne({ where: { id: shiftId } });
+      if (!checkShift) {
+        throw new BadRequestException('Shift not found');
+      }
+      if (checkShift.userId !== userId) {
+        throw new BadRequestException('You do not have permission to view transactions for this shift');
+      }
+
+      const transferTransactions = await this.dataSource
+        .getRepository(TransferTransaction)
+        .find({
+          where: [{ shiftId }],
+          relations: ['booth', 'refBooth'],
+          select: {
+            id: true,
+            userId: true,
+            exchangeRateId: true,
+            exchangeRateName: true,
+            internalTransactionId: true,
+            amount: true,
+            type: true,
+            status: true,
+            shiftId: true,
+            createdAt: true,
+            booth: {
+              id: true,
+              name: true,
+            },
+            refShiftId: true,
+            refBooth: {
+              id: true,
+              name: true,
+            },
+          },
+        });
+      return transferTransactions.reduce((result: any[], transaction) => {
+        result.push({
+          id: transaction?.id,
+          userId: transaction?.userId,
+          exchangeRateId: transaction?.exchangeRateId,
+          exchangeRateName: transaction?.exchangeRateName,
+          internalTransactionId: transaction?.internalTransactionId,
+          amount: transaction?.amount,
+          type: transaction?.type,
+          status: transaction?.status,
+          shiftId: transaction?.shiftId,
+          boothId: transaction?.boothId,
+          boothName: transaction?.booth?.name,
+          refShiftId: transaction?.refShiftId,
+          refBoothId: transaction?.refBoothId,
+          refBoothName: transaction?.refBooth?.name,
+          createdAt: transaction?.createdAt,
+        });
+        return result;
+      }, []);
+    } catch (error) {
+      throw new BadRequestException(
+        `Failed to get transfer transactions for shift ID ${shiftId} and user ID ${userId}`,
+      );
+    }
+  }
+
   async getTransferTransactionsByDateRange(startDate: Date, endDate: Date) {
     try {
       const start = new Date(startDate);
