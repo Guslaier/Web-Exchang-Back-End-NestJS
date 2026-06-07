@@ -21,6 +21,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { SseModule } from './modules/sse/sse.module';
 import { StocksModule } from './modules/stocks/stocks.module';
 import { SharedTransactionsModule } from './modules/shared-transactions/shared-transactions.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import * as pg from 'pg';
 
 pg.types.setTypeParser(1114, (value) => value);
@@ -68,6 +69,7 @@ pg.types.setTypeParser(1114, (value) => value);
     StocksModule,
     ReportsModule,
     SharedTransactionsModule,
+    DashboardModule,
   ],
 })
 export class AppModule { }
