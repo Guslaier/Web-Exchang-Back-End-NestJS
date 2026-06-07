@@ -24,7 +24,7 @@ export class ReportsService {
     @InjectRepository(EmployeePerformance)
     private readonly employeePerformanceRepository: Repository<EmployeePerformance>,
     private readonly dataSource: DataSource,
-  ) {}
+  ) { }
   //helper
   //create
   //read
@@ -143,6 +143,7 @@ export class ReportsService {
       });
     }
 
+    console.log("performance", shifts);
     return await this.employeePerformanceRepository.save(performance);
   }
 
@@ -226,11 +227,11 @@ export class ReportsService {
     const where =
       startDate && endDate
         ? {
-            reportMonth: Between(
-              new Date(startDate.getFullYear(), startDate.getMonth(), 1),
-              new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0),
-            ),
-          }
+          reportMonth: Between(
+            new Date(startDate.getFullYear(), startDate.getMonth(), 1),
+            new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0),
+          ),
+        }
         : {};
 
     return await this.employeePerformanceRepository.find({
