@@ -11,6 +11,7 @@ import {
 import { BoothsService } from '../../modules/booths/booths.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Shift } from './entities/shift.entity';
+import { EmployeePerformance } from '../reports/entities/employeePerfor.entity';
 import {
   IsNull,
   Repository,
@@ -625,6 +626,8 @@ export class ShiftsService {
         );
       }
 
+      await this.updateEmployeePerformance(manager, shiftData.userId);
+
       await this.log(
         user,
         'AUDIT_SHIFT_SUCCESS',
@@ -645,5 +648,59 @@ export class ShiftsService {
         status: 'COMPLETED',
       },
     });
+  }
+
+  private async saveCalculatedPerformance(
+    manager: EntityManager,
+    userId: string,
+    year: number,
+    month: number,
+  ) {
+    const reportMonth = new Date(year, month - 1, 1);
+
+    const fromDate = new Date(year, month - 1, 1);
+    const toDate = new Date(year, month, 0, 23, 59, 59, 999);
+
+    const shiftRepo = manager.getRepository(Shift);
+    const shifts = await this.getShiftsByUserIdAndMonth(userId , month , year) ; 
+
+    const totalBalanceCheck = shifts.reduce(
+      (sum, shift) => Number(sum) + Number(shift.balance_check || 0),
+      0,
+    );
+    const totalCashAdvance = shifts.reduce(
+      (sum, shift) => Number(sum) + Number(shift.cash_advance || 0),
+      0,
+    );
+
+    const performanceRepo = manager.getRepository(EmployeePerformance);
+    let performance = await performanceRepo.findOne({
+      where: { userId, reportMonth },
+    });
+
+    if (performance) {
+      performance.totalBalanceCheck = totalBalanceCheck;
+      performance.totalCashAdvance = totalCashAdvance;
+    } else {
+      performance = performanceRepo.create({
+        userId,
+        reportMonth,
+        totalBalanceCheck,
+        totalCashAdvance,
+      });
+    }
+
+    console.log('performance', shifts);
+    return await performanceRepo.save(performance);
+  }
+
+  async updateEmployeePerformance(manager: EntityManager, userId: string) {
+    const now = new Date();
+    return this.saveCalculatedPerformance(
+      manager,
+      userId,
+      now.getFullYear(),
+      now.getMonth() + 1,
+    );
   }
 }
