@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ShiftsService } from './shifts.service';
 import { ShiftsController } from './shifts.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -10,17 +10,19 @@ import { CashCountsModule } from './../../modules/cash-counts/cash-counts.module
 import { TransactionsModule } from './../../modules/transactions/transactions.module';
 import { RedisModule } from '../../modules/redis/redis.module';
 import { SharedTransactionsModule } from '../shared-transactions/shared-transactions.module';
+import { SharedShiftsModule } from '../shared-shifts/shared-shifts.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Shift]),
-    BoothsModule,
+    forwardRef(() => BoothsModule),
     SystemLogsModule,
     CashCountsModule,
     RedisModule,
     TransactionsModule,
     SseModule,
     SharedTransactionsModule,
+    SharedShiftsModule,
   ],
   controllers: [ShiftsController],
   providers: [ShiftsService],

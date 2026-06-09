@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { StocksController } from './stocks.controller';
 import { StocksService } from './stocks.service';
 import { Stock } from './entities/stocks.entitiy';
@@ -11,7 +11,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Stock]),
-    ShiftsModule,
+    forwardRef(() => ShiftsModule),
     ExchangeRatesModule,
     SystemLogsModule,
     RedisModule,

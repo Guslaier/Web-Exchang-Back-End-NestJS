@@ -5,6 +5,7 @@ import {
   NotFoundException,
   Inject,
   ForbiddenException,
+  forwardRef,
 } from '@nestjs/common';
 import {
   UpdateStockByExchangeTransactionDto,
@@ -24,6 +25,7 @@ import { re } from 'mathjs';
 @Injectable()
 export class StocksService {
   constructor(
+    @Inject(forwardRef(() => ShiftsService))
     private readonly shiftsService: ShiftsService,
     private readonly exchangeRatesService: ExchangeRatesService,
     private readonly systemLogsService: SystemLogsService,
