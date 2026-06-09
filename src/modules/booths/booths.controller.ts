@@ -72,6 +72,17 @@ export class BoothsController {
     return this.boothsService.setCurrentShift(user, id, shiftId);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Put('close-old-open-new-shift/:id')
+  closeOldAndOpenNewShift(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body('newEmpId') newEmpId: string,
+  ) {
+    return this.boothsService.closeOldAndOpenNewShift(user, id, newEmpId);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Put('set-deactive/:id')
   setDeActive(@CurrentUser() user: any, @Param('id') id: string) {

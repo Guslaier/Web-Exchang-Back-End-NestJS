@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { BoothsController } from './booths.controller';
 import { BoothsService } from './booths.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -8,12 +8,17 @@ import { SystemLogsModule } from '../system-logs/system-logs.module';
 import { ExclusiveExchangeRatesModule } from '../exclusive-exchange-rates/exclusive-exchange-rates.module';
 import { Shift } from '../shifts/entities/shift.entity';
 import { SseModule } from '../sse/sse.module';
+import { SharedShiftsModule } from '../shared-shifts/shared-shifts.module';
+import { StocksModule } from '../stocks/stocks.module';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([Booth, User, Shift]),
     SystemLogsModule,
     ExclusiveExchangeRatesModule,
     SseModule,
+    SharedShiftsModule,
+    forwardRef(() => StocksModule),
   ],
   controllers: [BoothsController],
   providers: [BoothsService],

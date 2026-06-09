@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { CreateBoothDto, UpdateBoothDto } from './dto/booth.dto';
 import { Booth } from './entities/booth.entity';
@@ -24,6 +25,10 @@ import { Shift } from '../shifts/entities/shift.entity';
 import { handleError } from '../../common/error/error';
 import { SseService } from '../sse/sse.service';
 import { to } from 'mathjs';
+import { SharedShiftsService } from '../shared-shifts/shared-shifts.service';
+import { StocksService } from '../stocks/stocks.service';
+import Redis from 'ioredis';
+import { Stock } from '../stocks/entities/stocks.entitiy';
 
 @Injectable()
 export class BoothsService {
@@ -41,6 +46,11 @@ export class BoothsService {
     private readonly shift: Repository<Shift>,
     @Inject(SseService)
     private readonly sseService: SseService,
+    private readonly sharedShiftsService: SharedShiftsService,
+    @Inject(forwardRef(() => StocksService))
+    private readonly stocksService: StocksService,
+    @Inject('REDIS_CLIENT')
+    private readonly redisClient: Redis,
   ) { }
 
   /**
@@ -347,6 +357,81 @@ export class BoothsService {
     }
   }
 
+  // ปิดกะเก่า เปิดกะใหม่ และคัดลอกสต็อกสำหรับบูธ
+  async closeOldAndOpenNewShift(
+    user: any,
+    boothId: string,
+    newEmpId: string,
+  ) {
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const boothRepo = manager.getRepository(Booth);
+        const booth = await boothRepo.findOne({ where: { id: boothId } });
+        if (!booth) throw new NotFoundException('Booth not found');
+
+        const oldEmployeeId = booth.currentShiftId;
+
+        if (oldEmployeeId) {
+          const oldShift = await this.sharedShiftsService.getLastShiftByUserId(manager, oldEmployeeId);
+
+          // ดึงข้อมูลสต็อกของกะเก่า
+          const oldStocks = oldShift
+            ? await this.stocksService.getStockShift(oldShift.id)
+            : [];
+
+          // ปิดกะเก่า
+          if (oldShift) {
+            await this.sharedShiftsService.setStatusToCLose(manager, user, { id: oldShift.id });
+          }
+
+          // อัปเดตพนักงานใหม่ให้กับบูธ
+          await boothRepo.update(boothId, { currentShiftId: newEmpId });
+
+          // เปิดกะสำหรับพนักงานใหม่
+          const newShift = await this.sharedShiftsService.openShift(manager, user, { boothId });
+          const newShiftId = (newShift && 'id' in newShift)
+            ? (newShift as any).id
+            : (await this.sharedShiftsService.getLastShiftByUserId(manager, newEmpId))?.id;
+
+          // อัปเดตสต็อกให้กับกะใหม่โดยอิงจากยอดกะเก่า
+          if (newShiftId && oldStocks && oldStocks.length > 0) {
+            const THBId = await this.stocksService.getTHBIdCache();
+            for (const item of oldStocks) {
+              const newStock = await this.stocksService.create(newShiftId, item.exchangeRateId, manager);
+              await manager.getRepository(Stock).update(newStock.id, {
+                total_received: Number(item.total_balance),
+                total_balance: Number(item.total_balance),
+              });
+
+              if (item.exchangeRateId === THBId) {
+                await this.redisClient.hset(newShiftId, {
+                  total_received: Number(item.total_balance),
+                  total_exchanged: 0,
+                  total_balance: Number(item.total_balance),
+                });
+                await this.redisClient.expire(newShiftId, 3600 * 10);
+              }
+            }
+          }
+        } else {
+          // ถ้าไม่มีพนักงานเก่า แค่อัปเดตพนักงานใหม่ให้กับบูธ (ไม่ต้องเปิดกะงานใหม่)
+          await boothRepo.update(boothId, { currentShiftId: newEmpId });
+        }
+
+        await this.log(
+          user,
+          'SHIFT_TRANSITION_SUCCESS',
+          `Shift transition successful for Booth: ${boothId} from ${oldEmployeeId || 'none'} to ${newEmpId}`,
+          manager,
+        );
+        this.sseService.triggerRefreshSignal();
+        return { message: 'Shift transitioned successfully' };
+      });
+    } catch (error) {
+      handleError(error, 'BoothsService.closeOldAndOpenNewShift');
+    }
+  }
+
   // จัดการพนักงานเข้ากะ
   async setCurrentShift(user: any, id: string, shiftId: string | null) {
     try {
@@ -421,7 +506,9 @@ export class BoothsService {
           throw new ConflictException('Worker already at another booth');
         }
 
+        // อัปเดตพนักงานใหม่ให้กับบูธโดยตรง
         await boothRepo.update(id, { currentShiftId: shiftId });
+
         await this.log(
           user,
           'ASSIGN_SHIFT_SUCCESS',
