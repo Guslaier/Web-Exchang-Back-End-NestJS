@@ -827,6 +827,7 @@ export class StocksService {
   async getStockShift(shiftId: string) {
     const query = `
       SELECT 
+        s."exchangeRateId" , 
         s."exchangeRateName" , 
         s.total_received, 
         s.total_exchanged, 
