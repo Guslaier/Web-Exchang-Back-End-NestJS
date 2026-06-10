@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TransferTransactionsController } from './transfer-transactions.controller';
 import { TransferTransactionsService } from './transfer-transactions.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -28,7 +28,7 @@ import { ExchangeRatesModule } from '../exchange-rates/exchange-rates.module';
       Shift,
       Transaction,
     ]),
-    BoothsModule,
+    forwardRef(() => BoothsModule),
     CurrenciesModule,
     CashCountsModule,
     SystemLogsModule,

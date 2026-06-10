@@ -6,6 +6,7 @@ import { Booth } from './entities/booth.entity';
 import { User } from '../users/entities/user.entity';
 import { SystemLogsModule } from '../system-logs/system-logs.module';
 import { ExclusiveExchangeRatesModule } from '../exclusive-exchange-rates/exclusive-exchange-rates.module';
+import { TransferTransactionsModule } from '../transfer-transactions/transfer-transactions.module' ;
 import { Shift } from '../shifts/entities/shift.entity';
 import { SseModule } from '../sse/sse.module';
 import { SharedShiftsModule } from '../shared-shifts/shared-shifts.module';
@@ -19,6 +20,7 @@ import { StocksModule } from '../stocks/stocks.module';
     SseModule,
     SharedShiftsModule,
     forwardRef(() => StocksModule),
+    forwardRef(() => TransferTransactionsModule),
   ],
   controllers: [BoothsController],
   providers: [BoothsService],

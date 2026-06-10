@@ -21,6 +21,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { SystemLogsService } from '../system-logs/system-logs.service';
 import { ExclusiveExchangeRatesService } from '../exclusive-exchange-rates/exclusive-exchange-rates.service';
+import { TransferTransactionsService } from '../transfer-transactions/transfer-transactions.service' ;
 import { Shift } from '../shifts/entities/shift.entity';
 import { handleError } from '../../common/error/error';
 import { SseService } from '../sse/sse.service';
@@ -38,15 +39,18 @@ export class BoothsService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly dataSource: DataSource,
-    @Inject(SystemLogsService)
+    @Inject(forwardRef(() => SystemLogsService))
     private readonly systemLogsService: SystemLogsService,
-    @Inject(ExclusiveExchangeRatesService)
+    @Inject(forwardRef(() => ExclusiveExchangeRatesService))
     private readonly exclusiveRateService: ExclusiveExchangeRatesService,
     @InjectRepository(Shift)
     private readonly shift: Repository<Shift>,
-    @Inject(SseService)
+    @Inject(forwardRef(() => SseService))
     private readonly sseService: SseService,
+    @Inject(forwardRef(() => SharedShiftsService))
     private readonly sharedShiftsService: SharedShiftsService,
+    @Inject(forwardRef(() => TransferTransactionsService))
+    private readonly tranferService : TransferTransactionsService ,
     @Inject(forwardRef(() => StocksService))
     private readonly stocksService: StocksService,
     @Inject('REDIS_CLIENT')
@@ -397,20 +401,32 @@ export class BoothsService {
           if (newShiftId && oldStocks && oldStocks.length > 0) {
             const THBId = await this.stocksService.getTHBIdCache();
             for (const item of oldStocks) {
-              const newStock = await this.stocksService.create(newShiftId, item.exchangeRateId, manager);
-              await manager.getRepository(Stock).update(newStock.id, {
-                total_received: Number(item.total_balance),
-                total_balance: Number(item.total_balance),
-              });
-
               if (item.exchangeRateId === THBId) {
-                await this.redisClient.hset(newShiftId, {
-                  total_received: Number(item.total_balance),
-                  total_exchanged: 0,
-                  total_balance: Number(item.total_balance),
-                });
-                await this.redisClient.expire(newShiftId, 3600 * 10);
+                await this.tranferService.runCreateFirstShiftCashCount(
+                  user,
+                  {
+                    transferDto: {
+                      boothId: boothId,
+                      amount: item.total_balance as number,
+                      type: 'CASH_IN',
+                      status: 'COMPLETED',
+                    },
+                    cashCountDto: [{ denominations: '1', amounts: item.total_balance }],
+                  },
+                  manager,
+                );
               }
+              await this.tranferService.transferCenterToBooth(
+                user,
+                {
+                  boothId: boothId,
+                  amount: item.total_balance as number,
+                  exchangeRateId: item.exchangeRateId as string,
+                  type: 'CASH_IN',
+                  status: 'COMPLETED',
+                },
+                manager,
+              );
             }
           }
         } else {

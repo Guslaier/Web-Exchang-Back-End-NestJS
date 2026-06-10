@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import {
   DataSource,
@@ -48,19 +49,19 @@ export class TransferTransactionsService {
 
   constructor(
     private readonly dataSource: DataSource,
-    @Inject(SystemLogsService)
+    @Inject(forwardRef(() => SystemLogsService))
     private readonly systemLogsService: SystemLogsService,
-    @Inject(TransactionsService)
+    @Inject(forwardRef(() => TransactionsService))
     private readonly transactionsService: TransactionsService,
-    @Inject(StocksService)
+    @Inject(forwardRef(() => StocksService))
     private readonly stocksService: StocksService,
-    @Inject(SseService)
+    @Inject(forwardRef(() => SseService))
     private readonly sseService: SseService,
-    @Inject(CashCountsService)
+    @Inject(forwardRef(() => CashCountsService))
     private readonly cashCountsService: CashCountsService,
-    @Inject(ExchangeRatesService)
+    @Inject(forwardRef(() => ExchangeRatesService))
     private readonly exchangeRatesService: ExchangeRatesService,
-    @Inject(ShiftsService)
+    @Inject(forwardRef(() => ShiftsService))
     private readonly shiftService: ShiftsService,
     @InjectRepository(TransferTransaction)
     private readonly tranferTransactionRepo: Repository<TransferTransaction>,
@@ -96,8 +97,16 @@ export class TransferTransactionsService {
   async runCreateFirstShiftCashCount(
     user: any,
     firstShiftCashCountDto: FirstShiftCashCountDto,
+    manager?: EntityManager,
   ) {
     try {
+      if (manager) {
+        return await this.createFirstShiftCash_count(
+          user,
+          firstShiftCashCountDto,
+          manager,
+        );
+      }
       return await this.dataSource.transaction(async (transactionManager) => {
         return await this.createFirstShiftCash_count(
           user,
@@ -621,103 +630,111 @@ export class TransferTransactionsService {
   async transferCenterToBooth(
     user: any,
     transferDto: TransferCenterToBoothDto,
+    manager?: EntityManager,
   ) {
+    const execute = async (txManager: EntityManager) => {
+      // Validate exchange rate
+      const exchangeRate = await txManager.getRepository(ExchangeRate).findOne({
+        where: { id: transferDto.exchangeRateId },
+        relations: ['currency'],
+      });
+      if (!exchangeRate) {
+        await this.log(
+          user,
+          'TRANSFER_CENTER_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${transferDto.exchangeRateId} from center to booth ${transferDto.boothId}: Currency not found`,
+          txManager,
+        );
+        throw new NotFoundException(
+          `Currency with ID ${transferDto.exchangeRateId} not found`,
+        );
+      }
+
+      if (transferDto.amount <= 0) {
+        await this.log(
+          user,
+          'TRANSFER_CENTER_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Invalid transfer amount`,
+          txManager,
+        );
+        throw new BadRequestException(
+          'Transfer amount must be greater than zero',
+        );
+      }
+
+      const targetBooth = await txManager
+        .getRepository(Booth)
+        .findOne({ where: { id: transferDto.boothId, isActive: true } });
+      if (!targetBooth) {
+        await this.log(
+          user,
+          'TRANSFER_CENTER_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Target booth not found or inactive`,
+          txManager,
+        );
+        throw new NotFoundException(
+          `Target booth with ID ${transferDto.boothId} not found or inactive`,
+        );
+      }
+
+      const targetActiveShift = await this.shiftService.getLastShiftByBoothId(
+        transferDto.boothId,
+      );
+
+      if (!targetActiveShift || targetActiveShift.status === 'COMPLETED') {
+        await this.log(
+          user,
+          'TRANSFER_CENTER_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Target booth does not have an active shift`,
+          txManager,
+        );
+        throw new BadRequestException(
+          `Target booth with ID ${transferDto.boothId} does not have an active shift`,
+        );
+      }
+      const checkstockExchanges = await this.stocksService.getStock(
+        targetActiveShift.id,
+        exchangeRate.id,
+        txManager,
+      );
+
+      if (transferDto.type === 'CASH_IN') {
+        return await this.tnfCtoB_CashIn(
+          user,
+          transferDto,
+          targetActiveShift,
+          exchangeRate,
+          checkstockExchanges,
+          txManager,
+        );
+      } else if (transferDto.type === 'CASH_OUT') {
+        return await this.tnfCtoB_CashOut(
+          user,
+          transferDto,
+          targetActiveShift,
+          exchangeRate,
+          txManager,
+          checkstockExchanges,
+        );
+      } else {
+        await this.log(
+          user,
+          'TRANSFER_CENTER_TO_BOOTH_FAILED',
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Invalid transfer type ${transferDto.type}`,
+          txManager,
+        );
+        throw new BadRequestException(
+          `Invalid transfer type ${transferDto.type}`,
+        );
+      }
+    };
+
     try {
-      return await this.dataSource.transaction(async (manager) => {
-        // Validate exchange rate
-        const exchangeRate = await manager.getRepository(ExchangeRate).findOne({
-          where: { id: transferDto.exchangeRateId },
-          relations: ['currency'],
-        });
-        if (!exchangeRate) {
-          await this.log(
-            user,
-            'TRANSFER_CENTER_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${transferDto.exchangeRateId} from center to booth ${transferDto.boothId}: Currency not found`,
-            manager,
-          );
-          throw new NotFoundException(
-            `Currency with ID ${transferDto.exchangeRateId} not found`,
-          );
-        }
-
-        if (transferDto.amount <= 0) {
-          await this.log(
-            user,
-            'TRANSFER_CENTER_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Invalid transfer amount`,
-            manager,
-          );
-          throw new BadRequestException(
-            'Transfer amount must be greater than zero',
-          );
-        }
-
-        const targetBooth = await manager
-          .getRepository(Booth)
-          .findOne({ where: { id: transferDto.boothId, isActive: true } });
-        if (!targetBooth) {
-          await this.log(
-            user,
-            'TRANSFER_CENTER_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Target booth not found or inactive`,
-            manager,
-          );
-          throw new NotFoundException(
-            `Target booth with ID ${transferDto.boothId} not found or inactive`,
-          );
-        }
-
-        const targetActiveShift = await this.shiftService.getLastShiftByBoothId(
-          transferDto.boothId,
-        );
-
-        if (!targetActiveShift || targetActiveShift.status === 'COMPLETED') {
-          await this.log(
-            user,
-            'TRANSFER_CENTER_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Target booth does not have an active shift`,
-            manager,
-          );
-          throw new BadRequestException(
-            `Target booth with ID ${transferDto.boothId} does not have an active shift`,
-          );
-        }
-        const checkstockExchanges = await this.stocksService.getStock(
-          targetActiveShift.id,
-          exchangeRate.id,
-          manager,
-        );
-
-        if (transferDto.type === 'CASH_IN') {
-          return await this.tnfCtoB_CashIn(
-            user,
-            transferDto,
-            targetActiveShift,
-            exchangeRate,
-            checkstockExchanges,
-            manager,
-          );
-        } else if (transferDto.type === 'CASH_OUT') {
-          return await this.tnfCtoB_CashOut(
-            user,
-            transferDto,
-            targetActiveShift,
-            exchangeRate,
-            manager,
-            checkstockExchanges,
-          );
-        } else {
-          await this.log(
-            user,
-            'TRANSFER_CENTER_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Invalid transfer type ${transferDto.type}`,
-            manager,
-          );
-          throw new BadRequestException(
-            `Invalid transfer type ${transferDto.type}`,
-          );
-        }
+      if (manager) {
+        return await execute(manager);
+      }
+      return await this.dataSource.transaction(async (transactionManager) => {
+        return await execute(transactionManager);
       });
     } catch (error) {
       handleError(error, 'TRANSFER_CENTER_TO_BOOTH_FAILED');
