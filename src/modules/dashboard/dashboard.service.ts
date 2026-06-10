@@ -21,7 +21,7 @@ export class DashboardService {
     @InjectRepository(ExclusiveExchangeRate) private exclusiveRateRepo: Repository<ExclusiveExchangeRate>,
     @InjectRepository(EmployeePerformance) private employeePerfRepo: Repository<EmployeePerformance>,
     @InjectRepository(CashCount) private cashCountRepo: Repository<CashCount>,
-  ) {}
+  ) { }
 
   async getSummary(date: Date) {
     const startOfDay = new Date(date);
@@ -97,7 +97,7 @@ export class DashboardService {
 
     // 2. Currency Stock Status
     const stocks = await this.stockRepo.find();
-    
+
     let cashCounts: CashCount[] = [];
     if (activeShiftIds.length > 0) {
       cashCounts = await this.cashCountRepo.find({
@@ -135,6 +135,138 @@ export class DashboardService {
         exclusive: exclusiveRates
       },
       employeePerformance
+    };
+  }
+
+  async getMetrics(date: Date) {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const buyMetrics = await this.exchangeRepo.createQueryBuilder('et')
+      .select('COALESCE(SUM(et.totalthaiBahtAmount), 0)', 'totalBuyTHB')
+      .where('et.type = :type', { type: 'BUY' })
+      .andWhere('et.status = :status', { status: 'COMPLETED' })
+      .andWhere('et.updatedAt BETWEEN :start AND :end', { start: startOfDay, end: endOfDay })
+      .getRawOne();
+
+    const sellMetrics = await this.exchangeRepo.createQueryBuilder('et')
+      .select('COALESCE(SUM(et.totalthaiBahtAmount), 0)', 'totalSellTHB')
+      .where('et.type = :type', { type: 'SELL' })
+      .andWhere('et.status = :status', { status: 'COMPLETED' })
+      .andWhere('et.updatedAt BETWEEN :start AND :end', { start: startOfDay, end: endOfDay })
+      .getRawOne();
+
+    const transferCount = await this.transferRepo.createQueryBuilder('tt')
+      .where('tt.createdAt BETWEEN :start AND :end', { start: startOfDay, end: endOfDay })
+      .getCount();
+
+    const activeShiftsCount = await this.shiftRepo.createQueryBuilder('s')
+      .where('s.status = :status', { status: 'OPEN' })
+      .getCount();
+
+    return {
+      totalBuyTHB: Number(buyMetrics.totalBuyTHB),
+      totalSellTHB: Number(sellMetrics.totalSellTHB),
+      todayTransfers: transferCount,
+      activeShiftsCount: activeShiftsCount,
+    };
+  }
+
+  async getActiveShifts() {
+    return await this.shiftRepo.createQueryBuilder('s')
+      .select([
+        's.id as id',
+        's.startTime as "startTime"',
+        's.balance_check as "balance_check"',
+        's.cash_advance as "cash_advance"',
+        'u.username as "employeeName"',
+        'b.name as "boothName"'
+      ])
+      .leftJoin('s.user', 'u')
+      .leftJoin('s.booth', 'b')
+      .where('s.status = :status', { status: 'OPEN' })
+      .andWhere('s.deletedAt IS NULL')
+      .getRawMany();
+  }
+
+  async getPendingAlerts() {
+    const pendingCount = await this.exchangeRepo.createQueryBuilder('et')
+      .where('et.status = :status', { status: 'PENDING' })
+      .getCount();
+
+    return { pendingCount };
+  }
+
+  async getAnalytics(date: Date) {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Hourly Trend
+    const hourlyTrend = await this.exchangeRepo.createQueryBuilder('et')
+      .select('EXTRACT(HOUR FROM et.updatedAt)', 'time')
+      .addSelect("SUM(CASE WHEN et.type = 'BUY' THEN et.totalthaiBahtAmount ELSE 0 END)", 'buyVolume')
+      .addSelect("SUM(CASE WHEN et.type = 'SELL' THEN et.totalthaiBahtAmount ELSE 0 END)", 'sellVolume')
+      .where('et.status = :status', { status: 'COMPLETED' })
+      .andWhere('et.updatedAt BETWEEN :start AND :end', { start: startOfDay, end: endOfDay })
+      .groupBy('EXTRACT(HOUR FROM et.updatedAt)')
+      .orderBy('EXTRACT(HOUR FROM et.updatedAt)', 'ASC')
+      .getRawMany();
+
+    // Top Currencies
+    const topCurrencies = await this.exchangeRepo.createQueryBuilder('et')
+      .select('et.exchangeRateName', 'currency')
+      .addSelect('SUM(et.totalthaiBahtAmount)', 'totalAmount')
+      .addSelect('COUNT(*)', 'transactionCount')
+      .where('et.status = :status', { status: 'COMPLETED' })
+      .andWhere('et.updatedAt BETWEEN :start AND :end', { start: startOfDay, end: endOfDay })
+      .groupBy('et.exchangeRateName')
+      .orderBy('SUM(et.totalthaiBahtAmount)', 'DESC')
+      .getRawMany();
+
+    // Booth Performance
+    const boothPerformance = await this.exchangeRepo.createQueryBuilder('et')
+      .select('b.name', 'boothName')
+      .addSelect('COUNT(et.id)', 'totalTransactions')
+      .addSelect('COALESCE(SUM(et.totalthaiBahtAmount), 0)', 'netVolume')
+      .innerJoin('et.transaction', 't')
+      .innerJoin('t.shift', 's')
+      .innerJoin('s.booth', 'b')
+      .where('et.status = :status', { status: 'COMPLETED' })
+      .andWhere('et.updatedAt BETWEEN :start AND :end', { start: startOfDay, end: endOfDay })
+      .groupBy('b.name')
+      .orderBy('COALESCE(SUM(et.totalthaiBahtAmount), 0)', 'DESC')
+      .getRawMany();
+
+    // Calculate percentages for top currencies
+    const grandTotalAmount = topCurrencies.reduce((sum, c) => sum + Number(c.totalAmount), 0);
+    const topCurrenciesWithPercentage = topCurrencies.map(c => ({
+      currency: c.currency,
+      totalAmount: Number(c.totalAmount),
+      transactionCount: Number(c.transactionCount),
+      percentage: grandTotalAmount > 0 ? (Number(c.totalAmount) / grandTotalAmount) * 100 : 0
+    }));
+
+    return {
+      hourlyTrend: hourlyTrend.map(h => {
+        // Format time as "08:00"
+        const hourNum = Number(h.time);
+        const formattedTime = `${hourNum.toString().padStart(2, '0')}:00`;
+        return {
+          time: formattedTime,
+          buyVolume: Number(h.buyVolume),
+          sellVolume: Number(h.sellVolume)
+        };
+      }),
+      topCurrencies: topCurrenciesWithPercentage,
+      boothPerformance: boothPerformance.map(b => ({
+        boothName: b.boothName,
+        netVolume: Number(b.netVolume),
+        totalTransactions: Number(b.totalTransactions)
+      }))
     };
   }
 }

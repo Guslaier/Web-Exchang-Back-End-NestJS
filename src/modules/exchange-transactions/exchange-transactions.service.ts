@@ -32,6 +32,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, IsNull, Not } from 'typeorm';
 import { ExchangeTransaction } from './entities/exchange-transaction.entity';
 import { handleError } from '../../common/error/error';
+import { SseService } from '../sse/sse.service';
 
 @Injectable()
 export class ExchangeTransactionsService {
@@ -48,6 +49,7 @@ export class ExchangeTransactionsService {
     private readonly exchangeTransactionRepository: Repository<ExchangeTransaction>,
     private readonly transactionsService: TransactionsService,
     private readonly dataSource: DataSource,
+    private readonly sseService: SseService,
   ) { }
 
   // create
@@ -286,6 +288,7 @@ export class ExchangeTransactionsService {
           result = await executeDbOperations(newManager);
         });
       }
+      this.sseService.triggerRefreshSignal();
       return {
         message: 'Exchange transaction created successfully',
         data: result,
@@ -718,6 +721,7 @@ export class ExchangeTransactionsService {
           );
         }
       });
+      this.sseService.triggerRefreshSignal();
       return {
         message: `Exchange transaction with ID: ${param.id} has been set to pending status`,
       };
@@ -809,6 +813,7 @@ export class ExchangeTransactionsService {
           );
         }
       });
+      this.sseService.triggerRefreshSignal();
       return {
         message: `Exchange transaction with ID: ${param.id} has been set to ${body.status} status`,
       };
