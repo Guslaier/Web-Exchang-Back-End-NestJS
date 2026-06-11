@@ -174,6 +174,8 @@ export class TransferTransactionsService {
 
       const targetActiveShift = await this.shiftService.getLastShiftByBoothId(
         firstShiftCashCountDto.transferDto.boothId,
+        true,
+        manager,
       );
 
       if (!targetActiveShift) {
@@ -232,7 +234,7 @@ export class TransferTransactionsService {
         0,
       );
 
-      if (totalAmount !== firstShiftCashCountDto.transferDto.amount) {
+      if (Number(totalAmount) !== Number(firstShiftCashCountDto.transferDto.amount)) {
         await this.log(
           user,
           'FIRST_SHIFT_CASH_COUNT_FAILED',
@@ -456,6 +458,8 @@ export class TransferTransactionsService {
         // ถ้า boothId ไม่มีการเปิดกะอยู่ จะไม่อนุญาตให้ทำรายการโอนระหว่างบูธ
         const activeShift = await this.shiftService.getLastShiftByBoothId(
           transferDto.boothId,
+          true,
+          manager,
         );
 
         if (!activeShift || activeShift?.status === 'COMPLETED') {
@@ -487,6 +491,8 @@ export class TransferTransactionsService {
         // ถ้า targetBoothId ไม่มีการเปิดกะอยู่ จะไม่อนุญาตให้ทำรายการโอนระหว่างบูธ
         const targetActiveShift = await this.shiftService.getLastShiftByBoothId(
           transferDto.refBoothId,
+          true,
+          manager,
         );
 
         if (!targetActiveShift || targetActiveShift.status === 'COMPLETED') {
@@ -679,6 +685,8 @@ export class TransferTransactionsService {
 
       const targetActiveShift = await this.shiftService.getLastShiftByBoothId(
         transferDto.boothId,
+        true,
+        txManager,
       );
 
       if (!targetActiveShift || targetActiveShift.status === 'COMPLETED') {
