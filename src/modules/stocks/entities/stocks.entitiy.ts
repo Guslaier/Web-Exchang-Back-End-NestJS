@@ -35,13 +35,13 @@ export class Stock implements StockData {
   @Column()
   exchangeRateName: string;
 
-  @Column('decimal', { precision: 12, scale: 6, default: 0 })
+  @Column('decimal', { precision: 18, scale: 6, default: 0 })
   total_received: number;
 
-  @Column('decimal', { precision: 12, scale: 6, default: 0 })
+  @Column('decimal', { precision: 18, scale: 6, default: 0 })
   total_exchanged: number;
 
-  @Column('decimal', { precision: 12, scale: 6, default: 0 })
+  @Column('decimal', { precision: 18, scale: 6, default: 0 })
   total_balance: number;
 
   @CreateDateColumn({

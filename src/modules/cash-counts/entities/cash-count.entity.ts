@@ -34,7 +34,7 @@ export class CashCount {
   @Column()
   denomination: string;
 
-  @Column('decimal', { precision: 12, scale: 2 })
+  @Column('decimal', { precision: 18, scale: 6 })
   amount: number;
 
   @CreateDateColumn({
