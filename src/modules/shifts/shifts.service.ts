@@ -227,7 +227,7 @@ export class ShiftsService {
     return this.sharedShiftsService.getLastShiftByUserId(this.dataSource.manager, userId);
   }
 
-  async getLastShiftByBoothId(boothId: string | undefined, required = true) {
+  async getLastShiftByBoothId(boothId: string | undefined, required = true, manager?: EntityManager) {
     if (!boothId) {
       if (required) {
         throw new BadRequestException('Booth ID is required.');
@@ -242,12 +242,12 @@ export class ShiftsService {
     toDate.setDate(toDate.getDate() + 1);
     toDate.setHours(23, 59, 59, 999);
 
-    const shiftQuery = this.shiftRepository.find({
+    const repo = manager ? manager.getRepository(Shift) : this.shiftRepository;
+    const shifts = await repo.find({
       where: { boothId: boothId, startTime: Between(fromDate, toDate) },
       order: { createdAt: 'DESC' },
       take: 1,
     });
-    const shifts = await shiftQuery;
 
     if (shifts.length === 0) {
       if (required) {

@@ -454,11 +454,15 @@ export class StocksService {
     const promiseSenderShift = isSenderExist
       ? this.shiftsService.getLastShiftByBoothId(
           updateStockDto.sender ?? undefined,
+          true,
+          manager,
         )
       : Promise.resolve(null);
     const promiseReceiverShift = isReceiverExist
       ? this.shiftsService.getLastShiftByBoothId(
           updateStockDto.receiver ?? undefined,
+          true,
+          manager,
         )
       : Promise.resolve(null);
 
