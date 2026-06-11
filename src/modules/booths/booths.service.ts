@@ -415,6 +415,7 @@ export class BoothsService {
                   },
                   manager,
                 );
+                continue ; 
               }
               await this.tranferService.transferCenterToBooth(
                 user,
