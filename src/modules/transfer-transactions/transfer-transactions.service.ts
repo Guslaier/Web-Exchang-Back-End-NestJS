@@ -318,7 +318,7 @@ export class TransferTransactionsService {
         manager,
       );
 
-      this.sseService.triggerRefreshSignal();
+      this.sseService.triggerRefreshShiftId(targetActiveShift.id);
 
       return {
         message: 'First shift cash count completed successfully',
@@ -615,7 +615,8 @@ export class TransferTransactionsService {
           `Transferred ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}`,
           manager,
         );
-        this.sseService.triggerRefreshSignal();
+        this.sseService.triggerRefreshShiftId(activeShift.id);
+        this.sseService.triggerRefreshShiftId(targetActiveShift.id)
         return {
           message: 'Successfully transferred',
           transactionId: trinsactionForMainBooth.id,
@@ -794,7 +795,7 @@ export class TransferTransactionsService {
       manager,
     );
 
-    this.sseService.triggerRefreshSignal();
+    this.sseService.triggerRefreshShiftId(targetActiveShift.id);
     return {
       message: 'Successfully transferred from Center to Booth',
       transactionId: transferTransactionForTargetBooth.id,
@@ -873,7 +874,7 @@ export class TransferTransactionsService {
       `Transferred ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to center`,
       manager,
     );
-    this.sseService.triggerRefreshSignal();
+    this.sseService.triggerRefreshShiftId(targetActiveShift.id);
     return {
       message: 'Successfully transferred from Booth to Center',
       transactionId: transferTransactionForTargetBooth.id,
@@ -958,7 +959,6 @@ export class TransferTransactionsService {
             `Canceled cash in transfer transaction ${transactionId} and updated stock accordingly`,
             manager,
           );
-          this.sseService.triggerRefreshSignal();
           return {
             message: `Successfully canceled cash in transfer transaction with ID ${transactionId}`,
           };
@@ -985,11 +985,12 @@ export class TransferTransactionsService {
             `Canceled cash out transfer transaction ${transactionId} and updated stock accordingly`,
             manager,
           );
-          this.sseService.triggerRefreshSignal();
           return {
             message: `Successfully canceled cash out transfer transaction with ID ${transactionId}`,
           };
         }
+
+        this.sseService.triggerRefreshShiftId(checkshift.id) ; 
 
         const checkRefShift = await manager.getRepository(Shift).findOne({
           where: { id: transferTransaction.refShiftId as string },
@@ -1045,7 +1046,6 @@ export class TransferTransactionsService {
             `Canceled transfer transaction ${transactionId} and internal transaction ${transferTransaction.internalTransactionId} and updated stock accordingly`,
             manager,
           );
-          this.sseService.triggerRefreshSignal();
           return {
             message: `Successfully canceled transfer transaction with ID ${transactionId}`,
           };
@@ -1078,11 +1078,12 @@ export class TransferTransactionsService {
             `Canceled transfer transaction ${transactionId} and internal transaction ${transferTransaction.internalTransactionId} and updated stock accordingly`,
             manager,
           );
-          this.sseService.triggerRefreshSignal();
           return {
             message: `Successfully canceled transfer transaction with ID ${transactionId}`,
           };
         }
+
+        this.sseService.triggerRefreshShiftId(checkRefShift.id) ; 
 
         await this.log(
           user,

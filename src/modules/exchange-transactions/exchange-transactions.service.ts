@@ -288,7 +288,7 @@ export class ExchangeTransactionsService {
           result = await executeDbOperations(newManager);
         });
       }
-      this.sseService.triggerRefreshSignal();
+      this.sseService.triggerRefreshBoothShiftId(activeShift.boothId , activeShift.id);
       return {
         message: 'Exchange transaction created successfully',
         data: result,
@@ -721,7 +721,7 @@ export class ExchangeTransactionsService {
           );
         }
       });
-      this.sseService.triggerRefreshSignal();
+      this.sseService.triggerRefreshBoothShiftId(activeShift.boothId , activeShift.id);
       return {
         message: `Exchange transaction with ID: ${param.id} has been set to pending status`,
       };
@@ -755,6 +755,11 @@ export class ExchangeTransactionsService {
     }
 
     try {
+       const exchangeTransaction = await this.getTransactionDetail(
+            currentUser,
+            { id: param.id },
+      );
+
       await this.dataSource.transaction(async (manager) => {
         const exchangeTransRepo = manager.getRepository(ExchangeTransaction);
         const deletedAtValue = body.status === 'VOIDED' ? new Date() : null;
@@ -791,10 +796,6 @@ export class ExchangeTransactionsService {
         }
 
         if (body.status === 'VOIDED') {
-          const exchangeTransaction = await this.getTransactionDetail(
-            currentUser,
-            { id: param.id },
-          );
           const updateStockForCancel: UpdateStockByExchangeTransactionForCancel =
           {
             id: param.id,
@@ -804,8 +805,6 @@ export class ExchangeTransactionsService {
             foreignCurrencyAmount: exchangeTransaction.foreignCurrencyAmount,
             totalthaiBahtAmount: exchangeTransaction.totalthaiBahtAmount,
           };
-          console.log('exchangeTransaction for cancel: ', exchangeTransaction);
-          console.log('updateStockForCancel: ', updateStockForCancel);
           await this.stocksService.updateStockByExchangeTransactionForCancel(
             currentUser,
             updateStockForCancel,
@@ -813,7 +812,7 @@ export class ExchangeTransactionsService {
           );
         }
       });
-      this.sseService.triggerRefreshSignal();
+      this.sseService.triggerRefreshShiftId(exchangeTransaction.shiftId);
       return {
         message: `Exchange transaction with ID: ${param.id} has been set to ${body.status} status`,
       };
