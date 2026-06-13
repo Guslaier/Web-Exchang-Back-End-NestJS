@@ -184,7 +184,7 @@ export class BoothsService {
           FULL OUTER JOIN (
             SELECT * FROM shifts 
             WHERE "startTime" BETWEEN $1 AND $2 AND "deletedAt" IS NULL
-          ) s ON b.id = s."boothId" AND b."currentShiftId" = s."userId"
+          ) s ON b.id = s."boothId" AND b."currentShiftId" = s."userId" and s."deletedAt" is null
           WHERE b."deletedAt" IS NULL
         `;
         params.push(fromDate, toDate);
