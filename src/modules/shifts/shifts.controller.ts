@@ -21,6 +21,7 @@ import {
   GetShiftBoothQuery,
   GetShiftPreviousCashcount,
   GetShiftCurrrentDetails,
+  DeleteShiftParam , 
 } from './dto/shift.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -90,4 +91,15 @@ export class ShiftsController {
   ) {
     return this.shiftsService.updateAuditShift(user, param.id, body);
   }
+
+  @UseGuards(JwtAuthGuard , RolesGuard) 
+  @Roles('ADMIN', 'MANAGER')
+  @Put('delete/:id')
+  deleteShift(
+    @CurrentUser() user : any , 
+    @Param() param : DeleteShiftParam , 
+  ) {
+    return this.shiftsService.softDelete(user , param.id) ; 
+  }
+   
 }

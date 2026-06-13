@@ -483,6 +483,37 @@ export class ShiftsService {
     });
   }
 
+  async softDelete(user : any , id : string , manager ?: EntityManager) {
+
+      const transaction = (manager ? manager : this.dataSource).transaction(async (txManager)=>{
+         // ลบข้อมูล
+        const shiftRepo = txManager.getRepository(Shift) ;
+
+        const updateResult = await shiftRepo.softDelete({id:id , status : Not("COMPLETED")}) ; 
+        
+        // เช็คว่าถูกลบไหม
+ 
+        if(updateResult.affected == 0) {
+          const shift = await shiftRepo.findOne({where:{id : id}}) ; 
+          if (!shift) {
+            await this.log(user , `DELETED_SHIFT_FAILED` , `shift id : ${id} not found in database.` , txManager) ; 
+            throw new NotFoundException('Deleted Failed Shift Not Found In Database.') ;
+          } 
+          await this.log(user , `DELETED_SHIFT_FAILED` , `shift id : ${id} is already COMPLETED.` , txManager) ; 
+          throw new ConflictException('COMPLETED Shift cannot be deleted.') ;
+        } 
+
+        await this.log(user , `DELETED_SHIFT_SUCCESS` , `shift id : ${id} has been deleted in database.` , txManager) ; 
+
+      }) ;
+      try {
+        return await transaction ; 
+      }
+      catch(err) {
+        handleError(err , 'Deleted Shift') ; 
+      }
+  }
+
   private async saveCalculatedPerformance(
     manager: EntityManager,
     userId: string,

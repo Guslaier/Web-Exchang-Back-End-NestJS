@@ -75,6 +75,12 @@ export class QueryShiftId {
   shiftId: string;
 }
 
+export class DeleteShiftParam implements Pick<ShiftData, 'id'> {
+  @IsUUID()
+  @IsNotEmpty()
+  id: string;
+}
+
 export class UserIdDto implements Pick<ShiftData, 'userId'> {
   @IsUUID()
   @IsOptional()
