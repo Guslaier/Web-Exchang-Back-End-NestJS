@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsDateString,
   IsDate,
+  IsBoolean , 
   IsNumber,
   IsUUID,
   min,
@@ -11,9 +12,10 @@ import {
   IsObject,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type , Transform } from 'class-transformer';
 import type { ShiftData, BoothData } from './../../../types/index';
 import { CashCountItemArrayDto } from './../../cash-counts/dto/cash-count.dto';
+import { BlobOptions } from 'buffer';
 
 export class CreateShiftDto {
   @IsString()
@@ -91,6 +93,11 @@ export class BoothIdDto implements Pick<ShiftData, 'boothId'> {
   @IsUUID()
   @IsNotEmpty()
   boothId: string;
+
+  @IsBoolean()
+  @IsOptional()
+  @Transform(({value}) => value == true)
+  tomorrow ?: boolean ; 
 }
 
 export class ShiftIdDto implements Pick<ShiftData, 'id'> {

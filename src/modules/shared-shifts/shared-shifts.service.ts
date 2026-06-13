@@ -10,6 +10,7 @@ import { Repository, EntityManager, Between } from 'typeorm';
 import { Shift } from '../shifts/entities/shift.entity';
 import { Booth } from '../booths/entities/booth.entity';
 import { SystemLogsService } from '../system-logs/system-logs.service';
+import { BoothIdDto} from '../shifts/dto/shift.dto' ;
 import { SseService } from '../sse/sse.service';
 import { isUUID } from 'class-validator';
 import { handleError } from '../../common/error/error';
@@ -180,7 +181,7 @@ export class SharedShiftsService {
   async openShift(
     manager: EntityManager,
     currentUser: any,
-    body: { boothId: string }
+    body: { boothId: string  , tomorrow ?: boolean}
   ) {
     const boothId = body.boothId;
     const boothRepo = manager.getRepository(Booth);
@@ -216,6 +217,7 @@ export class SharedShiftsService {
           boothData.currentShiftId as string,
           boothId,
           manager,
+          body.tomorrow ? false : true , 
         );
       } catch (err) {
         handleError(err, 'SharedShiftsService.openShift');
@@ -248,6 +250,12 @@ export class SharedShiftsService {
             false,
           );
         }
+
+        if (body.tomorrow) {
+          await this.log(currentUser , 'OPEN_SHIFT_FAILED' , `There still shift running on booth ${body.boothId}.` , manager) ;
+          throw new ConflictException('There still running shift today.') ; 
+        }
+    
         return await this.setStatusToOpen(
           currentUser,
           shiftData.id,
@@ -278,6 +286,7 @@ export class SharedShiftsService {
           boothData.currentShiftId as string,
           boothId,
           manager,
+          body.tomorrow ? false : true ,
         );
       } catch (err) {
         handleError(err, 'SharedShiftsService.openShift');
