@@ -30,6 +30,7 @@ import { SharedShiftsService } from '../shared-shifts/shared-shifts.service';
 import { StocksService } from '../stocks/stocks.service';
 import Redis from 'ioredis';
 import { Stock } from '../stocks/entities/stocks.entitiy';
+import { Transaction } from '../transactions/entities/transaction.entity';
 
 @Injectable()
 export class BoothsService {
@@ -186,6 +187,7 @@ export class BoothsService {
             WHERE "startTime" BETWEEN $1 AND $2 AND "deletedAt" IS NULL
           ) s ON b.id = s."boothId" AND b."currentShiftId" = s."userId" and s."deletedAt" is null
           WHERE b."deletedAt" IS NULL
+          ORDER BY b.name ASC
         `;
         params.push(fromDate, toDate);
       } else {
@@ -195,6 +197,7 @@ export class BoothsService {
           FULL OUTER JOIN shifts s 
             ON b.id = s."boothId" AND b."currentShiftId" = s."userId" AND s."deletedAt" IS NULL
           WHERE b."deletedAt" IS NULL
+          ORDER BY b.name ASC
         `;
       }
 
@@ -385,7 +388,31 @@ export class BoothsService {
 
           // ปิดกะเก่า
           if (oldShift) {
-            await this.sharedShiftsService.setStatusToCLose(manager, user, { id: oldShift.id });
+            const firstCashCount = await manager.getRepository(Transaction).findOne({
+              where: {
+                shiftId: oldShift.id,
+                type: 'FIRST_SHIFT_CASH_COUNT' as any,
+              },
+            });
+
+            if (!firstCashCount) {
+              await this.tranferService.runCreateFirstShiftCashCount(
+                user,
+                {
+                  transferDto: {
+                    boothId: boothId,
+                    amount: 0,
+                    type: 'CASH_IN',
+                    status: 'COMPLETED',
+                  },
+                  cashCountDto: [{ denominations: '1', amounts: 0 }],
+                },
+                manager,
+              );
+            }
+
+            await manager.getRepository(Shift).update(oldShift.id, { status: 'AWAITINGAUDIT', endTime: new Date() });
+            this.sseService.triggerRefreshShiftId(oldShift.id);
           }
 
           // อัปเดตพนักงานใหม่ให้กับบูธ
@@ -517,10 +544,10 @@ export class BoothsService {
           await this.log(
             user,
             'ASSIGN_SHIFT_FAILED',
-            `Worker ${shiftId} already at Booth: ${otherBooth.id}`,
+            `Worker ${worker.username} (${shiftId}) already at Booth: ${otherBooth.name} (${otherBooth.id})`,
             manager,
           );
-          throw new ConflictException('Worker already at another booth');
+          throw new ConflictException(`Worker ${worker.username} already at Booth: ${otherBooth.name}`);
         }
 
         // อัปเดตพนักงานใหม่ให้กับบูธโดยตรง
@@ -529,7 +556,7 @@ export class BoothsService {
         await this.log(
           user,
           'ASSIGN_SHIFT_SUCCESS',
-          `Worker ${shiftId} -> Booth ${id}`,
+          `Worker ${worker.username} (${shiftId}) -> Booth ${booth.name} (${id})`,
           manager,
         );
         this.sseService.triggerRefreshSignal();
@@ -563,7 +590,6 @@ export class BoothsService {
     const booth = await this.boothRepository.findOne({
       where: { currentShiftId: user.id },
     });
-    console.log(booth);
     return {
       booth,
       shift,

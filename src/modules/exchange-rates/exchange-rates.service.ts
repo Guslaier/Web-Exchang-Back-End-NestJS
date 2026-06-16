@@ -31,7 +31,7 @@ export class ExchangeRatesService {
     private readonly exclusiveRateService: ExclusiveExchangeRatesService,
     @Inject(SseService)
     private readonly sseService: SseService,
-  ) {}
+  ) { }
 
   // บันทึก Log ลง Database
   private async log(
@@ -145,30 +145,24 @@ export class ExchangeRatesService {
     const repo = manager.getRepository(ExchangeRate);
     const subRates = await repo.find({ where: { currencyId: currency.id } });
     if (currency.code === 'USD')
-      console.log(
-        `Found ${subRates.length} sub-rates for currency ${currency.code} buy_rate: ${currency.buyRate} sell_rate: ${currency.sellRate}`,
-      );
-    for (const subRate of subRates) {
-      subRate.buy_rate = await this.MathjsFormula(
-        subRate.formula_buy,
-        currency.buyRate,
-      );
-      subRate.sell_rate = await this.MathjsFormula(
-        subRate.formula_sell,
-        currency.sellRate,
-      );
-      const updated = await repo.save(subRate);
-      if (updated.name === 'USD')
-        console.log(
-          `Updated sub-rate ${updated.name} for currency ${currency.code}: buy_rate=${updated.buy_rate}, sell_rate=${updated.sell_rate}`,
+      for (const subRate of subRates) {
+        subRate.buy_rate = await this.MathjsFormula(
+          subRate.formula_buy,
+          currency.buyRate,
         );
-      await this.exclusiveRateService.updateByExchangeRate(manager, updated); // อัปเดตเรทลูกใน Exclusive ด้วย
-      await this.log(
-        null,
-        'UPDATE_RATE_SUCCESS',
-        `Name:"${updated.name}" = buy: ${updated.buy_rate} sell: ${updated.sell_rate} id: ${updated.id}`,
-      );
-    }
+        subRate.sell_rate = await this.MathjsFormula(
+          subRate.formula_sell,
+          currency.sellRate,
+        );
+        const updated = await repo.save(subRate);
+        if (updated.name === 'USD')
+          await this.exclusiveRateService.updateByExchangeRate(manager, updated); // อัปเดตเรทลูกใน Exclusive ด้วย
+        await this.log(
+          null,
+          'UPDATE_RATE_SUCCESS',
+          `Name:"${updated.name}" = buy: ${updated.buy_rate} sell: ${updated.sell_rate} id: ${updated.id}`,
+        );
+      }
   }
 
   // อัปเดตเรททั้งหมดในระบบ (Bulk Sync)
@@ -192,7 +186,6 @@ export class ExchangeRatesService {
     user: any,
     updates: any[], // รับ Flat Array มาเลย
   ): Promise<{ success: boolean; message: string; details?: any }> {
-    console.log('Processing bulk update request:', updates);
     try {
       return this.dataSource.transaction(async (manager) => {
         const results = [];

@@ -19,7 +19,7 @@ export class SystemLogsService {
   constructor(
     @InjectRepository(SystemLog)
     private readonly systemLogRepo: Repository<SystemLog>,
-  ) {}
+  ) { }
 
   async createLog(
     currentUser: any,
@@ -50,9 +50,9 @@ export class SystemLogsService {
 
     console.log(
       `${colors.cyan}[APPLOG] ${timestamp}${colors.reset} : ` +
-        `${actionColor}${colors.bright}${log.action}${colors.reset} - ` +
-        `${details} - ` +
-        `${colors.bright}By User: ${executorId}${colors.reset}`,
+      `${actionColor}${colors.bright}${log.action}${colors.reset} - ` +
+      `${details} - ` +
+      `${colors.bright}By User: ${executorId}${colors.reset}`,
     );
 
     const repo = manager

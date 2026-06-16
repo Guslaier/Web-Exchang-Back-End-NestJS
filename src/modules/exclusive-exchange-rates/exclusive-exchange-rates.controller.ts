@@ -25,8 +25,10 @@ import { ConfirmReviewDto } from './dto/exclusive-exchange-rate.dto';
 export class ExclusiveExchangeRatesController {
   constructor(
     private readonly exclusiveExchangeRatesService: ExclusiveExchangeRatesService,
-  ) {}
+  ) { }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER', 'ADMIN')
   @Patch(':id')
   async updateExclusiveRate(
     @Param('id') id: number,
@@ -48,13 +50,21 @@ export class ExclusiveExchangeRatesController {
   ) {
     return await this.exclusiveExchangeRatesService.updateBulkByIDs(user, data);
   }
-
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Get('booth/:boothId')
   @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   async getByBooth(@Param('boothId') boothId: string) {
     return await this.exclusiveExchangeRatesService.findByBooth(boothId);
   }
 
+
+  @Get('public/booth/:boothId')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
+  async getPublicByBooth(@Param('boothId') boothId: string) {
+    return await this.exclusiveExchangeRatesService.findPublicByBooth(boothId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Get('exchange-rate/:exchangeRateId')
   @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   async getByExchangeRate(@Param('exchangeRateId') exchangeRateId: string) {

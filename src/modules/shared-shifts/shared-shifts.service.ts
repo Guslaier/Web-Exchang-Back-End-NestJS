@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, EntityManager, Between } from 'typeorm';
 import { Shift } from '../shifts/entities/shift.entity';
 import { Booth } from '../booths/entities/booth.entity';
+import { User } from '../users/entities/user.entity';
 import { SystemLogsService } from '../system-logs/system-logs.service';
 import { BoothIdDto} from '../shifts/dto/shift.dto' ;
 import { SseService } from '../sse/sse.service';
@@ -118,7 +119,7 @@ export class SharedShiftsService {
         0,
         0,
       );
-    const status = today ? 'OPEN' : 'CLOSE';
+    const status = 'CLOSE';
     const row = shiftRepo.create({
       userId: userId,
       boothId: boothId,
@@ -128,10 +129,13 @@ export class SharedShiftsService {
 
     try {
       const savedShift = await shiftRepo.save(row);
+      const shiftData = await shiftRepo.findOne({ where: { id: savedShift.id }, relations: ['user', 'booth'] });
+      const boothName = shiftData?.booth?.name || 'Unknown Booth';
+      const userName = shiftData?.user?.username || 'Unknown User';
       await this.log(
         currentUser,
         'OPEN_SHIFT_SUCCESS',
-        `Shift id : ${savedShift.id} was opened by User id : ${currentUser.id}`,
+        `Shift at ${boothName} (Booth ID: ${boothId}) was opened by ${userName} (User ID: ${userId}) (Shift ID: ${savedShift.id})`,
         manager,
       );
       this.sseService.triggerRefreshBoothShiftId(boothId, savedShift.id);
@@ -159,19 +163,23 @@ export class SharedShiftsService {
     const shiftRepo = manager.getRepository(Shift);
     const updateResult = await shiftRepo.update({ id: id }, { status: 'OPEN' });
     if (updateResult.affected == 0) {
+      const shiftData = await shiftRepo.findOne({ where: { id }, relations: ['booth'] });
+      const boothName = shiftData?.booth?.name || 'Unknown Booth';
       await this.log(
         currentUser,
         'OPEN_SHIFT_FAILED',
-        `Can't set status Shift id : ${id} to OPEN.`,
+        `Can't set status for shift at ${boothName} (Shift ID: ${id}) to OPEN.`,
         manager,
       );
-      throw new NotFoundException(`Can't set status Shift id : ${id} to OPEN.`);
+      throw new NotFoundException(`Can't set status for shift at ${boothName} to OPEN.`);
     }
 
+    const shiftData = await shiftRepo.findOne({ where: { id }, relations: ['booth'] });
+    const boothName = shiftData?.booth?.name || 'Unknown Booth';
     await this.log(
       currentUser,
       'OPEN_SHIFT_SUCCESS',
-      `Update shift id : ${id} from ${previousStatus} to OPEN`,
+      `Update shift at ${boothName} (Shift ID: ${id}) from ${previousStatus} to OPEN`,
       manager,
     );
     this.sseService.triggerRefreshShiftId(id);
@@ -233,11 +241,11 @@ export class SharedShiftsService {
           await this.log(
             currentUser,
             'OPEN_SHIFT_FAILED',
-            `Tomorrow shift is alreay created. This Booth id : ${boothId} can't open shift anymore.`,
+            `Tomorrow shift is alreay created. This Booth ${boothData.name} (Booth ID: ${boothId}) can't open shift anymore.`,
             manager,
           );
           throw new ConflictException(
-            `Tomorrow shift is alreay created. This Booth id : ${boothId} can't open shift anymore.`,
+            `Tomorrow shift is alreay created. This Booth ${boothData.name} can't open shift anymore.`,
           );
         }
 
@@ -252,8 +260,8 @@ export class SharedShiftsService {
         }
 
         if (body.tomorrow) {
-          await this.log(currentUser , 'OPEN_SHIFT_FAILED' , `There still shift running on booth ${body.boothId}.` , manager) ;
-          throw new ConflictException('There still running shift today.') ; 
+          await this.log(currentUser , 'OPEN_SHIFT_FAILED' , `There still shift running on booth ${boothData.name} (Booth ID: ${body.boothId}).` , manager) ;
+          throw new ConflictException(`There still shift running on booth ${boothData.name}.`) ; 
         }
     
         return await this.setStatusToOpen(
@@ -269,14 +277,18 @@ export class SharedShiftsService {
 
     if (shiftData?.userId !== boothData?.currentShiftId) {
       if (shiftData.status === 'OPEN') {
+        const lastUser = await manager.getRepository(User).findOne({ where: { id: shiftData.userId }});
+        const dateStr = shiftData.startTime.toISOString().split('T')[0];
+        const formattedShiftId = `(${boothData.name}+${lastUser?.username || 'Unknown'}+${dateStr})`;
+
         await this.log(
           currentUser,
           'OPEN_SHIFT_FAILED',
-          `Last shift id : ${shiftData.id} is still open.`,
+          `Last shift id : ${shiftData.id} ${formattedShiftId} is still open.`,
           manager,
         );
         throw new ConflictException(
-          `Last shift id : ${shiftData.id} is still open. Pleast close or audit it first.`,
+          `Last shift id : ${formattedShiftId} is still open. Pleast close or audit it first.`,
         );
       }
 
@@ -325,13 +337,18 @@ export class SharedShiftsService {
     }
 
     if (shiftData.status === 'COMPLETED') {
+      const boothName = shiftData.boothId ? (await manager.getRepository(Booth).findOne({ where: { id: shiftData.boothId } }))?.name || 'Unknown' : 'Unknown';
+      const userName = shiftData.userId ? (await manager.getRepository(User).findOne({ where: { id: shiftData.userId } }))?.username || 'Unknown' : 'Unknown';
+      const dateStr = shiftData.startTime.toISOString().split('T')[0];
+      const formattedShiftId = `(${boothName}+${userName}+${dateStr})`;
+
       await this.log(
         currentUser,
         'CLOSE_SHIFT_FAILED',
-        `This shift id : ${shiftData.id} is already completed. can't be open or close anymore.`,
+        `This shift id : ${shiftData.id} ${formattedShiftId} is already completed. can't be open or close anymore.`,
         manager,
       );
-      throw new ConflictException('This shift id is already completed.');
+      throw new ConflictException(`This shift id : ${formattedShiftId} is already completed.`);
     }
 
     try {

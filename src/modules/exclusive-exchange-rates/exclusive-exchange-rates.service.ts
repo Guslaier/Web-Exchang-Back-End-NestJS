@@ -59,16 +59,15 @@ export class ExclusiveExchangeRatesService {
   ): Promise<void> {
     const repo = manager.getRepository(ExclusiveExchangeRate);
 
-    const boothIds = await manager
+    const booths = await manager
       .getRepository(Booth)
-      .find({ select: ['id'] })
-      .then((booths) => booths.map((b) => b.id));
+      .find({ select: ['id', 'name'] });
 
     try {
-      for (const boothId of boothIds) {
+      for (const booth of booths) {
         const exclusive = repo.create({
           exchange_rate_id: exchangeRate.id,
-          booth_id: boothId as unknown as string,
+          booth_id: booth.id as unknown as string,
           formula_buy: 'BUY',
           formula_buy_max: `BUY + (SELL - BUY) * ${process.env.DEFAULT_MAX_RATE_EXCLUSIVE_PERCENTAGE ? parseFloat(process.env.DEFAULT_MAX_RATE_EXCLUSIVE_PERCENTAGE) / 100 : 0.02}`,
           buy_rate: exchangeRate.buy_rate,
@@ -85,7 +84,7 @@ export class ExclusiveExchangeRatesService {
         await this.log(
           null,
           'CREATE_EXCLUSIVE_SUCCESS',
-          `Created exclusive rate for rate ID: ${exchangeRate.id} at booth: ${boothId}`,
+          `Created exclusive rate for currency ${exchangeRate.name} (ID: ${exchangeRate.id}) at booth ${booth.name} (ID: ${booth.id})`,
           manager,
         );
       }
@@ -110,6 +109,9 @@ export class ExclusiveExchangeRatesService {
     const exclusiveRepo = manager.getRepository(ExclusiveExchangeRate);
 
     try {
+      const booth = await manager.getRepository(Booth).findOne({ where: { id: boothId } });
+      const boothName = booth ? booth.name : 'Unknown';
+
       const allBaseRates = await exchangeRateRepo.find();
       const exclusiveEntries = allBaseRates.map((base) => {
         return exclusiveRepo.create({
@@ -134,7 +136,7 @@ export class ExclusiveExchangeRatesService {
         await this.log(
           user,
           'GENERATE_EXCLUSIVE_BOOTH_SUCCESS',
-          `Generated ${exclusiveEntries.length} rates for booth ID: ${boothId}`,
+          `Generated ${exclusiveEntries.length} rates for booth ${boothName} (ID: ${boothId})`,
           manager,
         );
       }
@@ -160,7 +162,7 @@ export class ExclusiveExchangeRatesService {
       await this.log(
         null,
         'DELETE_EXCLUSIVE_SUCCESS',
-        `Soft deleted exclusive rates for rate ID: ${exchangeRateId}`,
+        `Soft deleted exclusive rates for currency ID: ${exchangeRateId}`,
         manager,
       );
     } catch (err: any) {
@@ -201,7 +203,7 @@ export class ExclusiveExchangeRatesService {
       await this.log(
         null,
         'UPDATE_BY_MASTER_SUCCESS',
-        `Updated all exclusives for master rate ID: ${exchangeRate.id}`,
+        `Updated all exclusives for master currency ${exchangeRate.name} (ID: ${exchangeRate.id})`,
         manager,
       );
     } catch (err: any) {
@@ -412,7 +414,7 @@ export class ExclusiveExchangeRatesService {
     }
     const target = await repo.findOne({
       where: { id },
-      relations: ['exchangeRate'],
+      relations: ['exchangeRate', 'booth'],
     });
 
     if (!target) {
@@ -472,7 +474,7 @@ export class ExclusiveExchangeRatesService {
     await this.log(
       user,
       'UPDATE_EXCLUSIVE_SUCCESS',
-      `Updated ID: ${id} | Result: ${saved.buy_rate} < ${saved.buy_rate_max} < ${baseSellRate}`,
+      `Updated exclusive rate for ${target.exchangeRate.name} at booth ${target.booth?.name} (ID: ${id}) | Result: ${saved.buy_rate} < ${saved.buy_rate_max} < ${baseSellRate}`,
       manager,
     );
 
@@ -654,6 +656,32 @@ export class ExclusiveExchangeRatesService {
       base_sell_rate: rate.exchangeRate.sell_rate,
       sync_status: rate.sync_status,
       is_reviewed: rate.is_reviewed,
+    }));
+  }
+
+  // // ค้นหาเรทสำหรับ public (จอแสดงผล) ที่ตัดสูตรและความลับออก
+  async findPublicByBooth(boothId: string) {
+    const booth = await this.boothRepo.findOne({ where: { id: boothId } });
+    if (!booth) {
+      throw new NotFoundException('Booth not found');
+    }
+
+    const rates = await this.exclusiveRateRepo.find({
+      where: { booth_id: boothId },
+      relations: ['exchangeRate'],
+    });
+
+    return rates.map((rate) => ({
+      id: rate.id,
+      exchange_rate_id: rate.exchange_rate_id,
+      booth_id: booth.id,
+      booth_name: booth.name,
+      name: rate.exchangeRate.name,
+      range_start: rate.exchangeRate.range_start,
+      range_stop: rate.exchangeRate.range_stop,
+      buy_rate: rate.buy_rate,
+      base_buy_rate: rate.exchangeRate.buy_rate,
+      base_sell_rate: rate.exchangeRate.sell_rate,
     }));
   }
 

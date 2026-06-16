@@ -48,7 +48,6 @@ export class ExchangeRatesController {
     @CurrentUser() user: any,
     @Body('updates') updates: Partial<ExchangeRate>[],
   ) {
-    console.log('Received bulk update request in controller:', updates);
     return await this.exchangeRatesService.Mutiupdate(user, updates);
   }
 

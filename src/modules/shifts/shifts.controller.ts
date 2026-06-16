@@ -41,6 +41,20 @@ export class ShiftsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MANAGER')
+  @Get('dashboard')
+  getDashboardSummary(@Query() query: QueryDateDto) {
+    return this.shiftsService.getShiftDashboardSummary(query);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Get('unresolved-previous')
+  getUnresolvedPreviousShiftsCount() {
+    return this.shiftsService.getUnresolvedPreviousShiftsCount();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
   @Get()
   findShifts(@Query() query: QueryDateDto) {
     return this.shiftsService.getShifts(query);

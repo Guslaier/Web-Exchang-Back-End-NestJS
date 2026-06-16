@@ -16,6 +16,7 @@ export type TransferTransactionType =
   | 'TRANSFER_IN'
   | 'TRANSFER_OUT'; // สำหรับการโอนเงินระหว่างสาขา
 export type TranType = 'BUY' | 'SELL'; // อิงตาม Database
+export type ShiftStatus = 'OPEN' | 'CLOSE' | 'COMPLETED' | 'AWAITINGAUDIT'; // สถานะของกะ
 
 //== User Interfaces ==//
 export interface UserData {
@@ -57,6 +58,7 @@ export interface ShiftData {
   cashAdvance: number; // cash_advance
   createdAt: Date; // created_at
   updatedAt: Date; // updated_at
+  status: ShiftStatus;
 }
 
 export class ShiftDetail {
@@ -66,7 +68,7 @@ export class ShiftDetail {
   username: string | null = null;
   location: string | null = '';
   isActive: boolean = true;
-  status: string | null = '';
+  status: ShiftStatus | null = null;
   cashcount: CashCountInput[] = [];
   tranfer: Tranfersum[] = [];
   exchange: ExchangeSum[] = [];
@@ -89,7 +91,7 @@ export class ShiftDetail {
 
   setShiftData(
     id: string,
-    status: string,
+    status: ShiftStatus,
     cash_advance: number | null,
     balance_check: number | null,
   ) {

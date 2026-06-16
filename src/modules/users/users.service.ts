@@ -137,7 +137,7 @@ export class UsersService {
             await this.log(
               currentUser,
               'UPDATE_USER_FAILED',
-              `Cannot change own role: ${id}`,
+              `Cannot change own role: ${existingUser.username} (ID: ${id})`,
               manager,
             );
             throw new ForbiddenException('Cannot change own role');
@@ -157,7 +157,7 @@ export class UsersService {
             await this.log(
               currentUser,
               'UPDATE_USER_FAILED',
-              `Cannot demote the only admin: ${id}`,
+              `Cannot demote the only admin: ${existingUser.username} (ID: ${id})`,
               manager,
             );
             throw new ForbiddenException('Cannot demote the only admin');
@@ -170,7 +170,7 @@ export class UsersService {
           await this.log(
             currentUser,
             'UPDATE_USER_FAILED',
-            `Manager can only update employee: ${id}`,
+            `Manager can only update employee: ${existingUser.username} (ID: ${id})`,
             manager,
           );
           throw new ForbiddenException('Manager can only update employee');
@@ -200,7 +200,7 @@ export class UsersService {
         await this.log(
           currentUser,
           'UPDATE_USER_SUCCESS',
-          `Updated user ID: ${id}`,
+          `Updated user ${existingUser.username} (ID: ${id})`,
           manager,
         );
 
@@ -260,7 +260,7 @@ export class UsersService {
           await this.log(
             currentUser,
             'DELETE_USER_FAILED',
-            `Cannot delete yourself: ${id}`,
+            `Cannot delete yourself: ${user.username} (ID: ${id})`,
             manager,
           );
           throw new ForbiddenException('Cannot delete yourself');
@@ -276,7 +276,7 @@ export class UsersService {
           await this.log(
             currentUser,
             'DELETE_USER_FAILED',
-            `Delete failed for user ID: ${id}`,
+            `Delete failed for user ${user.username} (ID: ${id})`,
             manager,
           );
           throw new BadRequestException('Delete failed');
@@ -333,7 +333,7 @@ export class UsersService {
           await this.log(
             currentUser,
             'DEACTIVATE_USER_FAILED',
-            `Cannot deactivate admin: ${id}`,
+            `Cannot deactivate admin: ${user.username} (ID: ${id})`,
             manager,
           );
           throw new ForbiddenException('Cannot deactivate admin');
@@ -345,7 +345,7 @@ export class UsersService {
         await this.log(
           currentUser,
           'DEACTIVATE_USER_SUCCESS',
-          `Deactivated: ${id}`,
+          `Deactivated: ${user.username} (ID: ${id})`,
           manager,
         );
         return { message: 'User deactivated successfully' };
@@ -375,7 +375,7 @@ export class UsersService {
         await this.log(
           currentUser,
           'REACTIVATE_USER_SUCCESS',
-          `Reactivated: ${id}`,
+          `Reactivated: ${user.username} (ID: ${id})`,
           manager,
         );
         return { message: 'User reactivated successfully' };
@@ -537,7 +537,7 @@ export class UsersService {
       where: { id },
       select: ['id', 'email', 'username', 'role', 'phoneNumber', 'isActive'],
     });
-    if (!user) throw new NotFoundException(`User ID ${id} not found`);
+    if (!user) throw new NotFoundException('User not found');
     return user;
   }
 
