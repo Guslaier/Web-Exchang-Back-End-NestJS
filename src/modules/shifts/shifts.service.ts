@@ -134,32 +134,21 @@ export class ShiftsService {
   // read
 
   async getShifts(query: QueryDateDto) {
-    if (!query.startDate || !query.endDate) {
-      throw new BadRequestException('Specific range date required.');
-    }
-
-    const start = new Date(query.startDate);
-    const end = new Date(query.endDate);
-
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      throw new BadRequestException(
-        'StartDate or EndDate in not in Date from.',
-      );
-    }
-
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
+    query.startDate.setHours(0,0,0,0) ; 
+    query.endDate.setHours(23,59,59,9999) ; 
 
     try {
-      return await this.shiftRepository.query(
-        `select id , "boothId" , "userId" , total_receive , total_exchange , balance , status , "startTime" 
-                from shifts   
-                where ("startTime" between  $1 and $2)
-                order by "startTime" asc`,
-        [start, end],
-      );
+      const shifts = await this.shiftRepository.query(`
+          select s.id , s."boothId" , s."userId" , s."startTime" , s."endTime" , s.status , s.cash_advance , s.balance_check , b.name as boothname , u.username as username
+          from shifts s 
+          left join booths b on s."boothId" = b.id
+          left join users u on s."userId" = u.id 
+          where s."deletedAt" is null and s."startTime" between $1 and $2 
+        `,[query.startDate , query.endDate]) ; 
+
+      return shifts ; 
     } catch (err) {
-      throw new InternalServerErrorException('Internal Server Error');
+      handleError(err , 'Get Shifts Error') ; 
     }
   }
 

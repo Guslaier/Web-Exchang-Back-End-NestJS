@@ -20,6 +20,7 @@ import {
   SetStatusDto,
   SetStatusToPendingBodyDto,
   SetStatusToApproveBodyDto,
+  GetExchangeTransactionsByDateRangeDto,
 } from './dto/exchange-transaction.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -27,6 +28,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { customerStorage } from '../../config/diskStorage';
+import { DateRangeExchangeTransaction } from '../../types';
 
 @Controller('exchange-transactions')
 export class ExchangeTransactionsController {
@@ -131,6 +133,31 @@ export class ExchangeTransactionsController {
     return this.exchangeTransactionsService.getTransactionDetail(
       currentUser,
       query,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Get('date-range')
+  getExchangeTransactionsByDateRange(
+    @Query() query: GetExchangeTransactionsByDateRangeDto,
+  ): Promise<DateRangeExchangeTransaction[]> {
+    return this.exchangeTransactionsService.getExchangeTransactionsByDateRange(
+      query.from,
+      query.to,
+      query.page,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Get('date-range/count')
+  countExchangeTransactionsByDateRange(
+    @Query() query: GetExchangeTransactionsByDateRangeDto,
+  ): Promise<number> {
+    return this.exchangeTransactionsService.countExchangeTransactionsByDateRange(
+      query.from,
+      query.to,
     );
   }
 

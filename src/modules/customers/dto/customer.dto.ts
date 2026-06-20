@@ -1,6 +1,5 @@
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, IsUUID } from 'class-validator';
 import { CustomerData } from './../../../types/index';
-import { im } from 'mathjs';
 
 export class CreateCustomerDto implements Pick<
   CustomerData,
@@ -19,8 +18,14 @@ export class CreateCustomerDto implements Pick<
   passportNumber: string;
 }
 
-export class GetImgDto implements Pick<CustomerData, 'passportImg'> {
-  @IsString()
+export class GetCustomerDto {
+  @IsUUID()
   @IsNotEmpty()
-  passportImg: string;
+  id: string;
+}
+
+export class GetImgDto {
+  @IsUUID()
+  @IsNotEmpty()
+  id: string;
 }

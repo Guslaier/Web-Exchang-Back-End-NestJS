@@ -32,7 +32,7 @@ import { UpdateStockByTransferTransactionForCancel } from '../stocks/dto/stocks.
 import { handleError } from '../../common/error/error';
 import { SseService } from '../sse/sse.service';
 import { CreateCashCountDto } from '../cash-counts/dto/cash-count.dto';
-import { TranSectionType, TranStatus } from 'index';
+import { TranSectionType, TranStatus, PaginatedTransferTransaction } from 'index';
 import { CashCountsService } from '../cash-counts/cash-counts.service';
 import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
 import { ShiftsService } from '../shifts/shifts.service';
@@ -1444,6 +1444,104 @@ export class TransferTransactionsService {
     } catch (error) {
       throw new BadRequestException(
         `Failed to get transfer transactions for date range ${startDate} - ${endDate}`,
+      );
+    }
+  }
+
+  async getTransferTransactionsByDateRangePaginated(from: Date, to: Date, page?: number): Promise<PaginatedTransferTransaction[]> {
+    try {
+      const pageNum = page && page > 0 ? page : 1;
+      const limit = 20;
+      const offset = (pageNum - 1) * limit;
+
+      const start = new Date(from);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(to);
+      end.setHours(23, 59, 59, 999);
+
+      const rows = await this.dataSource.query(
+        `
+        SELECT 
+          tt.id AS "id",
+          tt.user_id AS "userId",
+          creator.username AS "managerName",
+          tt.exchange_rate_id AS "exchangeRateId",
+          tt."exchangeRateName" AS "exchangeRateName",
+          tt.internal_transaction_id AS "internalTransactionId",
+          tt.amount AS "amount",
+          tt.type AS "type",
+          tt.status AS "status",
+          tt.shift_id AS "shiftId",
+          u.username AS "employeeName",
+          b.id AS "boothId",
+          b.name AS "boothName",
+          tt.refshift_id AS "refShiftId",
+          ru.username AS "refEmployeeName",
+          rb.id AS "refBoothId",
+          rb.name AS "refBoothName",
+          tt."createdAt" AS "createdAt"
+        FROM transfer_transactions tt
+        LEFT JOIN users creator ON tt.user_id = creator.id
+        LEFT JOIN shifts s ON tt.shift_id = s.id
+        LEFT JOIN users u ON s."userId" = u.id
+        LEFT JOIN booths b ON s."boothId" = b.id
+        LEFT JOIN shifts rs ON tt.refshift_id = rs.id
+        LEFT JOIN users ru ON rs."userId" = ru.id
+        LEFT JOIN booths rb ON rs."boothId" = rb.id
+        WHERE tt."createdAt" BETWEEN $1 AND $2 
+        ORDER BY tt."createdAt" DESC
+        LIMIT $3 OFFSET $4
+        `,
+        [start, end, limit, offset],
+      );
+
+      return rows.map((row : any) => ({
+        id: row.id,
+        userId: row.userId,
+        managerName: row.managerName,
+        exchangeRateId: row.exchangeRateId,
+        exchangeRateName: row.exchangeRateName,
+        internalTransactionId: row.internalTransactionId,
+        amount: row.amount !== null ? Number(row.amount) : null,
+        type: row.type,
+        status: row.status,
+        shiftId: row.shiftId,
+        employeeName: row.employeeName,
+        boothId: row.boothId,
+        boothName: row.boothName,
+        refShiftId: row.refShiftId,
+        refEmployeeName: row.refEmployeeName,
+        refBoothId: row.refBoothId,
+        refBoothName: row.refBoothName,
+        createdAt: row.createdAt,
+      }));
+    } catch (error) {
+      throw new BadRequestException(
+        `Failed to get transfer transactions for date range paginated ${from} - ${to}. Error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  async countTransferTransactionsByDateRange(from: Date, to: Date): Promise<number> {
+    try {
+      const start = new Date(from);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(to);
+      end.setHours(23, 59, 59, 999);
+
+      const result = await this.dataSource.query(
+        `
+        SELECT COUNT(*)::int AS "count"
+        FROM transfer_transactions tt
+        WHERE tt."createdAt" BETWEEN $1 AND $2
+        `,
+        [start, end],
+      );
+
+      return result[0]?.count ?? 0;
+    } catch (error) {
+      throw new BadRequestException(
+        `Failed to count transfer transactions for date range ${from} - ${to}. Error: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }

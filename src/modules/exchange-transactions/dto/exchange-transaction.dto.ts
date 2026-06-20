@@ -130,3 +130,22 @@ export class SetStatusToApproveBodyDto implements Pick<
   @IsNotEmpty()
   status: TranStatus;
 }
+
+export class GetExchangeTransactionsByDateRangeDto {
+  @IsDate()
+  @Type(() => Date)
+  @IsNotEmpty()
+  from: Date;
+
+  @IsDate()
+  @Type(() => Date)
+  @IsNotEmpty()
+  to: Date;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  @Min(1)
+  page?: number;
+}
+

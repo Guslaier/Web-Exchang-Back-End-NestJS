@@ -11,6 +11,7 @@ import {
   Headers,
   Inject,
   Header,
+  Query,
 } from '@nestjs/common';
 import { TransferTransactionsService } from './transfer-transactions.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -23,11 +24,13 @@ import {
   TransferBoothToBoothDto,
   TransferCenterToBoothDto,
   UpdateTransferTransactionDto,
+  GetTransferTransactionsByDateRangeDto,
 } from './dto/transfer-transaction.dto';
 import { get } from 'http';
 import { CurrenciesService } from '../currencies/currencies.service';
 import { In, ReadPreference } from 'typeorm';
 import { CashCountsService } from '../cash-counts/cash-counts.service';
+import { PaginatedTransferTransaction } from 'index';
 
 @Controller('transfer-transactions')
 export class TransferTransactionsController {
@@ -115,6 +118,31 @@ export class TransferTransactionsController {
     return this.transferTransactionsService.getTransferTransactionsByDateRange(
       startDate,
       endDate,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Get('date-range-paginated')
+  async getTransferTransactionsByDateRangePaginated(
+    @Query() query: GetTransferTransactionsByDateRangeDto,
+  ): Promise<PaginatedTransferTransaction[]> {
+    return this.transferTransactionsService.getTransferTransactionsByDateRangePaginated(
+      query.from,
+      query.to,
+      query.page,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Get('date-range-paginated/count')
+  async countTransferTransactionsByDateRange(
+    @Query() query: GetTransferTransactionsByDateRangeDto,
+  ): Promise<number> {
+    return this.transferTransactionsService.countTransferTransactionsByDateRange(
+      query.from,
+      query.to,
     );
   }
   @UseGuards(JwtAuthGuard, RolesGuard)

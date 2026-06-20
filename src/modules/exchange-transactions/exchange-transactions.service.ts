@@ -31,8 +31,10 @@ import { InputValidator } from './helper/input-validator';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, IsNull, Not } from 'typeorm';
 import { ExchangeTransaction } from './entities/exchange-transaction.entity';
+import { Transaction } from '../transactions/entities/transaction.entity';
 import { handleError } from '../../common/error/error';
 import { SseService } from '../sse/sse.service';
+import { DateRangeExchangeTransaction } from '../../types';
 
 @Injectable()
 export class ExchangeTransactionsService {
@@ -464,6 +466,7 @@ export class ExchangeTransactionsService {
 
     const exchangeTransaction =
       await this.exchangeTransactionRepository.findOne({
+        withDeleted: true,
         relations: {
           transaction: {
             shift: {
@@ -636,6 +639,87 @@ export class ExchangeTransactionsService {
     return exchangeTransactions;
   }
 
+  async getExchangeTransactionsByDateRange(
+    from: Date,
+    to: Date,
+    page?: number,
+  ): Promise<DateRangeExchangeTransaction[]> {
+    const pageNum = page && page > 0 ? page : 1;
+    const limit = 20;
+    const offset = (pageNum - 1) * limit;
+
+    from.setHours(0,0,0,0) ; 
+    to.setHours(23,59,59,999) ;
+
+    const rows = await this.dataSource.query(
+      `
+      SELECT 
+        t.id AS "transactionId",
+        et.id AS "exchangeTransactionId",
+        et."customerId" AS "customerId",
+        et."exchangeRateId" AS "exchangeRateId",
+        s.id AS "shiftId",
+        u.id AS "userId",
+        u.username AS "userName" , 
+        b.id AS "boothId",
+        b.name as "boothName" , 
+        t."createdAt" AS "createdAt",
+        et.type AS "type",
+        et."foreignCurrencyAmount" AS "foreignCurrencyAmount",
+        et."totalthaiBahtAmount" AS "totalthaiBahtAmount",
+        et."exchangeRate" AS "exchangeRate",
+        et.status AS "status",
+        et."exchangeRateName" AS "exchangeRateName"
+      FROM transactions t
+      JOIN exchange_transactions et ON t.id = et.id
+      JOIN shifts s ON t."shiftId" = s.id
+      JOIN users u ON s."userId" = u.id
+      JOIN booths b ON s."boothId" = b.id
+      WHERE t.type = 'EXCHANGE' AND  t."createdAt" BETWEEN $1 AND $2
+      ORDER BY t."createdAt" DESC
+      LIMIT $3 OFFSET $4
+      `,
+      [from, to, limit, offset],
+    );
+
+    return rows.map((row : any) => ({
+      transactionId: row.transactionId,
+      exchangeTransactionId: row.exchangeTransactionId,
+      customerId: row.customerId,
+      exchangeRateId: row.exchangeRateId,
+      shiftId: row.shiftId,
+      userId: row.userId,
+      userName: row.userName,
+      boothId: row.boothId,
+      boothName: row.boothName,
+      createdAt: row.createdAt,
+      type: row.type,
+      foreignCurrencyAmount: row.foreignCurrencyAmount !== null ? Number(row.foreignCurrencyAmount) : null,
+      totalthaiBahtAmount: row.totalthaiBahtAmount !== null ? Number(row.totalthaiBahtAmount) : null,
+      exchangeRate: row.exchangeRate !== null ? Number(row.exchangeRate) : null,
+      status: row.status,
+      exchangeRateName: row.exchangeRateName,
+    }));
+  }
+
+  async countExchangeTransactionsByDateRange(from: Date, to: Date): Promise<number> {
+    from.setHours(0, 0, 0, 0);
+    to.setHours(23, 59, 59, 999);
+
+    const result = await this.dataSource.query(
+      `
+      SELECT COUNT(*)::int AS "count"
+      FROM transactions t
+      JOIN exchange_transactions et ON t.id = et.id
+      WHERE t.type = 'EXCHANGE' 
+        AND t."createdAt" BETWEEN $1 AND $2 
+      `,
+      [from, to],
+    );
+
+    return result[0]?.count ?? 0;
+  }
+
   // update
 
   async setStatusByEmployee(
@@ -802,8 +886,8 @@ export class ExchangeTransactionsService {
             type: exchangeTransaction.type,
             shiftId: exchangeTransaction.shiftId,
             exchangeRateId: exchangeTransaction.exchangeRateId,
-            foreignCurrencyAmount: exchangeTransaction.foreignCurrencyAmount,
-            totalthaiBahtAmount: exchangeTransaction.totalthaiBahtAmount,
+            foreignCurrencyAmount: exchangeTransaction.foreignCurrencyAmount as number,
+            totalthaiBahtAmount: exchangeTransaction.totalthaiBahtAmount as number ,
           };
           await this.stocksService.updateStockByExchangeTransactionForCancel(
             currentUser,

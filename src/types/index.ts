@@ -290,3 +290,43 @@ export interface StockData {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface PaginatedTransferTransaction {
+  id: string;
+  userId: string | null;
+  managerName: string | null;
+  exchangeRateId: string;
+  exchangeRateName: string;
+  internalTransactionId: string | null;
+  amount: number | null;
+  type: TransferTransactionType;
+  status: TranStatus;
+  shiftId: string | null;
+  employeeName: string | null;
+  boothId: string | null;
+  boothName: string | null;
+  refShiftId: string | null;
+  refEmployeeName: string | null;
+  refBoothId: string | null;
+  refBoothName: string | null;
+  createdAt: Date;
+}
+
+export interface DateRangeExchangeTransaction {
+  transactionId: string;
+  exchangeTransactionId: string;
+  customerId: string | null;
+  exchangeRateId: string;
+  shiftId: string;
+  userId: string;
+  userName: string;
+  boothId: string;
+  boothName: string;
+  createdAt: Date;
+  type: TranType;
+  foreignCurrencyAmount: number | null;
+  totalthaiBahtAmount: number | null;
+  exchangeRate: number | null;
+  status: TranStatus;
+  exchangeRateName: string;
+}

@@ -4,16 +4,15 @@ import {
   NotFoundException,
   BadRequestException,
   StreamableFile,
-  Response,
 } from '@nestjs/common';
 import { SystemLogsService } from './../system-logs/system-logs.service';
 import { ShiftsService } from './../shifts/shifts.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 import { Customer } from './entities/customer.entity';
-import { GetImgDto } from './dto/customer.dto';
 import { join } from 'path';
 import { existsSync, createReadStream } from 'fs';
+import * as mime from 'mime-types';
 
 @Injectable()
 export class CustomersService {
@@ -84,8 +83,8 @@ export class CustomersService {
     }
   }
 
-  async getImg(currentUser: any, getImgDto: GetImgDto) {
-    const isEmployee = currentUser.role === 'EMPLOYEE' ? true : false;
+  async findById(currentUser: any, id: string): Promise<Customer> {
+    const isEmployee = currentUser.role === 'EMPLOYEE';
 
     if (isEmployee) {
       const activeShift = await this.shiftsService.getLastShiftByUserId(
@@ -96,33 +95,77 @@ export class CustomersService {
         throw new NotFoundException('Your active shift is not found.');
       }
 
-      const shift = await this.customerRepository.findOne({
+      const customer = await this.customerRepository.findOne({
         relations: {
           transaction: true,
         },
         where: {
-          passportImg: getImgDto.passportImg,
+          id: id,
           transaction: {
             shiftId: activeShift.id,
           },
         },
       });
 
-      if (!shift) {
+      if (!customer) {
+        throw new NotFoundException('Customer not found or not in your active shift.');
+      }
+
+      return customer;
+    }
+
+    const customer = await this.customerRepository.findOne({
+      where: { id: id },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found.');
+    }
+
+    return customer;
+  }
+
+  async getImg(currentUser: any, id: string): Promise<StreamableFile> {
+    const customer = await this.customerRepository.findOne({
+      relations: {
+        transaction: true,
+      },
+      where: {
+        id: id,
+      },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found.');
+    }
+
+    const isEmployee = currentUser.role === 'EMPLOYEE';
+
+    if (isEmployee) {
+      const activeShift = await this.shiftsService.getLastShiftByUserId(
+        currentUser.id,
+      );
+
+      if (!activeShift) {
+        throw new NotFoundException('Your active shift is not found.');
+      }
+
+      if (customer.transaction?.shiftId !== activeShift.id) {
         throw new BadRequestException(
-          'This customer image is not in your active shift.',
+          'This customer is not in your active shift.',
         );
       }
     }
 
-    const filePath = join('upload/customers', getImgDto.passportImg);
+    const filePath = join('upload/customers', customer.passportImg);
 
     if (!existsSync(filePath)) {
       throw new NotFoundException('Customer image not found.');
     }
 
     const file = createReadStream(filePath);
+    const contentType = mime.lookup(customer.passportImg) || 'application/octet-stream';
 
-    return new StreamableFile(file);
+    return new StreamableFile(file, { type: contentType });
   }
 }

@@ -12,6 +12,7 @@ import {
   IsInt,
   ArrayNotEmpty,
   Min,
+  IsDate,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import type {
@@ -213,4 +214,22 @@ export class FirstShiftCashCountDto {
   @ValidateNested({ each: true })
   @Type(() => CashCountItemDto)
   cashCountDto: CashCountItemDto[];
+}
+
+export class GetTransferTransactionsByDateRangeDto {
+  @IsDate()
+  @Type(() => Date)
+  @IsNotEmpty()
+  from: Date;
+
+  @IsDate()
+  @Type(() => Date)
+  @IsNotEmpty()
+  to: Date;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  @Min(1)
+  page?: number;
 }
