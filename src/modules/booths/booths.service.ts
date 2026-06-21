@@ -140,7 +140,7 @@ export class BoothsService {
   async findBoothCurrentShift(boothId ?: string  | null , shiftId ?: string | null  ) {
     if (shiftId) {
       const boothData = await this.boothRepository.query(
-        `select b.id as boothId , s.id as shiftId , u.id as userId , b.name  , u.username , b.location , s.status , s.cash_advance , s.balance_check 
+        `select b.id as boothId , s.id as shiftId , u.id as userId , b.name  , u.username , b.location , s.status , s.cash_advance , s.balance_check, s."startTime"
         from shifts s 
         join booths b on s."boothId" = b.id
         join users u on s."userId" = u.id
@@ -180,7 +180,7 @@ export class BoothsService {
         toDate.setHours(23, 59, 59, 999);
 
         query = `
-          SELECT b.id AS "boothID", s.id AS "shiftID" , s.status
+          SELECT b.id AS "boothID", s.id AS "shiftID" , s.status, b."currentShiftId"
           FROM booths b
           FULL OUTER JOIN (
             SELECT * FROM shifts 
@@ -192,7 +192,7 @@ export class BoothsService {
         params.push(fromDate, toDate);
       } else {
         query = `
-          SELECT b.id AS "boothID", s.id AS "shiftID"
+          SELECT b.id AS "boothID", s.id AS "shiftID", b."currentShiftId"
           FROM booths b
           FULL OUTER JOIN shifts s 
             ON b.id = s."boothId" AND b."currentShiftId" = s."userId" AND s."deletedAt" IS NULL
@@ -585,7 +585,7 @@ export class BoothsService {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const shift = await this.shift.findOne({
-      where: { userId: user.id, status: Not('COMPLETED'), createdAt: MoreThanOrEqual(todayStart) },
+      where: { userId: user.id, status: Not('COMPLETED'), startTime: MoreThanOrEqual(todayStart) },
     });
     const booth = await this.boothRepository.findOne({
       where: { currentShiftId: user.id },

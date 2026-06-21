@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Shift } from '../shifts/entities/shift.entity';
 import { SystemLogsModule } from '../system-logs/system-logs.module';
 import { SseModule } from '../sse/sse.module';
+import { RedisModule } from '../redis/redis.module';
 import { SharedShiftsService } from './shared-shifts.service';
 
 @Module({
@@ -10,6 +11,7 @@ import { SharedShiftsService } from './shared-shifts.service';
     TypeOrmModule.forFeature([Shift]),
     SystemLogsModule,
     SseModule,
+    RedisModule,
   ],
   providers: [SharedShiftsService],
   exports: [SharedShiftsService],

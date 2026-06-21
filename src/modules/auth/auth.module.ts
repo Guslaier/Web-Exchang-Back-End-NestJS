@@ -18,12 +18,13 @@ import { SystemLogsModule } from '../system-logs/system-logs.module';
     TypeOrmModule.forFeature([User]),
     UsersModule,
     PassportModule,
+    ConfigModule.forRoot({ load: [configuration] }),
     JwtModule.registerAsync({
       imports: [ConfigModule.forRoot({ load: [configuration] })],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get<string>('jwt.secret'),
-        signOptions: { expiresIn: '1h' },
+        signOptions: { expiresIn: configService.get<string>('jwt.expiresIn') as any },
       }),
     }),
     RedisModule,

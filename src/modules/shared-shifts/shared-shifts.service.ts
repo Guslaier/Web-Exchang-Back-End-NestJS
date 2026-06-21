@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ConflictException,
   InternalServerErrorException,
+  Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, EntityManager, Between } from 'typeorm';
@@ -15,6 +16,7 @@ import { BoothIdDto} from '../shifts/dto/shift.dto' ;
 import { SseService } from '../sse/sse.service';
 import { isUUID } from 'class-validator';
 import { handleError } from '../../common/error/error';
+import Redis from 'ioredis';
 
 @Injectable()
 export class SharedShiftsService {
@@ -23,6 +25,7 @@ export class SharedShiftsService {
     private readonly shiftRepository: Repository<Shift>,
     private readonly systemLogsService: SystemLogsService,
     private readonly sseService: SseService,
+    @Inject('REDIS_CLIENT') private readonly redisClient: Redis,
   ) {}
 
   private async log(
@@ -367,6 +370,35 @@ export class SharedShiftsService {
         );
         throw new NotFoundException(`Can't shift to close.`);
       }
+
+      // === FORCE LOGOUT ON BREAK LOGIC ===
+      try {
+        const sessionKeys = await this.redisClient.keys(`session:${shiftData.userId}:*`);
+        if (sessionKeys.length > 0) {
+          // Set graveyard keys for context-aware alerts
+          const pipeline = this.redisClient.pipeline();
+          for (const key of sessionKeys) {
+            const parts = key.split(':');
+            if (parts.length === 3) {
+              const sessionId = parts[2];
+              pipeline.set(`revoked:${sessionId}`, 'SESSION_REVOKED_BREAK', 'EX', 120);
+            }
+          }
+          await pipeline.exec();
+
+          await this.redisClient.del(...sessionKeys);
+          await this.log(
+            currentUser,
+            'SECURITY_ALERT',
+            `All active sessions for user ${shiftData.userId} were forcefully revoked due to Shift CLOSE (Break).`,
+            manager,
+          );
+        }
+      } catch (redisErr) {
+        console.error('Failed to revoke sessions on shift close:', redisErr);
+      }
+      // ====================================
+
       this.sseService.triggerRefreshShiftId(shiftData.id);
       await this.log(
         currentUser,

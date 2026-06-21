@@ -28,7 +28,7 @@ export class UsersService {
     private readonly systemLogsService: SystemLogsService,
     @Inject('REDIS_CLIENT')
     private readonly redisClient: Redis,
-  ) {}
+  ) { }
 
   // Helper สำหรับบันทึก Log รองรับ Transaction
 
@@ -535,10 +535,19 @@ export class UsersService {
     }
     const user = await this.userRepository.findOne({
       where: { id },
-      select: ['id', 'email', 'username', 'role', 'phoneNumber', 'isActive'],
+      select: ['id', 'email', 'username', 'role', 'phoneNumber', 'isActive', 'createdAt', 'updatedAt'],
     });
     if (!user) throw new NotFoundException('User not found');
-    return user;
+    return {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      phoneNumber: user.phoneNumber,
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
   }
 
   async findOneWithPassword(email: string) {

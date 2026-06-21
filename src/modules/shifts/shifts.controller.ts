@@ -82,6 +82,13 @@ export class ShiftsController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  @Get('current/details/bulk')
+  getBulkCurrentShiftDetails(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.shiftsService.getBulkCurrentShiftDetails(from, to);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('EMPLOYEE', 'ADMIN', 'MANAGER')
   @Post()
   open(@CurrentUser() currentUser: any, @Body() body: BoothIdDto) {

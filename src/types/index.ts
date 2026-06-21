@@ -62,6 +62,7 @@ export interface ShiftData {
 }
 
 export class ShiftDetail {
+  boothid: string | null = null;
   shiftid: string | null = null;
   userid: string | null = null;
   name: string = '';
@@ -74,14 +75,17 @@ export class ShiftDetail {
   exchange: ExchangeSum[] = [];
   balance_check: number | null = null;
   cash_advance: number | null = null;
+  startTime: string | Date | null = null;
 
   constructor(
+    boothid: string | null,
     name: string,
     location: string | null,
     active: boolean,
     userid: string | null,
     username: string | null,
   ) {
+    this.boothid = boothid;
     this.name = name;
     this.location = location;
     this.isActive = active;
@@ -94,11 +98,13 @@ export class ShiftDetail {
     status: ShiftStatus,
     cash_advance: number | null,
     balance_check: number | null,
+    startTime?: string | Date | null,
   ) {
     this.shiftid = id;
     this.status = status;
     this.cash_advance = cash_advance;
     this.balance_check = balance_check;
+    if (startTime !== undefined) this.startTime = startTime;
   }
 
   setCashcount(cc: CashCountInput[]) {

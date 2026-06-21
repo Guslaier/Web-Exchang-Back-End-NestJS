@@ -3,21 +3,22 @@ services:
     image: nginx:latest
     container_name: web-exchank-proxy
     ports:
-      - "80:80" # เข้าผ่านหน้าเว็บปกติ
+      - "80:80"
     volumes:
       - /home/gool/PROJACT/Web-Exchang-Font-End-REACT/dist:/usr/share/nginx/html
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-    # บรรทัดนี้สำคัญมาก เพื่อให้ Docker มองเห็น localhost (host.docker.internal)
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: always 
 
-    
   db:
     image: postgres:16-alpine
     container_name: web-exchank-db-dev
+    # พระเอกของเรา บังคับการเข้ารหัสตั้งแต่ Server สตาร์ท
+    command: ["postgres", "-c", "password_encryption=scram-sha-256"]
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
+
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -32,11 +33,13 @@ services:
     image: redis:7-alpine
     container_name: web-exchank-redis-dev
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data_dev:/data 
     restart: unless-stopped
 
 volumes:
   postgres_data_dev:
-  redis_data_dev: 
+    name: web-exchang-back-end-nestjs_postgres_data_dev
+  redis_data_dev:
+    name: web-exchang-back-end-nestjs_redis_data_dev

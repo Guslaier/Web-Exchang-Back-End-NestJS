@@ -20,6 +20,7 @@ import {
   EntityManager,
   Between,
   Not,
+  In,
 } from 'typeorm';
 import { SystemLogsService } from '../../modules/system-logs/system-logs.service';
 import { CashCountsService } from './../../modules/cash-counts/cash-counts.service';
@@ -367,13 +368,13 @@ export class ShiftsService {
 
     const boothName = shiftData.booth?.name || 'Unknown Booth';
 
-    if (shiftData.status !== 'CLOSE') {
+    if (shiftData.status !== 'CLOSE' && shiftData.status !== 'AWAITINGAUDIT') {
       await this.log(
         user,
         `${message}_FAILED`,
-        `Shift at ${boothName} (Shift ID: ${id}) is not in CLOSE status.`,
+        `Shift at ${boothName} (Shift ID: ${id}) is not in CLOSE or AWAITINGAUDIT status.`,
       );
-      throw new ConflictException(`Shift at ${boothName} is not in close status`);
+      throw new ConflictException(`Shift at ${boothName} is not in close or awaiting audit status`);
     }
 
     return shiftData;
@@ -401,6 +402,7 @@ export class ShiftsService {
     }
 
     const shiftDetail = new ShiftDetail(
+      boothData.boothid ?? boothId,
       boothData.name,
       boothData.location,
       true,
@@ -413,6 +415,7 @@ export class ShiftsService {
       boothData.status ?? null,
       boothData.cash_advance ?? null,
       boothData.balance_check ?? null,
+      boothData.startTime ?? null,
     );
 
     if (shiftId) {
@@ -431,6 +434,37 @@ export class ShiftsService {
     }
 
     return shiftDetail;
+  }
+
+  async getBulkCurrentShiftDetails(from?: string, to?: string) {
+    const fromDate = from ? new Date(from) : undefined;
+    const toDate = to ? new Date(to) : undefined;
+    
+    // Get all booth/shift pairs
+    const outerJoins = await this.boothService.findBoothShiftOuterJoin(fromDate, toDate);
+
+    if (!outerJoins || outerJoins.length === 0) {
+      return [];
+    }
+
+    // Fetch details for each booth/shift concurrently
+    const shiftDetailsPromises = outerJoins.map(async (item: any) => {
+      const shiftDetail = await this.getCurrentShiftDetails(item.boothID, item.shiftID);
+      if (!shiftDetail) {
+         const booth = await this.boothService.findOne(item.boothID);
+         const minimalDetail = new ShiftDetail(item.boothID, booth.name, booth.location, true, null, null);
+         // Ensure we include boothID, so the frontend can identify it!
+         // Wait, ShiftDetail does not have boothID field? Let's add it below if it's missing in frontend, or frontend uses name.
+         // Actually, frontend ShiftCard needs boothId. 
+         // ShiftDetail class in types/index.ts has shiftid, userid, name, username, location.
+         // Wait, where is boothId? Let's check ShiftDetail.
+         return minimalDetail;
+      }
+      return shiftDetail;
+    });
+
+    const shiftDetailsList = await Promise.all(shiftDetailsPromises);
+    return shiftDetailsList.filter(s => s !== null);
   }
 
   // update
@@ -514,7 +548,7 @@ export class ShiftsService {
 
       const shiftRepo = manager.getRepository(Shift);
       const updateresult = await shiftRepo.update(
-        { id: id, status: 'CLOSE' },
+        { id: id, status: In(['CLOSE', 'AWAITINGAUDIT']) },
         {
           status: 'COMPLETED',
           balance_check: paras.balanceCheck,
