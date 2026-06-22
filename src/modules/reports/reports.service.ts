@@ -143,7 +143,6 @@ export class ReportsService {
       });
     }
 
-    console.log("performance", shifts);
     return await this.employeePerformanceRepository.save(performance);
   }
 

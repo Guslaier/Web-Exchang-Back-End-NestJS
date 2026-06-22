@@ -1,0 +1,342 @@
+{
+  "transfer": [
+    {
+      "line": 133,
+      "code": "      if (!checkUser) {\n        await this.log(\n          user,\n          'FIRST_SHIFT_CASH_COUNT_FAILED',\n          `User ID ${user.id} not found`,\n          manager,"
+    },
+    {
+      "line": 139,
+      "code": "        );\n        throw new NotFoundException(`User with ID ${user.id} not found`);\n      }\n\n      // // 2. Get Exchange Rate (Passing manager ensures fresh data)\n      const exchangeRate ="
+    },
+    {
+      "line": 164,
+      "code": "      if (!targetBooth) {\n        await this.log(\n          user,\n          'FIRST_SHIFT_CASH_COUNT_FAILED',\n          `Booth ${firstShiftCashCountDto.transferDto.boothId} inactive or not found`,\n          manager,"
+    },
+    {
+      "line": 182,
+      "code": "      if (!targetActiveShift) {\n        await this.log(\n          user,\n          'FIRST_SHIFT_CASH_COUNT_FAILED',\n          `Booth ${firstShiftCashCountDto.transferDto.boothId} does not have an active shift`,\n          manager,"
+    },
+    {
+      "line": 194,
+      "code": "      if (targetActiveShift?.status === 'COMPLETED') {\n        await this.log(\n          user,\n          'FIRST_SHIFT_CASH_COUNT_FAILED',\n          `Booth ${firstShiftCashCountDto.transferDto.boothId} does not have an active shift`,\n          manager,"
+    },
+    {
+      "line": 220,
+      "code": "      if (beforeFirstShiftStock) {\n        await this.log(\n          user,\n          'FIRST_SHIFT_CASH_COUNT_FAILED',\n          `An existing FIRST_SHIFT_CASH_COUNT transaction already exists for booth ${firstShiftCashCountDto.transferDto.boothId} in the active shift`,\n          manager,"
+    },
+    {
+      "line": 238,
+      "code": "      if (Number(totalAmount) !== Number(firstShiftCashCountDto.transferDto.amount)) {\n        await this.log(\n          user,\n          'FIRST_SHIFT_CASH_COUNT_FAILED',\n          `Amount mismatch: Counted ${totalAmount} vs Expected ${firstShiftCashCountDto.transferDto.amount}`,\n          manager,"
+    },
+    {
+      "line": 244,
+      "code": "        );\n        throw new BadRequestException(\n          `Total cash count amount ${totalAmount} does not match the transfer amount ${firstShiftCashCountDto.transferDto.amount}`,\n        );\n      }\n"
+    },
+    {
+      "line": 314,
+      "code": "      // // 8. Finalize Logs & Response\n      await this.log(\n        user,\n        'FIRST_SHIFT_CASH_COUNT_SUCCESS',\n        `Successfully counted ${firstShiftCashCountDto.transferDto.amount} THB for booth ${firstShiftCashCountDto.transferDto.boothId}`,\n        manager,"
+    },
+    {
+      "line": 331,
+      "code": "    } catch (error) {\n      await this.log(\n        user,\n        'FIRST_SHIFT_CASH_COUNT_ERROR',\n        ` ${error instanceof Error ? error.message : String(error)}`,\n        manager,"
+    },
+    {
+      "line": 382,
+      "code": "        .save(transferTransaction);\n      await this.log(\n        user,\n        'CREATE_MOVEMENT',\n        `Created movement of ${createDto.amount} for booth ${createDto.boothId} with exchange rate ID ${createDto.exchangeRateId}`,\n        manager,"
+    },
+    {
+      "line": 391,
+      "code": "      try {\n        await this.log(\n          user,\n          'CREATE_MOVEMENT_FAILED',\n          `Failed to create movement of ${createDto.amount} for booth ${createDto.boothId} with exchange rate ID ${createDto.exchangeRateId}`,\n          manager,"
+    },
+    {
+      "line": 418,
+      "code": "        if (!exchangeRate) {\n          await this.log(\n            user,\n            'TRANSFER_BOOTH_TO_BOOTH_FAILED',\n            `Failed to transfer ${transferDto.amount} ${transferDto.exchangeRateId} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Currency not found`,\n            manager,"
+    },
+    {
+      "line": 424,
+      "code": "          );\n          throw new NotFoundException(\n            `Currency with ID ${transferDto.exchangeRateId} not found`,\n          );\n        }\n"
+    },
+    {
+      "line": 430,
+      "code": "        if (transferDto.amount <= 0) {\n          await this.log(\n            user,\n            'TRANSFER_BOOTH_TO_BOOTH_FAILED',\n            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Invalid transfer amount`,\n          );"
+    },
+    {
+      "line": 447,
+      "code": "        if (!sourceBooth) {\n          await this.log(\n            user,\n            'TRANSFER_BOOTH_TO_BOOTH_FAILED',\n            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Source booth not found or inactive`,\n            manager,"
+    },
+    {
+      "line": 453,
+      "code": "          );\n          throw new NotFoundException(\n            `Source booth with ID ${transferDto.boothId} not found or inactive`,\n          );\n        }\n"
+    },
+    {
+      "line": 466,
+      "code": "        if (!activeShift || activeShift?.status === 'COMPLETED') {\n          await this.log(\n            user,\n            'TRANSFER_BOOTH_TO_BOOTH_FAILED',\n            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Source booth does not have an active shift`,\n            manager,"
+    },
+    {
+      "line": 472,
+      "code": "          );\n          throw new BadRequestException(\n            `Source booth with ID ${transferDto.boothId} does not have an active shift`,\n          );\n        }\n        //ถ้าเป็นการโอนระหว่างบูธ ต้องตรวจสอบว่า refBoothId ไม่ใช่ null"
+    },
+    {
+      "line": 481,
+      "code": "        if (!targetBooth) {\n          await this.log(\n            user,\n            'TRANSFER_BOOTH_TO_BOOTH_FAILED',\n            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Target booth not found or inactive`,\n            manager,"
+    },
+    {
+      "line": 487,
+      "code": "          );\n          throw new BadRequestException(\n            `Target booth with ID ${transferDto.refBoothId} not found or inactive`,\n          );\n        }\n        // ถ้า targetBoothId ไม่มีการเปิดกะอยู่ จะไม่อนุญาตให้ทำรายการโอนระหว่างบูธ"
+    },
+    {
+      "line": 499,
+      "code": "        if (!targetActiveShift || targetActiveShift.status === 'COMPLETED') {\n          await this.log(\n            user,\n            'TRANSFER_BOOTH_TO_BOOTH_FAILED',\n            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Target booth does not have an active shift`,\n            manager,"
+    },
+    {
+      "line": 505,
+      "code": "          );\n          throw new BadRequestException(\n            `Target booth with ID ${transferDto.refBoothId} does not have an active shift`,\n          );\n        }\n"
+    },
+    {
+      "line": 512,
+      "code": "        if (transferDto.boothId === transferDto.refBoothId) {\n          await this.log(\n            user,\n            'TRANSFER_BOOTH_TO_BOOTH_FAILED',\n            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Source and target booths cannot be the same`,\n            manager,"
+    },
+    {
+      "line": 530,
+      "code": "        if (!checkstockExchanges) {\n          await this.log(\n            user,\n            'TRANSFER_BOOTH_TO_BOOTH_FAILED',\n            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: No exchange transactions found for the specified currency in the active shift`,\n            manager,"
+    },
+    {
+      "line": 536,
+      "code": "          );\n          throw new BadRequestException(\n            `Cannot transfer ${transferDto.amount} ${exchangeRate.name} because no exchange transactions found for the specified currency in the active shift`,\n          );\n        }\n"
+    },
+    {
+      "line": 543,
+      "code": "        if (checkstockExchanges.total_balance < transferDto.amount) {\n          await this.log(\n            user,\n            'TRANSFER_BOOTH_TO_BOOTH_FAILED',\n            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Insufficient exchanged amount in active shift`,\n            manager,"
+    },
+    {
+      "line": 549,
+      "code": "          );\n          throw new BadRequestException(\n            `Cannot transfer ${transferDto.amount} ${exchangeRate.name} because total exchanged amount in active shift is only ${checkstockExchanges.total_balance} ${exchangeRate.name}`,\n          );\n        }\n"
+    },
+    {
+      "line": 612,
+      "code": "\n        await this.log(\n          user,\n          'TRANSFER_BOOTH_TO_BOOTH_SUCCESS',\n          `Transferred ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}`,\n          manager,"
+    },
+    {
+      "line": 649,
+      "code": "      if (!exchangeRate) {\n        await this.log(\n          user,\n          'TRANSFER_CENTER_TO_BOOTH_FAILED',\n          `Failed to transfer ${transferDto.amount} ${transferDto.exchangeRateId} from center to booth ${transferDto.boothId}: Currency not found`,\n          txManager,"
+    },
+    {
+      "line": 655,
+      "code": "        );\n        throw new NotFoundException(\n          `Currency with ID ${transferDto.exchangeRateId} not found`,\n        );\n      }\n"
+    },
+    {
+      "line": 661,
+      "code": "      if (transferDto.amount <= 0) {\n        await this.log(\n          user,\n          'TRANSFER_CENTER_TO_BOOTH_FAILED',\n          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Invalid transfer amount`,\n          txManager,"
+    },
+    {
+      "line": 676,
+      "code": "      if (!targetBooth) {\n        await this.log(\n          user,\n          'TRANSFER_CENTER_TO_BOOTH_FAILED',\n          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Target booth not found or inactive`,\n          txManager,"
+    },
+    {
+      "line": 682,
+      "code": "        );\n        throw new NotFoundException(\n          `Target booth with ID ${transferDto.boothId} not found or inactive`,\n        );\n      }\n"
+    },
+    {
+      "line": 694,
+      "code": "      if (!targetActiveShift || targetActiveShift.status === 'COMPLETED') {\n        await this.log(\n          user,\n          'TRANSFER_CENTER_TO_BOOTH_FAILED',\n          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Target booth does not have an active shift`,\n          txManager,"
+    },
+    {
+      "line": 700,
+      "code": "        );\n        throw new BadRequestException(\n          `Target booth with ID ${transferDto.boothId} does not have an active shift`,\n        );\n      }\n      const checkstockExchanges = await this.stocksService.getStock("
+    },
+    {
+      "line": 729,
+      "code": "      } else {\n        await this.log(\n          user,\n          'TRANSFER_CENTER_TO_BOOTH_FAILED',\n          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Invalid transfer type ${transferDto.type}`,\n          txManager,"
+    },
+    {
+      "line": 735,
+      "code": "        );\n        throw new BadRequestException(\n          `Invalid transfer type ${transferDto.type}`,\n        );\n      }\n    };"
+    },
+    {
+      "line": 791,
+      "code": "\n    await this.log(\n      user,\n      'TRANSFER_CENTER_TO_BOOTH_SUCCESS',\n      `Transferred ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}`,\n      manager,"
+    },
+    {
+      "line": 820,
+      "code": "    if (!checkstockExchanges) {\n      await this.log(\n        user,\n        'TRANSFER_CENTER_TO_BOOTH_FAILED',\n        `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to center: No exchange transactions found for the specified currency in the active shift`,\n        manager,"
+    },
+    {
+      "line": 826,
+      "code": "      );\n      throw new BadRequestException(\n        `Cannot transfer ${transferDto.amount} ${exchangeRate.name} because no exchange transactions found for the specified currency in the active shift`,\n      );\n    }\n"
+    },
+    {
+      "line": 832,
+      "code": "    if (checkstockExchanges.total_balance < transferDto.amount) {\n      await this.log(\n        user,\n        'TRANSFER_CENTER_TO_BOOTH_FAILED',\n        `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to center: Insufficient exchanged amount in active shift`,\n        manager,"
+    },
+    {
+      "line": 838,
+      "code": "      );\n      throw new BadRequestException(\n        `Cannot transfer ${transferDto.amount} ${exchangeRate.name} because total exchanged amount in active shift is only ${checkstockExchanges.total_balance} ${exchangeRate.name}`,\n      );\n    }\n"
+    },
+    {
+      "line": 871,
+      "code": "    );\n    await this.log(\n      user,\n      'TRANSFER_CENTER_TO_BOOTH_SUCCESS',\n      `Transferred ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to center`,\n      manager,"
+    },
+    {
+      "line": 897,
+      "code": "        if (!transferTransaction) {\n          await this.log(\n            user,\n            'CANCEL_TRANSFER_TRANSACTION_FAILED',\n            `Failed to cancel transfer transaction ${transactionId}: Transaction not found`,\n          );"
+    },
+    {
+      "line": 902,
+      "code": "          );\n          throw new NotFoundException(\n            `Transfer transaction with ID ${transactionId} not found`,\n          );\n        }\n"
+    },
+    {
+      "line": 908,
+      "code": "        if (transferTransaction.status === 'CANCELED') {\n          await this.log(\n            user,\n            'CANCEL_TRANSFER_TRANSACTION_FAILED',\n            `Failed to cancel transfer transaction ${transactionId}: Transaction is already canceled`,\n          );"
+    },
+    {
+      "line": 913,
+      "code": "          );\n          throw new BadRequestException(\n            `Transfer transaction with ID ${transactionId} is already canceled`,\n          );\n        }\n        const checkshift = await manager.getRepository(Shift).findOne({"
+    },
+    {
+      "line": 921,
+      "code": "        if (!checkshift) {\n          await this.log(\n            user,\n            'CANCEL_TRANSFER_TRANSACTION_FAILED',\n            `Failed to cancel transfer transaction ${transactionId}: Shift not found`,\n          );"
+    },
+    {
+      "line": 926,
+      "code": "          );\n          throw new NotFoundException(\n            `Shift with ID ${transferTransaction.shiftId} not found`,\n          );\n        }\n        if (checkshift.status === 'COMPLETED') {"
+    },
+    {
+      "line": 931,
+      "code": "        if (checkshift.status === 'COMPLETED') {\n          await this.log(\n            user,\n            'CANCEL_TRANSFER_TRANSACTION_FAILED',\n            `Failed to cancel transfer transaction ${transactionId}: Cannot cancel transaction for a completed shift`,\n          );"
+    },
+    {
+      "line": 956,
+      "code": "            .update({ id: transactionId }, { status: 'CANCELED' });\n          this.log(\n            user,\n            'CANCEL_TRANSFER_TRANSACTION_SUCCESS',\n            `Canceled cash in transfer transaction ${transactionId} and updated stock accordingly`,\n            manager,"
+    },
+    {
+      "line": 982,
+      "code": "            .update({ id: transactionId }, { status: 'CANCELED' });\n          this.log(\n            user,\n            'CANCEL_TRANSFER_TRANSACTION_SUCCESS',\n            `Canceled cash out transfer transaction ${transactionId} and updated stock accordingly`,\n            manager,"
+    },
+    {
+      "line": 999,
+      "code": "        if (!checkRefShift) {\n          await this.log(\n            user,\n            'CANCEL_TRANSFER_TRANSACTION_FAILED',\n            `Failed to cancel transfer transaction ${transactionId}: Reference shift not found`,\n            manager,"
+    },
+    {
+      "line": 1010,
+      "code": "        if (checkRefShift.status === 'COMPLETED') {\n          await this.log(\n            user,\n            'CANCEL_TRANSFER_TRANSACTION_FAILED',\n            `Failed to cancel transfer transaction ${transactionId}: Cannot cancel transaction because reference shift is completed`,\n            manager,"
+    },
+    {
+      "line": 1043,
+      "code": "            );\n          this.log(\n            user,\n            'CANCEL_TRANSFER_TRANSACTION_SUCCESS',\n            `Canceled transfer transaction ${transactionId} and internal transaction ${transferTransaction.internalTransactionId} and updated stock accordingly`,\n            manager,"
+    },
+    {
+      "line": 1075,
+      "code": "            );\n          this.log(\n            user,\n            'CANCEL_TRANSFER_TRANSACTION_SUCCESS',\n            `Canceled transfer transaction ${transactionId} and internal transaction ${transferTransaction.internalTransactionId} and updated stock accordingly`,\n            manager,"
+    },
+    {
+      "line": 1088,
+      "code": "\n        await this.log(\n          user,\n          'CANCEL_TRANSFER_TRANSACTION_FAILED',\n          `Failed to cancel transfer transaction ${transactionId}: Unsupported transaction type ${transferTransaction.type}`,\n          manager,"
+    },
+    {
+      "line": 1094,
+      "code": "        );\n        throw new BadRequestException(\n          `Unsupported transaction type ${transferTransaction.type}`,\n        );\n      });\n    } catch (error) {"
+    },
+    {
+      "line": 1150,
+      "code": "    } catch (error) {\n      throw new BadRequestException(\n        `Failed to get transfer transaction with ID ${transactionId}`,\n      );\n    }\n  }"
+    },
+    {
+      "line": 1263,
+      "code": "    } catch (error) {\n      throw new BadRequestException(\n        `Failed to get transfer transactions for booth ID ${boothId}`,\n      );\n    }\n  }"
+    },
+    {
+      "line": 1319,
+      "code": "    } catch (error) {\n      throw new BadRequestException(\n        `Failed to get transfer transactions for shift ID ${shiftId}`,\n      );\n    }\n  }"
+    },
+    {
+      "line": 1383,
+      "code": "    } catch (error) {\n      throw new BadRequestException(\n        `Failed to get transfer transactions for shift ID ${shiftId} and user ID ${userId}`,\n      );\n    }\n  }"
+    },
+    {
+      "line": 1445,
+      "code": "    } catch (error) {\n      throw new BadRequestException(\n        `Failed to get transfer transactions for date range ${startDate} - ${endDate}`,\n      );\n    }\n  }"
+    },
+    {
+      "line": 1482,
+      "code": "        if (!transferTransaction) {\n          throw new BadRequestException(\n            `First shift cash count for shift ID ${shiftId} not found`,\n          );\n        }\n        const updateResult = tranferRepo.query("
+    },
+    {
+      "line": 1522,
+      "code": "\n        await this.log(\n          user,\n          'DELETE_FIRST_SHIFT_CASH_COUNT_SUCCESS',\n          `Canceled first shift cash count for shift ID ${shiftId}`,\n          manager,"
+    }
+  ],
+  "exchange": [
+    {
+      "line": 112,
+      "code": "    ) {\n      await this.log(\n        currentUser,\n        'CREATE_EXCHANGE_TRANSACTION_FAILED',\n        `Failed to create exchange transaction due to invalid exchangeRatesId: ${body.exchangeRatesId}`,\n      );"
+    },
+    {
+      "line": 125,
+      "code": "    if (Math.trunc((body.exchangeRate * body.foreignAmount)) !== Math.trunc(body.thaiBahtAmount)) {\n      await this.log(\n        currentUser,\n        'CREATE_EXCHANGE_TRANSACTION_FAILED',\n        `Failed to create exchange transaction due to mismatch in calculated exchange rate: ${exchangeRate} and provided exchange rate: ${body.exchangeRate} for proposed rate thai baht amount shouled be ${body.foreignAmount * body.exchangeRate}`,\n      );"
+    },
+    {
+      "line": 130,
+      "code": "      );\n      throw new BadRequestException(\n        `Mismatch in calculated exchange rate: ${exchangeRate} and provided exchange rate: ${body.exchangeRate} for proposed rate thai baht amount shouled be ${body.foreignAmount * body.exchangeRate}`,\n      );\n    }\n"
+    },
+    {
+      "line": 158,
+      "code": "      if (body.type === 'SELL') {\n        await this.log(\n          currentUser,\n          'CREATE_EXCHANGE_TRANSACTION_FAILED',\n          `Proposed sell exchange rate of ${exchangeRate} does not match the current sell rate of ${exchangeRateId.sell_rate}.`,\n        );"
+    },
+    {
+      "line": 163,
+      "code": "        );\n        throw new BadRequestException(\n          `Proposed sell exchange rate of ${exchangeRate} does not match the current sell rate of ${exchangeRateId.sell_rate}.`,\n        );\n      } else {\n        await this.log("
+    },
+    {
+      "line": 167,
+      "code": "      } else {\n        await this.log(\n          currentUser,\n          'CREATE_EXCHANGE_TRANSACTION_FAILED',\n          `Proposed buy exchange rate of ${exchangeRate} is not allowed. It must be between ${exclusiveExchangeRate.buy_rate} and ${exclusiveExchangeRate.buy_rate_max}.`,\n        );"
+    },
+    {
+      "line": 172,
+      "code": "        );\n        throw new BadRequestException(\n          `Proposed buy exchange rate of ${exchangeRate} is not allowed. It must be between ${exclusiveExchangeRate.buy_rate} and ${exclusiveExchangeRate.buy_rate_max}.`,\n        );\n      }\n    }"
+    },
+    {
+      "line": 261,
+      "code": "        await exchangeTransRepo.save(createdExchangeTran);\n        await this.log(\n          currentUser,\n          'CREATE_EXCHANGE_TRANSACTION_SUCCESS',\n          `Created exchange transaction with ID: ${createdExchangeTran.id}`,\n          execManager,"
+    },
+    {
+      "line": 269,
+      "code": "      } catch (error) {\n        await this.log(\n          currentUser,\n          'CREATE_EXCHANGE_TRANSACTION_FAILED',\n          `Failed to create exchange transaction due to database error. Error: ${error instanceof Error ? error.message : String(error)}`,\n          execManager,"
+    },
+    {
+      "line": 275,
+      "code": "        );\n        throw new InternalServerErrorException(\n          `Failed to create exchange transaction due to database error. Error: ${error instanceof Error ? error.message : String(error)}`,\n        );\n      }\n    };"
+    },
+    {
+      "line": 650,
+      "code": "    if (!activeShift) {\n      await this.log(\n        currentUser,\n        'SET_EXCHANGE_TRANSACTION_PENDING_FAILED',\n        `Failed to set exchange transaction with ID: ${param.id} Cause Active shift not found for the employee.`,\n      );"
+    },
+    {
+      "line": 657,
+      "code": "    } else if (activeShift.status !== 'OPEN') {\n      await this.log(\n        currentUser,\n        'SET_EXCHANGE_TRANSACTION_PENDING_FAILED',\n        `Failed to set exchange transaction with ID: ${param.id} Cause Shift is not in 'OPEN' status.`,\n      );"
+    },
+    {
+      "line": 679,
+      "code": "    if (!exchangeTransaction) {\n      await this.log(\n        currentUser,\n        'SET_EXCHANGE_TRANSACTION_PENDING_FAILED',\n        `Failed to set exchange transaction with ID: ${param.id} Cause Exchange transaction not found for the active shift.`,\n      );"
+    },
+    {
+      "line": 701,
+      "code": "        );\n        const logInsertQuery = this.log(\n          currentUser,\n          'SET_EXCHANGE_TRANSACTION_PENDING_SUCCESS',\n          `Set exchange transaction with ID: ${param.id} to pending status with reason: ${body.voidReason}`,\n          manager,"
+    },
+    {
+      "line": 714,
+      "code": "        if (updateResult.affected === 0) {\n          await this.log(\n            currentUser,\n            'SET_EXCHANGE_TRANSACTION_PENDING_FAILED',\n            `Failed to set exchange transaction with ID: ${param.id} to pending status. Exchange transaction not found or already processed.`,\n          );"
+    },
+    {
+      "line": 747,
+      "code": "    if (!exchangeTransaction) {\n      await this.log(\n        currentUser,\n        'SET_EXCHANGE_TRANSACTION_APPROVE_FAILED',\n        `Failed to set exchange transaction with ID: ${param.id} cause Pending exchange transaction not found or already processed.`,\n      );"
+    },
+    {
+      "line": 775,
+      "code": "        );\n        const logInsertQuery = this.log(\n          currentUser,\n          'SET_EXCHANGE_TRANSACTION_APPROVE_SUCCESS',\n          `Set exchange transaction with ID: ${param.id} to ${body.status} status`,\n          manager,"
+    },
+    {
+      "line": 788,
+      "code": "        if (updateResult.affected === 0) {\n          await this.log(\n            currentUser,\n            'SET_EXCHANGE_TRANSACTION_APPROVE_FAILED',\n            `Failed to set exchange transaction with ID: ${param.id} cause Pending exchange transaction not found or already processed.`,\n          );"
+    }
+  ]
+}

@@ -1,4 +1,7 @@
+import 'dotenv/config'; // เพิ่มบรรทัดนี้ไว้บนสุด
+
 import { Module } from '@nestjs/common';
+
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import configuration from './config/configuration';
@@ -25,12 +28,14 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { SharedShiftsModule } from './modules/shared-shifts/shared-shifts.module';
 import * as pg from 'pg';
 
+console.log(process.env.DB_PASS);
 pg.types.setTypeParser(1114, (value) => value);
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
+      envFilePath: '.env',
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],

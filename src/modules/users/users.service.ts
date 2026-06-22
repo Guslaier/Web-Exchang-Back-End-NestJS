@@ -28,7 +28,7 @@ export class UsersService {
     private readonly systemLogsService: SystemLogsService,
     @Inject('REDIS_CLIENT')
     private readonly redisClient: Redis,
-  ) {}
+  ) { }
 
   // Helper สำหรับบันทึก Log รองรับ Transaction
 
@@ -137,7 +137,7 @@ export class UsersService {
             await this.log(
               currentUser,
               'UPDATE_USER_FAILED',
-              `Cannot change own role: ${id}`,
+              `Cannot change own role: ${existingUser.username} (ID: ${id})`,
               manager,
             );
             throw new ForbiddenException('Cannot change own role');
@@ -157,7 +157,7 @@ export class UsersService {
             await this.log(
               currentUser,
               'UPDATE_USER_FAILED',
-              `Cannot demote the only admin: ${id}`,
+              `Cannot demote the only admin: ${existingUser.username} (ID: ${id})`,
               manager,
             );
             throw new ForbiddenException('Cannot demote the only admin');
@@ -170,7 +170,7 @@ export class UsersService {
           await this.log(
             currentUser,
             'UPDATE_USER_FAILED',
-            `Manager can only update employee: ${id}`,
+            `Manager can only update employee: ${existingUser.username} (ID: ${id})`,
             manager,
           );
           throw new ForbiddenException('Manager can only update employee');
@@ -200,7 +200,7 @@ export class UsersService {
         await this.log(
           currentUser,
           'UPDATE_USER_SUCCESS',
-          `Updated user ID: ${id}`,
+          `Updated user ${existingUser.username} (ID: ${id})`,
           manager,
         );
 
@@ -260,10 +260,19 @@ export class UsersService {
           await this.log(
             currentUser,
             'DELETE_USER_FAILED',
-            `Cannot delete yourself: ${id}`,
+            `Cannot delete yourself: ${user.username} (ID: ${id})`,
             manager,
           );
           throw new ForbiddenException('Cannot delete yourself');
+        }
+        if (currentUser.role === 'MANAGER' && user.role !== 'EMPLOYEE') {
+          await this.log(
+            currentUser,
+            'DELETE_USER_FAILED',
+            `Manager can only delete employee: ${user.username} (ID: ${id})`,
+            manager,
+          );
+          throw new ForbiddenException('Manager can only delete employee');
         }
 
         // 2. มิวเทชันอีเมล
@@ -276,7 +285,7 @@ export class UsersService {
           await this.log(
             currentUser,
             'DELETE_USER_FAILED',
-            `Delete failed for user ID: ${id}`,
+            `Delete failed for user ${user.username} (ID: ${id})`,
             manager,
           );
           throw new BadRequestException('Delete failed');
@@ -333,10 +342,19 @@ export class UsersService {
           await this.log(
             currentUser,
             'DEACTIVATE_USER_FAILED',
-            `Cannot deactivate admin: ${id}`,
+            `Cannot deactivate admin: ${user.username} (ID: ${id})`,
             manager,
           );
           throw new ForbiddenException('Cannot deactivate admin');
+        }
+        if (currentUser.role === 'MANAGER' && user.role !== 'EMPLOYEE') {
+          await this.log(
+            currentUser,
+            'DEACTIVATE_USER_FAILED',
+            `Manager can only deactivate employee: ${user.username} (ID: ${id})`,
+            manager,
+          );
+          throw new ForbiddenException('Manager can only deactivate employee');
         }
 
         // 2. อัปเดตสถานะ
@@ -345,7 +363,7 @@ export class UsersService {
         await this.log(
           currentUser,
           'DEACTIVATE_USER_SUCCESS',
-          `Deactivated: ${id}`,
+          `Deactivated: ${user.username} (ID: ${id})`,
           manager,
         );
         return { message: 'User deactivated successfully' };
@@ -371,11 +389,21 @@ export class UsersService {
           throw new NotFoundException('User not found');
         }
 
+        if (currentUser.role === 'MANAGER' && user.role !== 'EMPLOYEE') {
+          await this.log(
+            currentUser,
+            'REACTIVATE_USER_FAILED',
+            `Manager can only reactivate employee: ${user.username} (ID: ${id})`,
+            manager,
+          );
+          throw new ForbiddenException('Manager can only reactivate employee');
+        }
+
         await userRepo.update(id, { isActive: true });
         await this.log(
           currentUser,
           'REACTIVATE_USER_SUCCESS',
-          `Reactivated: ${id}`,
+          `Reactivated: ${user.username} (ID: ${id})`,
           manager,
         );
         return { message: 'User reactivated successfully' };
@@ -524,6 +552,7 @@ export class UsersService {
         'phoneNumber',
         'isActive',
         'createdAt',
+        'updatedAt',
       ],
     });
     return users;
@@ -535,10 +564,19 @@ export class UsersService {
     }
     const user = await this.userRepository.findOne({
       where: { id },
-      select: ['id', 'email', 'username', 'role', 'phoneNumber', 'isActive'],
+      select: ['id', 'email', 'username', 'role', 'phoneNumber', 'isActive', 'createdAt', 'updatedAt'],
     });
-    if (!user) throw new NotFoundException(`User ID ${id} not found`);
-    return user;
+    if (!user) throw new NotFoundException('User not found');
+    return {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      phoneNumber: user.phoneNumber,
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
   }
 
   async findOneWithPassword(email: string) {

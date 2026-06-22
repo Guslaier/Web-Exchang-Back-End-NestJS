@@ -32,10 +32,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: any) {
     // สิ่งที่ return จะถูกแนบเป็น req.user
 
-    // ตรวจสอบว่า token นี้ถูก blacklist หรือไม่ (เช่น ถูก logout ไปแล้ว)
-    if (await this.authService.isTokenBlacklisted(payload.jti)) {
-      return null;
-    }
+    // ตรวจสอบว่า session นี้ยังมีอยู่ใน Redis หรือไม่ (Whitelist)
+    // ฟังก์ชันนี้จะ throw UnauthorizedException พร้อมระบุสาเหตุถ้า session ไม่ถูกต้อง
+    await this.authService.isSessionActive(payload.id, payload.sessionId);
     const user: Pick<UserData, 'email' | 'id' | 'role'> = {
       email: payload.email,
       id: payload.id,

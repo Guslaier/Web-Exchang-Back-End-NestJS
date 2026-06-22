@@ -20,6 +20,7 @@ import {
   EntityManager,
   Between,
   Not,
+  In,
 } from 'typeorm';
 import { SystemLogsService } from '../../modules/system-logs/system-logs.service';
 import { CashCountsService } from './../../modules/cash-counts/cash-counts.service';
@@ -93,7 +94,7 @@ export class ShiftsService {
         0,
         0,
       );
-    const status = today ? 'OPEN' : 'CLOSE';
+    const status = 'CLOSE';
     const row = shiftRepo.create({
       userId: userId,
       boothId: boothId,
@@ -103,13 +104,16 @@ export class ShiftsService {
 
     try {
       const savedShift = await shiftRepo.save(row);
+      const shiftData = await shiftRepo.findOne({ where: { id: savedShift.id }, relations: ['user', 'booth'] });
+      const boothName = shiftData?.booth?.name || 'Unknown Booth';
+      const userName = shiftData?.user?.username || 'Unknown User';
       const logQuery = await this.log(
         currentUser,
         'OPEN_SHIFT_SUCCESS',
-        `Shift id : ${savedShift.id} was opened by User id : ${currentUser.id}`,
+        `Shift at ${boothName} (Booth ID: ${boothId}) was opened by ${userName} (User ID: ${userId}) (Shift ID: ${savedShift.id})`,
         manager,
       );
-      this.sseService.triggerRefreshBoothShiftId(boothId , savedShift.id);
+      this.sseService.triggerRefreshBoothShiftId(boothId, savedShift.id);
       return savedShift;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -212,6 +216,68 @@ export class ShiftsService {
     }
   }
 
+  async getShiftDashboardSummary(query: QueryDateDto) {
+    if (!query.startDate || !query.endDate) {
+      throw new BadRequestException('Specific range date required.');
+    }
+
+    const start = new Date(query.startDate);
+    const end = new Date(query.endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException('StartDate or EndDate in not in Date form.');
+    }
+
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+
+    try {
+      const summary = await this.shiftRepository
+        .createQueryBuilder('shift')
+        .select('shift.status', 'status')
+        .addSelect('COUNT(shift.id)', 'count')
+        .where('shift.startTime BETWEEN :start AND :end', { start, end })
+        .groupBy('shift.status')
+        .getRawMany();
+
+      const result = {
+        total: 0,
+        OPEN: 0,
+        CLOSE: 0,
+        AWAITINGAUDIT: 0,
+        COMPLETED: 0,
+      };
+
+      for (const row of summary) {
+        const count = parseInt(row.count, 10) || 0;
+        result.total += count;
+        if (result.hasOwnProperty(row.status)) {
+          result[row.status as keyof typeof result] = count;
+        }
+      }
+
+      return result;
+    } catch (err) {
+      throw new InternalServerErrorException('Internal Server Error');
+    }
+  }
+
+  async getUnresolvedPreviousShiftsCount() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    try {
+      const count = await this.shiftRepository
+        .createQueryBuilder('shift')
+        .where('shift.startTime < :today', { today })
+        .andWhere('shift.status != :status', { status: 'COMPLETED' })
+        .getCount();
+      return { count };
+    } catch (err) {
+      throw new InternalServerErrorException('Internal Server Error');
+    }
+  }
+
   async getLastShiftByUserId(userId: string) {
     return this.sharedShiftsService.getLastShiftByUserId(this.dataSource.manager, userId);
   }
@@ -272,6 +338,7 @@ export class ShiftsService {
 
     const shift = await this.shiftRepository.findOne({
       where: { id: shiftId },
+      relations: ['booth', 'user']
     });
 
     return shift;
@@ -283,18 +350,20 @@ export class ShiftsService {
       await this.log(
         user,
         `${message}_FAILED`,
-        `Shift not fount from sent id : ${id}.`,
+        `Shift with ID: ${id} not found for the requested operation.`,
       );
       throw new NotFoundException('Shift not found.');
     }
 
-    if (shiftData.status !== 'CLOSE') {
+    const boothName = shiftData.booth?.name || 'Unknown Booth';
+
+    if (shiftData.status !== 'CLOSE' && shiftData.status !== 'AWAITINGAUDIT') {
       await this.log(
         user,
         `${message}_FAILED`,
-        `Shift id : ${id} is not in CLOSE status.`,
+        `Shift at ${boothName} (Shift ID: ${id}) is not in CLOSE or AWAITINGAUDIT status.`,
       );
-      throw new ConflictException('Shift is not in close status');
+      throw new ConflictException(`Shift at ${boothName} is not in close or awaiting audit status`);
     }
 
     return shiftData;
@@ -310,7 +379,7 @@ export class ShiftsService {
 
   async getCurrentShiftDetails(
     boothId: string | null,
-    shiftId : string | null 
+    shiftId: string | null
   ) {
     const boothData = await this.boothService.findBoothCurrentShift(
       boothId,
@@ -322,6 +391,7 @@ export class ShiftsService {
     }
 
     const shiftDetail = new ShiftDetail(
+      boothData.boothid ?? boothId,
       boothData.name,
       boothData.location,
       true,
@@ -334,6 +404,7 @@ export class ShiftsService {
       boothData.status ?? null,
       boothData.cash_advance ?? null,
       boothData.balance_check ?? null,
+      boothData.startTime ?? null,
     );
 
     if (shiftId) {
@@ -354,6 +425,37 @@ export class ShiftsService {
     return shiftDetail;
   }
 
+  async getBulkCurrentShiftDetails(from?: string, to?: string) {
+    const fromDate = from ? new Date(from) : undefined;
+    const toDate = to ? new Date(to) : undefined;
+    
+    // Get all booth/shift pairs
+    const outerJoins = await this.boothService.findBoothShiftOuterJoin(fromDate, toDate);
+
+    if (!outerJoins || outerJoins.length === 0) {
+      return [];
+    }
+
+    // Fetch details for each booth/shift concurrently
+    const shiftDetailsPromises = outerJoins.map(async (item: any) => {
+      const shiftDetail = await this.getCurrentShiftDetails(item.boothID, item.shiftID);
+      if (!shiftDetail) {
+         const booth = await this.boothService.findOne(item.boothID);
+         const minimalDetail = new ShiftDetail(item.boothID, booth.name, booth.location, true, null, null);
+         // Ensure we include boothID, so the frontend can identify it!
+         // Wait, ShiftDetail does not have boothID field? Let's add it below if it's missing in frontend, or frontend uses name.
+         // Actually, frontend ShiftCard needs boothId. 
+         // ShiftDetail class in types/index.ts has shiftid, userid, name, username, location.
+         // Wait, where is boothId? Let's check ShiftDetail.
+         return minimalDetail;
+      }
+      return shiftDetail;
+    });
+
+    const shiftDetailsList = await Promise.all(shiftDetailsPromises);
+    return shiftDetailsList.filter(s => s !== null);
+  }
+
   // update
 
   async setStatusToOpen(
@@ -365,19 +467,23 @@ export class ShiftsService {
     const shiftRepo = manager.getRepository(Shift);
     const updateResult = await shiftRepo.update({ id: id }, { status: 'OPEN' });
     if (updateResult.affected == 0) {
+      const shiftData = await shiftRepo.findOne({ where: { id }, relations: ['booth'] });
+      const boothName = shiftData?.booth?.name || 'Unknown Booth';
       await this.log(
         currentUser,
         'OPEN_SHIFT_FAILED',
-        `Can't set status Shift id : ${id} to OPEN.`,
+        `Can't set status for shift at ${boothName} (Shift ID: ${id}) to OPEN.`,
         manager,
       );
-      throw new NotFoundException(`Can't set status Shift id : ${id} to OPEN.`);
+      throw new NotFoundException(`Can't set status for shift at ${boothName} to OPEN.`);
     }
 
+    const shiftData = await shiftRepo.findOne({ where: { id }, relations: ['booth'] });
+    const boothName = shiftData?.booth?.name || 'Unknown Booth';
     await this.log(
       currentUser,
       'OPEN_SHIFT_SUCCESS',
-      `Update shift id : ${id} from ${previousStatus} to OPEN`,
+      `Update shift at ${boothName} (Shift ID: ${id}) from ${previousStatus} to OPEN`,
       manager,
     );
     this.sseService.triggerRefreshShiftId(id);
@@ -396,16 +502,17 @@ export class ShiftsService {
       id,
       'AUDIT_SHIFT',
     );
+    const boothName = shiftData.booth?.name || 'Unknown Booth';
     const pendingTransId = await this.transactionService.getPendingTransId(id);
 
     if (pendingTransId && pendingTransId.length != 0) {
       await this.log(
         user,
         'AUDIT_SHIFT_FAILED',
-        `Can't audit shift id : ${id} cause this shift still have ${pendingTransId.length} pending exchange transaction.`,
+        `Can't audit shift at ${boothName} (Shift ID: ${id}) because it still has ${pendingTransId.length} pending exchange transaction(s).`,
       );
       throw new ConflictException(
-        `Can't audit this shift id: ${id} cause this shift still have ${pendingTransId.length} pending exchange transaction.`,
+        `Can't audit shift at ${boothName} because it still has ${pendingTransId.length} pending exchange transaction(s).`,
       );
     }
 
@@ -430,7 +537,7 @@ export class ShiftsService {
 
       const shiftRepo = manager.getRepository(Shift);
       const updateresult = await shiftRepo.update(
-        { id: id, status: 'CLOSE' },
+        { id: id, status: In(['CLOSE', 'AWAITINGAUDIT']) },
         {
           status: 'COMPLETED',
           balance_check: paras.balanceCheck,
@@ -441,10 +548,10 @@ export class ShiftsService {
         await this.log(
           user,
           'AUDIT_SHIFT_FAILED',
-          `Can't audit this shift id: ${id} may casuse by some user just change status to 'OPEN'.`,
+          `Can't audit shift at ${boothName} (Shift ID: ${id}) maybe someone just changed status to 'OPEN'.`,
         );
         throw new ConflictException(
-          `Can't audit this shift id: ${id} may casuse by some user just change status to 'OPEN'.`,
+          `Can't audit shift at ${boothName} maybe someone just changed status to 'OPEN'.`,
         );
       }
 
@@ -453,7 +560,7 @@ export class ShiftsService {
       await this.log(
         user,
         'AUDIT_SHIFT_SUCCESS',
-        `This shift id : ${id} had been audited.`,
+        `Shift at ${boothName} (Shift ID: ${id}) has been audited.`,
       );
     });
     this.sseService.triggerRefreshShiftId(id);
@@ -472,35 +579,38 @@ export class ShiftsService {
     });
   }
 
-  async softDelete(user : any , id : string , manager ?: EntityManager) {
+  async softDelete(user: any, id: string, manager?: EntityManager) {
 
-      const transaction = (manager ? manager : this.dataSource).transaction(async (txManager)=>{
-         // ลบข้อมูล
-        const shiftRepo = txManager.getRepository(Shift) ;
+    const transaction = (manager ? manager : this.dataSource).transaction(async (txManager) => {
+      // ลบข้อมูล
+      const shiftRepo = txManager.getRepository(Shift);
 
-        const updateResult = await shiftRepo.softDelete({id:id , status : Not("COMPLETED")}) ; 
-        
-        // เช็คว่าถูกลบไหม
- 
-        if(updateResult.affected == 0) {
-          const shift = await shiftRepo.findOne({where:{id : id}}) ; 
-          if (!shift) {
-            await this.log(user , `DELETED_SHIFT_FAILED` , `shift id : ${id} not found in database.` , txManager) ; 
-            throw new NotFoundException('Deleted Failed Shift Not Found In Database.') ;
-          } 
-          await this.log(user , `DELETED_SHIFT_FAILED` , `shift id : ${id} is already COMPLETED.` , txManager) ; 
-          throw new ConflictException('COMPLETED Shift cannot be deleted.') ;
-        } 
+      const updateResult = await shiftRepo.softDelete({ id: id, status: Not("COMPLETED") });
 
-        await this.log(user , `DELETED_SHIFT_SUCCESS` , `shift id : ${id} has been deleted in database.` , txManager) ; 
+      // เช็คว่าถูกลบไหม
 
-      }) ;
-      try {
-        return await transaction ; 
+      if (updateResult.affected == 0) {
+        const shift = await shiftRepo.findOne({ where: { id: id }, relations: ['booth'] });
+        const boothName = shift?.booth?.name || 'Unknown Booth';
+        if (!shift) {
+          await this.log(user, `DELETED_SHIFT_FAILED`, `Shift ID: ${id} not found in database.`, txManager);
+          throw new NotFoundException('Deleted Failed Shift Not Found In Database.');
+        }
+        await this.log(user, `DELETED_SHIFT_FAILED`, `Shift at ${boothName} (Shift ID: ${id}) is already COMPLETED.`, txManager);
+        throw new ConflictException('COMPLETED Shift cannot be deleted.');
       }
-      catch(err) {
-        handleError(err , 'Deleted Shift') ; 
-      }
+
+      const shift = await shiftRepo.findOne({ where: { id: id }, withDeleted: true, relations: ['booth'] });
+      const boothName = shift?.booth?.name || 'Unknown Booth';
+      await this.log(user, `DELETED_SHIFT_SUCCESS`, `Shift at ${boothName} (Shift ID: ${id}) has been deleted in database.`, txManager);
+
+    });
+    try {
+      return await transaction;
+    }
+    catch (err) {
+      handleError(err, 'Deleted Shift');
+    }
   }
 
   private async saveCalculatedPerformance(
@@ -515,7 +625,7 @@ export class ShiftsService {
     const toDate = new Date(year, month, 0, 23, 59, 59, 999);
 
     const shiftRepo = manager.getRepository(Shift);
-    const shifts = await this.getShiftsByUserIdAndMonth(userId , month , year) ; 
+    const shifts = await this.getShiftsByUserIdAndMonth(userId, month, year);
 
     const totalBalanceCheck = shifts.reduce(
       (sum, shift) => Number(sum) + Number(shift.balance_check || 0),
@@ -543,7 +653,6 @@ export class ShiftsService {
       });
     }
 
-    console.log('performance', shifts);
     return await performanceRepo.save(performance);
   }
 

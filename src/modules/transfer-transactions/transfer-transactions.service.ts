@@ -133,10 +133,10 @@ export class TransferTransactionsService {
         await this.log(
           user,
           'FIRST_SHIFT_CASH_COUNT_FAILED',
-          `User ID ${user.id} not found`,
+          `User ${user.username || 'Unknown'} (ID: ${user.id}) not found`,
           manager,
         );
-        throw new NotFoundException(`User with ID ${user.id} not found`);
+        throw new NotFoundException(`User ${user.username || 'Unknown'} not found`);
       }
 
       // // 2. Get Exchange Rate (Passing manager ensures fresh data)
@@ -156,19 +156,19 @@ export class TransferTransactionsService {
       const targetBooth = await manager.getRepository(Booth).findOne({
         where: {
           id: firstShiftCashCountDto.transferDto.boothId,
-          isActive: true,
         },
       });
 
-      if (!targetBooth) {
+      if (!targetBooth || !targetBooth.isActive) {
+        const boothName = targetBooth ? targetBooth.name : 'Unknown';
         await this.log(
           user,
           'FIRST_SHIFT_CASH_COUNT_FAILED',
-          `Booth ${firstShiftCashCountDto.transferDto.boothId} inactive or not found`,
+          `Booth ${boothName} (ID: ${firstShiftCashCountDto.transferDto.boothId}) inactive or not found`,
           manager,
         );
         throw new Error(
-          `Target booth with ID ${firstShiftCashCountDto.transferDto.boothId} not found or inactive`,
+          `Target booth ${boothName} not found or inactive`,
         );
       }
 
@@ -182,11 +182,11 @@ export class TransferTransactionsService {
         await this.log(
           user,
           'FIRST_SHIFT_CASH_COUNT_FAILED',
-          `Booth ${firstShiftCashCountDto.transferDto.boothId} does not have an active shift`,
+          `Booth ${targetBooth.name} (ID: ${firstShiftCashCountDto.transferDto.boothId}) does not have an active shift`,
           manager,
         );
         throw new Error(
-          `Target booth with ID ${firstShiftCashCountDto.transferDto.boothId} does not have an active shift`,
+          `Target booth ${targetBooth.name} does not have an active shift`,
         );
       }
 
@@ -194,11 +194,11 @@ export class TransferTransactionsService {
         await this.log(
           user,
           'FIRST_SHIFT_CASH_COUNT_FAILED',
-          `Booth ${firstShiftCashCountDto.transferDto.boothId} does not have an active shift`,
+          `Booth ${targetBooth.name} (ID: ${firstShiftCashCountDto.transferDto.boothId}) does not have an active shift`,
           manager,
         );
         throw new Error(
-          `Target booth with ID ${firstShiftCashCountDto.transferDto.boothId} does not have an active shift`,
+          `Target booth ${targetBooth.name} does not have an active shift`,
         );
       }
 
@@ -215,16 +215,15 @@ export class TransferTransactionsService {
           },
         });
 
-      console.log('beforeFirstShiftStock', beforeFirstShiftStock);
       if (beforeFirstShiftStock) {
         await this.log(
           user,
           'FIRST_SHIFT_CASH_COUNT_FAILED',
-          `An existing FIRST_SHIFT_CASH_COUNT transaction already exists for booth ${firstShiftCashCountDto.transferDto.boothId} in the active shift`,
+          `An existing FIRST_SHIFT_CASH_COUNT transaction already exists for booth ${targetBooth.name} (ID: ${firstShiftCashCountDto.transferDto.boothId}) in the active shift`,
           manager,
         );
         throw new Error(
-          `A FIRST_SHIFT_CASH_COUNT transaction already exists for booth ${firstShiftCashCountDto.transferDto.boothId} in the active shift`,
+          `A FIRST_SHIFT_CASH_COUNT transaction already exists for booth ${targetBooth.name} in the active shift`,
         );
       }
 
@@ -310,11 +309,10 @@ export class TransferTransactionsService {
 
       await this.cashCountsService.create(user, cashCountData, manager);
 
-      // // 8. Finalize Logs & Response
       await this.log(
         user,
         'FIRST_SHIFT_CASH_COUNT_SUCCESS',
-        `Successfully counted ${firstShiftCashCountDto.transferDto.amount} THB for booth ${firstShiftCashCountDto.transferDto.boothId}`,
+        `Successfully counted ${firstShiftCashCountDto.transferDto.amount} THB for booth ${targetBooth.name} (ID: ${firstShiftCashCountDto.transferDto.boothId})`,
         manager,
       );
 
@@ -409,6 +407,11 @@ export class TransferTransactionsService {
   async transferBoothToBooth(user: any, transferDto: TransferBoothToBoothDto) {
     try {
       return await this.dataSource.transaction(async (manager) => {
+        const sourceBoothData = await manager.getRepository(Booth).findOne({ where: { id: transferDto.boothId } });
+        const targetBoothData = await manager.getRepository(Booth).findOne({ where: { id: transferDto.refBoothId } });
+        const sourceBoothName = sourceBoothData ? sourceBoothData.name : 'Unknown';
+        const targetBoothName = targetBoothData ? targetBoothData.name : 'Unknown';
+
         // Validate exchange rate
         const exchangeRate = await manager.getRepository(ExchangeRate).findOne({
           where: { id: transferDto.exchangeRateId },
@@ -418,7 +421,7 @@ export class TransferTransactionsService {
           await this.log(
             user,
             'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${transferDto.exchangeRateId} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Currency not found`,
+            `Failed to transfer ${transferDto.amount} ${transferDto.exchangeRateId} from booth ${sourceBoothName} (ID: ${transferDto.boothId}) to booth ${targetBoothName} (ID: ${transferDto.refBoothId}): Currency not found`,
             manager,
           );
           throw new NotFoundException(
@@ -430,7 +433,7 @@ export class TransferTransactionsService {
           await this.log(
             user,
             'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Invalid transfer amount`,
+            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${sourceBoothName} (ID: ${transferDto.boothId}) to booth ${targetBoothName} (ID: ${transferDto.refBoothId}): Invalid transfer amount`,
           );
           throw new BadRequestException(
             'Transfer amount must be greater than zero',
@@ -447,7 +450,7 @@ export class TransferTransactionsService {
           await this.log(
             user,
             'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Source booth not found or inactive`,
+            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${sourceBoothName} (ID: ${transferDto.boothId}) to booth ${targetBoothName} (ID: ${transferDto.refBoothId}): Source booth not found or inactive`,
             manager,
           );
           throw new NotFoundException(
@@ -466,7 +469,7 @@ export class TransferTransactionsService {
           await this.log(
             user,
             'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Source booth does not have an active shift`,
+            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${sourceBoothName} (ID: ${transferDto.boothId}) to booth ${targetBoothName} (ID: ${transferDto.refBoothId}): Source booth does not have an active shift`,
             manager,
           );
           throw new BadRequestException(
@@ -481,7 +484,7 @@ export class TransferTransactionsService {
           await this.log(
             user,
             'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Target booth not found or inactive`,
+            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${sourceBoothName} (ID: ${transferDto.boothId}) to booth ${targetBoothName} (ID: ${transferDto.refBoothId}): Target booth not found or inactive`,
             manager,
           );
           throw new BadRequestException(
@@ -499,7 +502,7 @@ export class TransferTransactionsService {
           await this.log(
             user,
             'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Target booth does not have an active shift`,
+            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${sourceBoothName} (ID: ${transferDto.boothId}) to booth ${targetBoothName} (ID: ${transferDto.refBoothId}): Target booth does not have an active shift`,
             manager,
           );
           throw new BadRequestException(
@@ -512,7 +515,7 @@ export class TransferTransactionsService {
           await this.log(
             user,
             'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Source and target booths cannot be the same`,
+            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${sourceBoothName} (ID: ${transferDto.boothId}) to booth ${targetBoothName} (ID: ${transferDto.refBoothId}): Source and target booths cannot be the same`,
             manager,
           );
           throw new BadRequestException(
@@ -530,7 +533,7 @@ export class TransferTransactionsService {
           await this.log(
             user,
             'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: No exchange transactions found for the specified currency in the active shift`,
+            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${sourceBoothName} (ID: ${transferDto.boothId}) to booth ${targetBoothName} (ID: ${transferDto.refBoothId}): No exchange transactions found for the specified currency in the active shift`,
             manager,
           );
           throw new BadRequestException(
@@ -543,7 +546,7 @@ export class TransferTransactionsService {
           await this.log(
             user,
             'TRANSFER_BOOTH_TO_BOOTH_FAILED',
-            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}: Insufficient exchanged amount in active shift`,
+            `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${sourceBoothName} (ID: ${transferDto.boothId}) to booth ${targetBoothName} (ID: ${transferDto.refBoothId}): Insufficient exchanged amount in active shift`,
             manager,
           );
           throw new BadRequestException(
@@ -612,7 +615,7 @@ export class TransferTransactionsService {
         await this.log(
           user,
           'TRANSFER_BOOTH_TO_BOOTH_SUCCESS',
-          `Transferred ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to booth ${transferDto.refBoothId}`,
+          `Transferred ${transferDto.amount} ${exchangeRate.name} from booth ${sourceBoothName} (ID: ${transferDto.boothId}) to booth ${targetBoothName} (ID: ${transferDto.refBoothId})`,
           manager,
         );
         this.sseService.triggerRefreshShiftId(activeShift.id);
@@ -640,6 +643,9 @@ export class TransferTransactionsService {
     manager?: EntityManager,
   ) {
     const execute = async (txManager: EntityManager) => {
+      const targetBoothData = await txManager.getRepository(Booth).findOne({ where: { id: transferDto.boothId } });
+      const targetBoothName = targetBoothData ? targetBoothData.name : 'Unknown';
+
       // Validate exchange rate
       const exchangeRate = await txManager.getRepository(ExchangeRate).findOne({
         where: { id: transferDto.exchangeRateId },
@@ -649,7 +655,7 @@ export class TransferTransactionsService {
         await this.log(
           user,
           'TRANSFER_CENTER_TO_BOOTH_FAILED',
-          `Failed to transfer ${transferDto.amount} ${transferDto.exchangeRateId} from center to booth ${transferDto.boothId}: Currency not found`,
+          `Failed to transfer ${transferDto.amount} ${transferDto.exchangeRateId} from center to booth ${targetBoothName} (ID: ${transferDto.boothId}): Currency not found`,
           txManager,
         );
         throw new NotFoundException(
@@ -661,7 +667,7 @@ export class TransferTransactionsService {
         await this.log(
           user,
           'TRANSFER_CENTER_TO_BOOTH_FAILED',
-          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Invalid transfer amount`,
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${targetBoothName} (ID: ${transferDto.boothId}): Invalid transfer amount`,
           txManager,
         );
         throw new BadRequestException(
@@ -676,11 +682,11 @@ export class TransferTransactionsService {
         await this.log(
           user,
           'TRANSFER_CENTER_TO_BOOTH_FAILED',
-          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Target booth not found or inactive`,
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${targetBoothName} (ID: ${transferDto.boothId}): Target booth not found or inactive`,
           txManager,
         );
         throw new NotFoundException(
-          `Target booth with ID ${transferDto.boothId} not found or inactive`,
+          `Target booth ${targetBoothName} not found or inactive`,
         );
       }
 
@@ -694,11 +700,11 @@ export class TransferTransactionsService {
         await this.log(
           user,
           'TRANSFER_CENTER_TO_BOOTH_FAILED',
-          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Target booth does not have an active shift`,
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${targetBoothName} (ID: ${transferDto.boothId}): Target booth does not have an active shift`,
           txManager,
         );
         throw new BadRequestException(
-          `Target booth with ID ${transferDto.boothId} does not have an active shift`,
+          `Target booth ${targetBoothName} does not have an active shift`,
         );
       }
       const checkstockExchanges = await this.stocksService.getStock(
@@ -729,7 +735,7 @@ export class TransferTransactionsService {
         await this.log(
           user,
           'TRANSFER_CENTER_TO_BOOTH_FAILED',
-          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}: Invalid transfer type ${transferDto.type}`,
+          `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from center to booth ${targetBoothName} (ID: ${transferDto.boothId}): Invalid transfer type ${transferDto.type}`,
           txManager,
         );
         throw new BadRequestException(
@@ -791,7 +797,7 @@ export class TransferTransactionsService {
     await this.log(
       user,
       'TRANSFER_CENTER_TO_BOOTH_SUCCESS',
-      `Transferred ${transferDto.amount} ${exchangeRate.name} from center to booth ${transferDto.boothId}`,
+      `Transferred ${transferDto.amount} ${exchangeRate.name} from center to booth ${targetActiveShift?.booth?.name || transferDto.boothId} (ID: ${transferDto.boothId})`,
       manager,
     );
 
@@ -820,7 +826,7 @@ export class TransferTransactionsService {
       await this.log(
         user,
         'TRANSFER_CENTER_TO_BOOTH_FAILED',
-        `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to center: No exchange transactions found for the specified currency in the active shift`,
+        `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${targetActiveShift?.booth?.name || transferDto.boothId} (ID: ${transferDto.boothId}) to center: No exchange transactions found for the specified currency in the active shift`,
         manager,
       );
       throw new BadRequestException(
@@ -832,7 +838,7 @@ export class TransferTransactionsService {
       await this.log(
         user,
         'TRANSFER_CENTER_TO_BOOTH_FAILED',
-        `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to center: Insufficient exchanged amount in active shift`,
+        `Failed to transfer ${transferDto.amount} ${exchangeRate.name} from booth ${targetActiveShift?.booth?.name || transferDto.boothId} (ID: ${transferDto.boothId}) to center: Insufficient exchanged amount in active shift`,
         manager,
       );
       throw new BadRequestException(
@@ -871,7 +877,7 @@ export class TransferTransactionsService {
     await this.log(
       user,
       'TRANSFER_CENTER_TO_BOOTH_SUCCESS',
-      `Transferred ${transferDto.amount} ${exchangeRate.name} from booth ${transferDto.boothId} to center`,
+      `Transferred ${transferDto.amount} ${exchangeRate.name} from booth ${targetActiveShift?.booth?.name || transferDto.boothId} (ID: ${transferDto.boothId}) to center`,
       manager,
     );
     this.sseService.triggerRefreshShiftId(targetActiveShift.id);

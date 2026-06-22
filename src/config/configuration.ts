@@ -16,7 +16,9 @@ export default () => ({
   // กำหนดค่าการตั้งค่า JWT โดยใช้ค่า JWT_SECRET และ JWT_EXPIRES_IN จาก environment variable หรือใช้ค่าเริ่มต้น
   jwt: {
     secret: process.env.JWT_SECRET ?? 'change_this_secret',
-    expiresIn: process.env.JWT_EXPIRES_IN ?? '1d',
+    expiresIn: process.env.JWT_EXPIRES_IN ?? '30m',
+    refreshSecret: process.env.JWT_REFRESH_SECRET ?? 'change_this_refresh_secret',
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '14h',
   },
 
   // กำหนดค่าการเชื่อมต่อ Redis โดยใช้ค่า REDIS_HOST และ REDIS_PORT จาก environment variable หรือใช้ค่าเริ่มต้น

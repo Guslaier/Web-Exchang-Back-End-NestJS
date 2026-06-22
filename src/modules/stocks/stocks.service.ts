@@ -33,7 +33,7 @@ export class StocksService {
     private readonly stockRepository: Repository<Stock>,
     @Inject('REDIS_CLIENT')
     private readonly redisClient: Redis,
-  ) {}
+  ) { }
 
   // create
 
@@ -49,7 +49,7 @@ export class StocksService {
     const exchangeRateName = isTHB
       ? 'THB'
       : (await this.exchangeRatesService.findById(exchangeRateId as string))
-          .name;
+        .name;
     if (isTHB) {
       await this.createTHBSummary(shiftId);
     }
@@ -269,7 +269,6 @@ export class StocksService {
       exchangedStock,
       updateExchangeAmount,
     );
-    console.log('isExchangeOverBalance: ', isExchangeOverBalance);
     if (isExchangeOverBalance) {
       this.log(
         user,
@@ -389,12 +388,7 @@ export class StocksService {
       receivedStock,
       updateReceiveAmount,
     );
-    console.log(
-      'isReceiveUpdateOverBalance : ',
-      isReceiveUpdateOverBalance,
-      ' checkBalance : ',
-      this.checkBalance(receivedStock, updateReceiveAmount),
-    );
+
     if (isReceiveUpdateOverBalance) {
       this.log(
         user,
@@ -453,17 +447,17 @@ export class StocksService {
     const isReceiverExist = updateStockDto.receiver ? true : false;
     const promiseSenderShift = isSenderExist
       ? this.shiftsService.getLastShiftByBoothId(
-          updateStockDto.sender ?? undefined,
-          true,
-          manager,
-        )
+        updateStockDto.sender ?? undefined,
+        true,
+        manager,
+      )
       : Promise.resolve(null);
     const promiseReceiverShift = isReceiverExist
       ? this.shiftsService.getLastShiftByBoothId(
-          updateStockDto.receiver ?? undefined,
-          true,
-          manager,
-        )
+        updateStockDto.receiver ?? undefined,
+        true,
+        manager,
+      )
       : Promise.resolve(null);
 
     // ดึงข้อมูล shift ของ sender และ receiver พร้อมกันเพื่อเพิ่มประสิทธิภาพ

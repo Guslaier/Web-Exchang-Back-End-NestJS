@@ -16,6 +16,7 @@ export type TransferTransactionType =
   | 'TRANSFER_IN'
   | 'TRANSFER_OUT'; // สำหรับการโอนเงินระหว่างสาขา
 export type TranType = 'BUY' | 'SELL'; // อิงตาม Database
+export type ShiftStatus = 'OPEN' | 'CLOSE' | 'COMPLETED' | 'AWAITINGAUDIT'; // สถานะของกะ
 
 //== User Interfaces ==//
 export interface UserData {
@@ -57,29 +58,34 @@ export interface ShiftData {
   cashAdvance: number; // cash_advance
   createdAt: Date; // created_at
   updatedAt: Date; // updated_at
+  status: ShiftStatus;
 }
 
 export class ShiftDetail {
+  boothid: string | null = null;
   shiftid: string | null = null;
   userid: string | null = null;
   name: string = '';
   username: string | null = null;
   location: string | null = '';
   isActive: boolean = true;
-  status: string | null = '';
+  status: ShiftStatus | null = null;
   cashcount: CashCountInput[] = [];
   tranfer: Tranfersum[] = [];
   exchange: ExchangeSum[] = [];
   balance_check: number | null = null;
   cash_advance: number | null = null;
+  startTime: string | Date | null = null;
 
   constructor(
+    boothid: string | null,
     name: string,
     location: string | null,
     active: boolean,
     userid: string | null,
     username: string | null,
   ) {
+    this.boothid = boothid;
     this.name = name;
     this.location = location;
     this.isActive = active;
@@ -89,14 +95,16 @@ export class ShiftDetail {
 
   setShiftData(
     id: string,
-    status: string,
+    status: ShiftStatus,
     cash_advance: number | null,
     balance_check: number | null,
+    startTime?: string | Date | null,
   ) {
     this.shiftid = id;
     this.status = status;
     this.cash_advance = cash_advance;
     this.balance_check = balance_check;
+    if (startTime !== undefined) this.startTime = startTime;
   }
 
   setCashcount(cc: CashCountInput[]) {

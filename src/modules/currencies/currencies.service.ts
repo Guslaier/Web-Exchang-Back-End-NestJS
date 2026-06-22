@@ -424,7 +424,6 @@ export class CurrenciesService implements OnModuleInit {
       }
 
       const results = await this.dataSource.transaction(async (manager) => {
-        console.log('Received bulk mode update request:', updateData);
 
         const results = [];
 
