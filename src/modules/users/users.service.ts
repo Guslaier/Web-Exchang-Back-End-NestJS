@@ -265,6 +265,15 @@ export class UsersService {
           );
           throw new ForbiddenException('Cannot delete yourself');
         }
+        if (currentUser.role === 'MANAGER' && user.role !== 'EMPLOYEE') {
+          await this.log(
+            currentUser,
+            'DELETE_USER_FAILED',
+            `Manager can only delete employee: ${user.username} (ID: ${id})`,
+            manager,
+          );
+          throw new ForbiddenException('Manager can only delete employee');
+        }
 
         // 2. มิวเทชันอีเมล
         const mutatedEmail = `${user.email}_deleted_${Date.now()}`;
@@ -338,6 +347,15 @@ export class UsersService {
           );
           throw new ForbiddenException('Cannot deactivate admin');
         }
+        if (currentUser.role === 'MANAGER' && user.role !== 'EMPLOYEE') {
+          await this.log(
+            currentUser,
+            'DEACTIVATE_USER_FAILED',
+            `Manager can only deactivate employee: ${user.username} (ID: ${id})`,
+            manager,
+          );
+          throw new ForbiddenException('Manager can only deactivate employee');
+        }
 
         // 2. อัปเดตสถานะ
         await userRepo.update(id, { isActive: false });
@@ -369,6 +387,16 @@ export class UsersService {
             manager,
           );
           throw new NotFoundException('User not found');
+        }
+
+        if (currentUser.role === 'MANAGER' && user.role !== 'EMPLOYEE') {
+          await this.log(
+            currentUser,
+            'REACTIVATE_USER_FAILED',
+            `Manager can only reactivate employee: ${user.username} (ID: ${id})`,
+            manager,
+          );
+          throw new ForbiddenException('Manager can only reactivate employee');
         }
 
         await userRepo.update(id, { isActive: true });
@@ -524,6 +552,7 @@ export class UsersService {
         'phoneNumber',
         'isActive',
         'createdAt',
+        'updatedAt',
       ],
     });
     return users;
