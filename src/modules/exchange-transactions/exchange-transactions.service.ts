@@ -484,6 +484,7 @@ export class ExchangeTransactionsService {
         select: {
           id: true,
           type: true,
+          customerId: true,
           foreignCurrencyAmount: true,
           totalthaiBahtAmount: true,
           exchangeRate: true,
@@ -535,6 +536,7 @@ export class ExchangeTransactionsService {
       customer,
       approver,
       employee,
+      customerId,
       ...restExchangeTransaction
     } = exchangeTransaction;
     const { createdAt, shift, ...restTransaction } = transaction;
@@ -555,6 +557,7 @@ export class ExchangeTransactionsService {
 
     const exchangeTransactionDetail = {
       ...restExchangeTransaction,
+      customerId: customerId || id || null,
       createdAt,
       shiftId: shift.id,
       employee: user.username,
@@ -562,6 +565,8 @@ export class ExchangeTransactionsService {
       voidedBy: employee ? employee.username : null,
       approvedBy: approver ? approver.username : null,
     };
+
+    console.log(exchangeTransactionDetail) ; 
 
     return exchangeTransactionDetail;
   }

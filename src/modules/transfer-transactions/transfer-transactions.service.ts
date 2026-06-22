@@ -1106,7 +1106,7 @@ export class TransferTransactionsService {
         .getRepository(TransferTransaction)
         .findOne({
           where: { id: transactionId },
-          relations: ['booth', 'refBooth'],
+          relations: ['booth', 'refBooth', 'user'],
           select: {
             id: true,
             userId: true,
@@ -1127,11 +1127,16 @@ export class TransferTransactionsService {
               id: true,
               name: true,
             },
+            user: {
+              id: true,
+              username: true,
+            },
           },
         });
       return {
         id: transferTransaction?.id,
         userId: transferTransaction?.userId,
+        username: transferTransaction?.user?.username,
         exchangeRateId: transferTransaction?.exchangeRateId,
         exchangeRateName: transferTransaction?.exchangeRateName,
         internalTransactionId: transferTransaction?.internalTransactionId,
